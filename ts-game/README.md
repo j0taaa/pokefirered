@@ -11,10 +11,11 @@ The app currently implements a functional runtime slice:
 - Browser keyboard input adapter (WASD/Arrows + Shift run)
 - Map loading adapter boundary (`MapSource`) with JSON-backed prototype fixture
 - Player movement + facing + movement animation state
+- NPC entity starter with patrol paths and map-aware collision probes
 - Camera-follow viewport with map-bound clamping
 - Canvas renderer with visible-tile culling and sprite-like player rendering
-- HUD for FPS + player state + camera coordinates
-- Unit tests for movement, collisions, camera behavior, and map source parsing
+- HUD for FPS + player state + camera coordinates + NPC count
+- Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, and map source parsing
 
 ## Folder layout
 
@@ -42,6 +43,6 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 
 Near-term next increments:
 
-1. Add NPC entities and simple trigger zones.
-2. Introduce trigger zones + script callback hooks.
-3. Replace primitive player visuals with true sprite-sheet frames.
+1. Introduce trigger zones + script callback hooks.
+2. Replace primitive player visuals with true sprite-sheet frames.
+3. Add NPC idle timing, dialog stubs, and interaction-facing rules.

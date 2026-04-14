@@ -58,7 +58,8 @@ Current completion snapshot:
 2. ✅ Playable viewport + camera follow
 3. ✅ Player visual pass v1
 4. ✅ Map loading adapter boundary
-5. ⬜ NPCs, triggers, menus, battle slice, persistence, and data convergence
+5. ✅ Entity system starter (NPC patrols + collision probes)
+6. ⬜ Triggers, menus, battle slice, persistence, and data convergence
 
 ## Developer setup (decomp side)
 

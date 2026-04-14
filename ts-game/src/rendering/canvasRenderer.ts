@@ -1,4 +1,5 @@
 import type { CameraState } from '../core/camera';
+import type { NpcState } from '../game/npc';
 import type { PlayerState } from '../game/player';
 import type { TileMap } from '../world/tileMap';
 
@@ -24,7 +25,7 @@ export class CanvasRenderer {
     this.canvas.height = height;
   }
 
-  render(map: TileMap, player: PlayerState, camera: CameraState): void {
+  render(map: TileMap, player: PlayerState, npcs: NpcState[], camera: CameraState): void {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -53,7 +54,37 @@ export class CanvasRenderer {
       }
     }
 
+    this.drawNpcs(npcs, camera);
     this.drawPlayer(player, camera);
+  }
+
+  private drawNpcs(npcs: NpcState[], camera: CameraState): void {
+    for (const npc of npcs) {
+      const screenX = npc.position.x - camera.x;
+      const screenY = npc.position.y - camera.y;
+
+      this.ctx.fillStyle = '#f8b5b5';
+      this.ctx.fillRect(screenX, screenY, PLAYER_SIZE, PLAYER_SIZE);
+
+      this.ctx.fillStyle = '#5f2f2f';
+      this.ctx.fillRect(screenX + 2, screenY + 8, 10, 5);
+
+      this.ctx.fillStyle = '#2a1010';
+      switch (npc.facing) {
+        case 'up':
+          this.ctx.fillRect(screenX + 4, screenY + 1, 6, 3);
+          break;
+        case 'down':
+          this.ctx.fillRect(screenX + 4, screenY + 10, 6, 3);
+          break;
+        case 'left':
+          this.ctx.fillRect(screenX + 1, screenY + 4, 3, 6);
+          break;
+        case 'right':
+          this.ctx.fillRect(screenX + 10, screenY + 4, 3, 6);
+          break;
+      }
+    }
   }
 
   private drawPlayer(player: PlayerState, camera: CameraState): void {
