@@ -18,6 +18,8 @@ import {
   saveGameToStorage
 } from './game/saveData';
 import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
+import { createBattleOverlay, updateBattleOverlay } from './ui/battleOverlay';
+import { createBattleEncounterState, createBattleState, isBattleBlockingWorld, stepBattle, tryStartWildBattle } from './game/battle';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -35,6 +37,9 @@ shell.append(hud.root);
 const startMenuView = createStartMenuView();
 shell.append(startMenuView.root);
 
+const battleOverlay = createBattleOverlay();
+shell.append(battleOverlay.root);
+
 app.append(shell);
 
 const map = loadPrototypeRouteMap();
@@ -43,6 +48,8 @@ const npcs = createPrototypeNpcs();
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();
+const battle = createBattleState();
+const battleEncounter = createBattleEncounterState();
 const input = new BrowserInputAdapter();
 input.attach();
 
@@ -70,9 +77,13 @@ const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
 
-    stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, { onSaveConfirmed: handleSaveConfirmed });
+    stepBattle(battle, snapshot);
 
-    if (!isStartMenuBlockingWorld(startMenu)) {
+    if (!isBattleBlockingWorld(battle)) {
+      stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, { onSaveConfirmed: handleSaveConfirmed });
+    }
+
+    if (!isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle)) {
       stepInteraction(
         dialogue,
         snapshot,
@@ -88,7 +99,7 @@ const loop = new GameLoop({
     const previousX = player.position.x;
     const previousY = player.position.y;
 
-    if (!dialogue.active && !isStartMenuBlockingWorld(startMenu)) {
+    if (!dialogue.active && !isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle)) {
       stepPlayer(
         player,
         snapshot,
@@ -97,20 +108,25 @@ const loop = new GameLoop({
         (nextPosition) => collidesWithNpcs(nextPosition, npcs)
       );
 
-      if (previousX !== player.position.x || previousY !== player.position.y) {
+      const movedThisFrame = previousX !== player.position.x || previousY !== player.position.y;
+      if (movedThisFrame) {
         runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
           player,
           dialogue,
           runtime: scriptRuntime,
           scriptRegistry: prototypeScriptRegistry
         });
+
+        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame)) {
+          scriptRuntime.lastScriptId = 'battle.wild.start';
+        }
       }
     } else {
       player.moving = false;
       player.animationTime = 0;
     }
 
-    if (!isStartMenuBlockingWorld(startMenu)) {
+    if (!isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle)) {
       const frozenNpcIds = dialogue.active && dialogue.speakerId
         ? new Set<string>([dialogue.speakerId])
         : new Set<string>();
@@ -133,8 +149,9 @@ const loop = new GameLoop({
   },
   render() {
     renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu);
+    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
     updateStartMenuView(startMenuView, startMenu);
+    updateBattleOverlay(battleOverlay, battle);
   }
 });
 
