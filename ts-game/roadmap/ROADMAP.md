@@ -9,7 +9,7 @@ Legend: `✅ Done` · `🟡 In Progress` · `⬜ Planned`
 | 01. Runtime baseline + plan scaffolding | ✅ Done | 2026-04-14 | Create roadmap/plans structure and keep progress visible in-repo. | `ts-game/roadmap/` exists, step docs exist, roadmap status updated when work lands. |
 | 02. Playable viewport + camera follow | ✅ Done | 2026-04-14 | Move from full-map render to camera viewport with map-bound clamping. | Camera follows player, viewport is smaller than map, HUD shows camera coordinates. |
 | 03. Player visual pass v1 | ✅ Done | 2026-04-14 | Replace static marker with a directional sprite-like render + walk bob. | Directional pose markers and animated walk bob when moving. |
-| 04. Map loading adapter boundary | 🟡 In Progress | 2026-04-15 to 2026-04-18 | Separate prototype map from loading contract for future extracted data. | `MapSource` interface, JSON-backed loader, tests. |
+| 04. Map loading adapter boundary | ✅ Done | 2026-04-14 | Separate prototype map from loading contract for future extracted data. | `MapSource` interface, JSON-backed loader, tests. |
 | 05. Entity system starter (NPCs) | ⬜ Planned | 2026-04-19 to 2026-04-23 | Add NPC entities with simple idle/path behavior and collisions. | NPC data model, draw/update pass, collision probes, tests. |
 | 06. Trigger zones + scripts v1 | ⬜ Planned | 2026-04-24 to 2026-04-27 | Add sign/warp triggers and basic script execution hooks. | Trigger map layer + callback registry + tests. |
 | 07. UI menus foundation | ⬜ Planned | 2026-04-28 to 2026-05-02 | Add menu stack and keyboard navigation primitives. | Start menu opens/closes, selection state, test coverage. |

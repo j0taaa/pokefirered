@@ -9,12 +9,12 @@ The app currently implements a functional runtime slice:
 - Vite + TypeScript app shell (`index.html`, `src/main.ts`)
 - Fixed-step game loop
 - Browser keyboard input adapter (WASD/Arrows + Shift run)
-- Tile map data model with pixel collision checks
+- Map loading adapter boundary (`MapSource`) with JSON-backed prototype fixture
 - Player movement + facing + movement animation state
 - Camera-follow viewport with map-bound clamping
 - Canvas renderer with visible-tile culling and sprite-like player rendering
 - HUD for FPS + player state + camera coordinates
-- Unit tests for movement, collisions, and camera behavior
+- Unit tests for movement, collisions, camera behavior, and map source parsing
 
 ## Folder layout
 
@@ -42,6 +42,6 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 
 Near-term next increments:
 
-1. Introduce a map loading adapter boundary (`MapSource`) and JSON-backed map fixtures.
-2. Add NPC entities and simple trigger zones.
+1. Add NPC entities and simple trigger zones.
+2. Introduce trigger zones + script callback hooks.
 3. Replace primitive player visuals with true sprite-sheet frames.

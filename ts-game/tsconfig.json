@@ -12,7 +12,8 @@
     "types": [
       "vitest/globals"
     ],
-    "noEmit": true
+    "noEmit": true,
+    "resolveJsonModule": true
   },
   "include": [
     "src",
