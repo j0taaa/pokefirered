@@ -3,6 +3,7 @@ import type { PlayerState } from './player';
 
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
+  flags: Set<string>;
   consumedTriggerIds: Set<string>;
   lastScriptId: string | null;
 }
@@ -17,9 +18,34 @@ export type ScriptHandler = (context: ScriptContext) => void;
 
 export const createScriptRuntimeState = (): ScriptRuntimeState => ({
   vars: {},
+  flags: new Set<string>(),
   consumedTriggerIds: new Set<string>(),
   lastScriptId: null
 });
+
+export const getScriptVar = (runtime: ScriptRuntimeState, key: string): number =>
+  runtime.vars[key] ?? 0;
+
+export const setScriptVar = (runtime: ScriptRuntimeState, key: string, value: number): void => {
+  runtime.vars[key] = value;
+};
+
+export const addScriptVar = (runtime: ScriptRuntimeState, key: string, amount: number): number => {
+  const nextValue = getScriptVar(runtime, key) + amount;
+  runtime.vars[key] = nextValue;
+  return nextValue;
+};
+
+export const isScriptFlagSet = (runtime: ScriptRuntimeState, flag: string): boolean =>
+  runtime.flags.has(flag);
+
+export const setScriptFlag = (runtime: ScriptRuntimeState, flag: string): void => {
+  runtime.flags.add(flag);
+};
+
+export const clearScriptFlag = (runtime: ScriptRuntimeState, flag: string): void => {
+  runtime.flags.delete(flag);
+};
 
 export const openScriptDialogue = (
   dialogue: DialogueState,
@@ -47,8 +73,8 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     );
   },
   'coord.route-warning': ({ dialogue, runtime }) => {
-    const seenCount = runtime.vars.routeWarningSeen ?? 0;
-    runtime.vars.routeWarningSeen = seenCount + 1;
+    const seenCount = getScriptVar(runtime, 'routeWarningSeen');
+    setScriptVar(runtime, 'routeWarningSeen', seenCount + 1);
     openScriptDialogue(
       dialogue,
       'system',
@@ -56,6 +82,10 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
         ? 'A chill wind blows from the east...'
         : 'You feel that same chill again.'
     );
+  },
+  'coord.route-warning-followup': ({ dialogue, runtime }) => {
+    setScriptFlag(runtime, 'routeWarningAcknowledged');
+    openScriptDialogue(dialogue, 'system', 'You steel yourself and push onward.');
   },
   'warp.route-pool': ({ dialogue, player }) => {
     player.position.x = 2 * 16;
@@ -69,8 +99,8 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     ]);
   },
   'object.npc-bugcatcher-01.interact': ({ dialogue, runtime }) => {
-    const seenCount = runtime.vars.bugcatcherSeen ?? 0;
-    runtime.vars.bugcatcherSeen = seenCount + 1;
+    const seenCount = getScriptVar(runtime, 'bugcatcherSeen');
+    addScriptVar(runtime, 'bugcatcherSeen', 1);
     openDialogueSequence(dialogue, 'npc-bugcatcher-01', [
       'My Caterpie and I are taking a breather.',
       seenCount === 0

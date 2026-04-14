@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { vec2 } from '../src/core/vec2';
 import { runStepTriggersAtPlayerTile, tryRunFacingTrigger } from '../src/game/triggers';
 import { createDialogueState } from '../src/game/interaction';
-import { createScriptRuntimeState, type ScriptHandler } from '../src/game/scripts';
+import { createScriptRuntimeState, setScriptFlag, type ScriptHandler } from '../src/game/scripts';
 import type { PlayerState } from '../src/game/player';
 
 const player: PlayerState = {
@@ -55,5 +55,37 @@ describe('trigger execution', () => {
     runStepTriggersAtPlayerTile([trigger], player, 16, { player, dialogue, runtime, scriptRegistry: registry });
 
     expect(runtime.vars.counter).toBe(1);
+  });
+
+  test('supports extended var and flag conditions', () => {
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    runtime.vars.progress = 3;
+    const registry: Record<string, ScriptHandler> = {
+      gated: ({ runtime: r }) => {
+        r.vars.didRun = 1;
+      }
+    };
+    const trigger = {
+      id: 'extended-condition',
+      x: 3,
+      y: 3,
+      activation: 'step' as const,
+      scriptId: 'gated',
+      facing: 'any' as const,
+      once: false,
+      conditions: [
+        { var: 'progress', op: 'gte' as const, value: 2 },
+        { flag: 'cutscene.done', flagState: false }
+      ]
+    };
+
+    runStepTriggersAtPlayerTile([trigger], player, 16, { player, dialogue, runtime, scriptRegistry: registry });
+    expect(runtime.vars.didRun).toBe(1);
+
+    setScriptFlag(runtime, 'cutscene.done');
+    runtime.vars.didRun = 0;
+    runStepTriggersAtPlayerTile([trigger], player, 16, { player, dialogue, runtime, scriptRegistry: registry });
+    expect(runtime.vars.didRun).toBe(0);
   });
 });

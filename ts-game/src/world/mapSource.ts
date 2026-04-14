@@ -2,6 +2,15 @@ import prototypeRouteMapJson from './maps/prototypeRoute.json';
 import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
+export type TriggerConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte';
+
+export interface TriggerCondition {
+  var?: string;
+  flag?: string;
+  op?: TriggerConditionOperator;
+  value?: number;
+  flagState?: boolean;
+}
 
 export interface TriggerZone {
   id: string;
@@ -11,6 +20,7 @@ export interface TriggerZone {
   scriptId: string;
   facing: TriggerFacing;
   once: boolean;
+  conditions?: TriggerCondition[];
   conditionVar?: string;
   conditionEquals?: number;
 }
@@ -32,6 +42,52 @@ const isBooleanArray = (value: unknown): value is boolean[] =>
 
 const isFacing = (value: unknown): value is TriggerFacing =>
   value === 'any' || value === 'up' || value === 'down' || value === 'left' || value === 'right';
+
+const isConditionOperator = (value: unknown): value is TriggerConditionOperator =>
+  value === 'eq'
+  || value === 'ne'
+  || value === 'gt'
+  || value === 'gte'
+  || value === 'lt'
+  || value === 'lte';
+
+const parseTriggerCondition = (
+  raw: unknown,
+  mapId: string,
+  triggerId: string,
+  index: number
+): TriggerCondition => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" trigger "${triggerId}" condition ${index} is not an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const hasVar = typeof candidate.var === 'string' && candidate.var.length > 0;
+  const hasFlag = typeof candidate.flag === 'string' && candidate.flag.length > 0;
+  if (!hasVar && !hasFlag) {
+    throw new Error(`Map source "${mapId}" trigger "${triggerId}" condition ${index} requires var or flag.`);
+  }
+
+  if (candidate.op !== undefined && !isConditionOperator(candidate.op)) {
+    throw new Error(`Map source "${mapId}" trigger "${triggerId}" condition ${index} has invalid op.`);
+  }
+
+  if (candidate.value !== undefined && !Number.isInteger(candidate.value)) {
+    throw new Error(`Map source "${mapId}" trigger "${triggerId}" condition ${index} has invalid value.`);
+  }
+
+  if (candidate.flagState !== undefined && typeof candidate.flagState !== 'boolean') {
+    throw new Error(`Map source "${mapId}" trigger "${triggerId}" condition ${index} has invalid flagState.`);
+  }
+
+  return {
+    var: hasVar ? candidate.var as string : undefined,
+    flag: hasFlag ? candidate.flag as string : undefined,
+    op: candidate.op as TriggerConditionOperator | undefined,
+    value: candidate.value as number | undefined,
+    flagState: candidate.flagState as boolean | undefined
+  };
+};
 
 const parseTriggerZone = (raw: unknown, mapId: string): TriggerZone => {
   if (!raw || typeof raw !== 'object') {
@@ -72,6 +128,10 @@ const parseTriggerZone = (raw: unknown, mapId: string): TriggerZone => {
     throw new Error(`Map source "${mapId}" trigger "${candidate.id}" has invalid conditionEquals.`);
   }
 
+  if (candidate.conditions !== undefined && !Array.isArray(candidate.conditions)) {
+    throw new Error(`Map source "${mapId}" trigger "${candidate.id}" has invalid conditions.`);
+  }
+
   return {
     id: candidate.id,
     x: candidate.x as number,
@@ -80,6 +140,9 @@ const parseTriggerZone = (raw: unknown, mapId: string): TriggerZone => {
     scriptId: candidate.scriptId,
     facing,
     once: candidate.once === true,
+    conditions: (candidate.conditions as unknown[] | undefined)?.map((entry, index) =>
+      parseTriggerCondition(entry, mapId, candidate.id as string, index)
+    ),
     conditionVar: candidate.conditionVar as string | undefined,
     conditionEquals: candidate.conditionEquals as number | undefined
   };

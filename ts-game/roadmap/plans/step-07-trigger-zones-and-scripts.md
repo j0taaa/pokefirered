@@ -21,5 +21,10 @@ Add a first trigger/script slice that mirrors core FireRed field flow:
 ## Follow-ups
 
 - Add object-event script ids sourced from extracted map event tables.
-- Expand condition support beyond exact var equality (flags, ranges, negation).
 - Add script queue semantics (advance/close) instead of instant open/close dialogue toggles.
+
+## Additional iteration notes
+
+- 2026-04-14: Added FireRed-style trigger gating extensions that keep legacy `VarGet(trigger) == index` parity while also allowing additional AND conditions for variable ranges (`gt/gte/lt/lte/ne`) and flag-state checks.
+- 2026-04-14: Added script runtime helpers for var math and flags (`set/add/get var`, `set/clear/is flag`) so trigger/script code maps more directly to decomp-side `Var*` / `Flag*` operations.
+- 2026-04-14: Extended prototype route data with a follow-up coordinate trigger gated by both var progress and a one-time acknowledgement flag.

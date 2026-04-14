@@ -1,9 +1,9 @@
 import { vec2 } from '../core/vec2';
 import type { DialogueState } from './interaction';
 import type { PlayerState } from './player';
-import type { ScriptHandler, ScriptRuntimeState } from './scripts';
+import { isScriptFlagSet, type ScriptHandler, type ScriptRuntimeState } from './scripts';
 import { runScriptById } from './scripts';
-import type { TriggerZone } from '../world/mapSource';
+import type { TriggerCondition, TriggerZone } from '../world/mapSource';
 
 export interface TriggerExecutionContext {
   player: PlayerState;
@@ -30,13 +30,68 @@ const facingVector = (facing: Facing) => {
 const toTile = (x: number, y: number, tileSize: number) =>
   vec2(Math.floor((x + 8) / tileSize), Math.floor((y + 12) / tileSize));
 
-const matchesCondition = (trigger: TriggerZone, runtime: ScriptRuntimeState): boolean => {
+const matchesLegacyCondition = (trigger: TriggerZone, runtime: ScriptRuntimeState): boolean => {
   if (!trigger.conditionVar) {
     return true;
   }
 
+  // Mirrors FireRed's CoordEvent trigger/index comparison:
+  // VarGet(coordEvent->trigger) == coordEvent->index.
   const current = runtime.vars[trigger.conditionVar] ?? 0;
   return current === trigger.conditionEquals;
+};
+
+const matchesVarCondition = (
+  condition: TriggerCondition,
+  runtime: ScriptRuntimeState
+): boolean => {
+  if (!condition.var) {
+    return true;
+  }
+
+  const current = runtime.vars[condition.var] ?? 0;
+  const expected = condition.value ?? 0;
+  const operator = condition.op ?? 'eq';
+  switch (operator) {
+    case 'eq':
+      return current === expected;
+    case 'ne':
+      return current !== expected;
+    case 'gt':
+      return current > expected;
+    case 'gte':
+      return current >= expected;
+    case 'lt':
+      return current < expected;
+    case 'lte':
+      return current <= expected;
+  }
+};
+
+const matchesFlagCondition = (
+  condition: TriggerCondition,
+  runtime: ScriptRuntimeState
+): boolean => {
+  if (!condition.flag) {
+    return true;
+  }
+
+  const shouldBeSet = condition.flagState ?? true;
+  return isScriptFlagSet(runtime, condition.flag) === shouldBeSet;
+};
+
+const matchesCondition = (trigger: TriggerZone, runtime: ScriptRuntimeState): boolean => {
+  if (!matchesLegacyCondition(trigger, runtime)) {
+    return false;
+  }
+
+  if (!trigger.conditions || trigger.conditions.length === 0) {
+    return true;
+  }
+
+  return trigger.conditions.every((condition) =>
+    matchesVarCondition(condition, runtime) && matchesFlagCondition(condition, runtime)
+  );
 };
 
 const canRunTrigger = (trigger: TriggerZone, runtime: ScriptRuntimeState): boolean => {
