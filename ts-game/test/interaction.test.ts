@@ -3,6 +3,7 @@ import { vec2 } from '../src/core/vec2';
 import { createDialogueState, stepInteraction } from '../src/game/interaction';
 import type { NpcState } from '../src/game/npc';
 import type { PlayerState } from '../src/game/player';
+import { createScriptRuntimeState, type ScriptHandler } from '../src/game/scripts';
 
 const neutralInput = {
   up: false,
@@ -80,20 +81,40 @@ describe('interaction stepping', () => {
     expect(dialogue.speakerId).toBe(null);
   });
 
-  test('does not open dialogue when no npc is in the facing tile', () => {
+  test('runs facing trigger when there is no npc in front', () => {
     const dialogue = createDialogueState();
     const player = createTestPlayer();
-    const npc = createTestNpc();
-    npc.position = vec2(8 * 16, 8 * 16);
+    const runtime = createScriptRuntimeState();
+    const registry: Record<string, ScriptHandler> = {
+      'sign.test': ({ dialogue: d }) => {
+        d.active = true;
+        d.speakerId = 'sign';
+        d.text = 'Sign text';
+      }
+    };
 
     stepInteraction(
       dialogue,
       { ...neutralInput, interact: true, interactPressed: true },
       player,
-      [npc],
-      16
+      [],
+      16,
+      [{
+        id: 't1',
+        activation: 'interact',
+        x: 4,
+        y: 3,
+        scriptId: 'sign.test',
+        facing: 'any',
+        once: false
+      }],
+      runtime,
+      registry
     );
 
-    expect(dialogue.active).toBe(false);
+    expect(dialogue.active).toBe(true);
+    expect(dialogue.speakerId).toBe('sign');
+    expect(dialogue.text).toBe('Sign text');
+    expect(runtime.lastScriptId).toBe('sign.test');
   });
 });

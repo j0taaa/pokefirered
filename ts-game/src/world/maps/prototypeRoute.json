@@ -304,5 +304,45 @@
     false,
     false,
     false
+  ],
+  "triggers": [
+    {
+      "id": "route-sign-tips",
+      "x": 10,
+      "y": 2,
+      "activation": "interact",
+      "scriptId": "sign.route-tips",
+      "facing": "any",
+      "once": false
+    },
+    {
+      "id": "route-sign-post",
+      "x": 2,
+      "y": 10,
+      "activation": "interact",
+      "scriptId": "sign.route-post",
+      "facing": "up",
+      "once": false
+    },
+    {
+      "id": "route-warning-step",
+      "x": 13,
+      "y": 8,
+      "activation": "step",
+      "scriptId": "coord.route-warning",
+      "facing": "any",
+      "once": false,
+      "conditionVar": "routeWarningSeen",
+      "conditionEquals": 0
+    },
+    {
+      "id": "route-pool-warp",
+      "x": 15,
+      "y": 10,
+      "activation": "step",
+      "scriptId": "warp.route-pool",
+      "facing": "any",
+      "once": false
+    }
   ]
 }

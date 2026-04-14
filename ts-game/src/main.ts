@@ -8,6 +8,8 @@ import { createPlayer, stepPlayer } from './game/player';
 import { collidesWithNpcs, createPrototypeNpcs, stepNpcs } from './game/npc';
 import { createDialogueState, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
+import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
+import { runStepTriggersAtPlayerTile } from './game/triggers';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -27,6 +29,7 @@ const map = loadPrototypeRouteMap();
 const player = createPlayer();
 const npcs = createPrototypeNpcs();
 const dialogue = createDialogueState();
+const scriptRuntime = createScriptRuntimeState();
 const input = new BrowserInputAdapter();
 input.attach();
 
@@ -41,7 +44,19 @@ let fpsAccumulator = 0;
 const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
-    stepInteraction(dialogue, snapshot, player, npcs, map.tileSize);
+    stepInteraction(
+      dialogue,
+      snapshot,
+      player,
+      npcs,
+      map.tileSize,
+      map.triggers,
+      scriptRuntime,
+      prototypeScriptRegistry
+    );
+
+    const previousX = player.position.x;
+    const previousY = player.position.y;
 
     if (!dialogue.active) {
       stepPlayer(
@@ -51,6 +66,15 @@ const loop = new GameLoop({
         dt,
         (nextPosition) => collidesWithNpcs(nextPosition, npcs)
       );
+
+      if (previousX !== player.position.x || previousY !== player.position.y) {
+        runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
+          player,
+          dialogue,
+          runtime: scriptRuntime,
+          scriptRegistry: prototypeScriptRegistry
+        });
+      }
     } else {
       player.moving = false;
       player.animationTime = 0;
@@ -77,7 +101,7 @@ const loop = new GameLoop({
   },
   render() {
     renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera, dialogue);
+    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId);
   }
 });
 
