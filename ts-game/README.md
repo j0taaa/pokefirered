@@ -8,13 +8,13 @@ The app currently implements a functional runtime slice:
 
 - Vite + TypeScript app shell (`index.html`, `src/main.ts`)
 - Fixed-step game loop
-- Browser keyboard input adapter (WASD/Arrows + Shift run)
+- Browser keyboard input adapter (WASD/Arrows + Shift run + Z/Enter interact)
 - Map loading adapter boundary (`MapSource`) with JSON-backed prototype fixture
 - Player movement + facing + movement animation state
-- NPC entity starter with patrol paths and map-aware collision probes
+- NPC entity starter with patrol paths, idle pauses, and map-aware collision probes
 - Camera-follow viewport with map-bound clamping
 - Canvas renderer with visible-tile culling and sprite-like player rendering
-- HUD for FPS + player state + camera coordinates + NPC count
+- HUD for FPS + player state + camera coordinates + NPC/dialog status
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, and map source parsing
 
 ## Folder layout
@@ -45,4 +45,4 @@ Near-term next increments:
 
 1. Introduce trigger zones + script callback hooks.
 2. Replace primitive player visuals with true sprite-sheet frames.
-3. Add NPC idle timing, dialog stubs, and interaction-facing rules.
+3. Evolve dialog stubs into a script callback registry tied to extracted event data.

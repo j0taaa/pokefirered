@@ -14,6 +14,10 @@ export interface NpcState {
   pathIndex: number;
   facing: 'up' | 'down' | 'left' | 'right';
   moving: boolean;
+  idleDurationSeconds: number;
+  idleTimeRemaining: number;
+  dialogueLines: string[];
+  dialogueIndex: number;
 }
 
 const NPC_SPEED = 24;
@@ -31,7 +35,14 @@ export const createPrototypeNpcs = (): NpcState[] => [
     ],
     pathIndex: 1,
     facing: 'right',
-    moving: false
+    moving: false,
+    idleDurationSeconds: 0.35,
+    idleTimeRemaining: 0,
+    dialogueLines: [
+      'The grass rustles when wild Pokémon are near.',
+      'I am pacing this route to train my team!'
+    ],
+    dialogueIndex: 0
   },
   {
     id: 'npc-bugcatcher-01',
@@ -42,7 +53,11 @@ export const createPrototypeNpcs = (): NpcState[] => [
     ],
     pathIndex: 1,
     facing: 'right',
-    moving: false
+    moving: false,
+    idleDurationSeconds: 0.5,
+    idleTimeRemaining: 0,
+    dialogueLines: ['My Caterpie and I are taking a breather.'],
+    dialogueIndex: 0
   }
 ];
 
@@ -58,10 +73,22 @@ const updateFacing = (npc: NpcState, dx: number, dy: number): void => {
 export const stepNpcs = (
   npcs: NpcState[],
   map: TileMap,
-  dtSeconds: number
+  dtSeconds: number,
+  frozenNpcIds: ReadonlySet<string> = new Set()
 ): NpcState[] => {
   for (const npc of npcs) {
+    if (frozenNpcIds.has(npc.id)) {
+      npc.moving = false;
+      continue;
+    }
+
     if (npc.path.length === 0) {
+      npc.moving = false;
+      continue;
+    }
+
+    if (npc.idleTimeRemaining > 0) {
+      npc.idleTimeRemaining = Math.max(0, npc.idleTimeRemaining - dtSeconds);
       npc.moving = false;
       continue;
     }
@@ -74,6 +101,7 @@ export const stepNpcs = (
     if (distance <= ARRIVAL_EPSILON) {
       npc.position = vec2(target.x, target.y);
       npc.pathIndex = (npc.pathIndex + 1) % npc.path.length;
+      npc.idleTimeRemaining = npc.idleDurationSeconds;
       npc.moving = false;
       continue;
     }
@@ -92,6 +120,7 @@ export const stepNpcs = (
     const probe = vec2(nextPosition.x + 8, nextPosition.y + 12);
     if (!isWalkableAtPixel(map, probe)) {
       npc.moving = false;
+      npc.idleTimeRemaining = Math.max(npc.idleTimeRemaining, 0.2);
       continue;
     }
 

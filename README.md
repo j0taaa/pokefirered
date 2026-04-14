@@ -46,7 +46,7 @@ npm install
 npm run dev
 ```
 
-This currently renders a prototype route map with blocked terrain, camera-follow viewport, and a movable player with basic animation (WASD/Arrows, Shift to run), backed by unit-tested movement/collision/camera modules.
+This currently renders a prototype route map with blocked terrain, camera-follow viewport, and a movable player with basic animation (WASD/Arrows, Shift to run, Z/Enter to interact), backed by unit-tested movement/collision/camera/NPC-interaction modules.
 
 ## Suggested migration phases
 
@@ -59,7 +59,8 @@ Current completion snapshot:
 3. ✅ Player visual pass v1
 4. ✅ Map loading adapter boundary
 5. ✅ Entity system starter (NPC patrols + collision probes)
-6. ⬜ Triggers, menus, battle slice, persistence, and data convergence
+6. 🟡 Interaction pass v1 (NPC idle pauses, face-player interaction, dialog stubs)
+7. ⬜ Triggers, menus, battle slice, persistence, and data convergence
 
 ## Developer setup (decomp side)
 

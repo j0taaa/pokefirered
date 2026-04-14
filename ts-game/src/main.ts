@@ -6,6 +6,7 @@ import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadPrototypeRouteMap } from './world/mapSource';
 import { createPlayer, stepPlayer } from './game/player';
 import { collidesWithNpcs, createPrototypeNpcs, stepNpcs } from './game/npc';
+import { createDialogueState, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -25,6 +26,7 @@ app.append(shell);
 const map = loadPrototypeRouteMap();
 const player = createPlayer();
 const npcs = createPrototypeNpcs();
+const dialogue = createDialogueState();
 const input = new BrowserInputAdapter();
 input.attach();
 
@@ -39,14 +41,25 @@ let fpsAccumulator = 0;
 const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
-    stepPlayer(
-      player,
-      snapshot,
-      map,
-      dt,
-      (nextPosition) => collidesWithNpcs(nextPosition, npcs)
-    );
-    stepNpcs(npcs, map, dt);
+    stepInteraction(dialogue, snapshot, player, npcs, map.tileSize);
+
+    if (!dialogue.active) {
+      stepPlayer(
+        player,
+        snapshot,
+        map,
+        dt,
+        (nextPosition) => collidesWithNpcs(nextPosition, npcs)
+      );
+    } else {
+      player.moving = false;
+      player.animationTime = 0;
+    }
+
+    const frozenNpcIds = dialogue.active && dialogue.speakerId
+      ? new Set<string>([dialogue.speakerId])
+      : new Set<string>();
+    stepNpcs(npcs, map, dt, frozenNpcIds);
 
     followTarget(
       camera,
@@ -64,7 +77,7 @@ const loop = new GameLoop({
   },
   render() {
     renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera);
+    updateHud(hud, player, npcs, fps, camera, dialogue);
   }
 });
 

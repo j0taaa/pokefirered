@@ -7,7 +7,9 @@ const idleInput = {
   down: false,
   left: false,
   right: false,
-  run: false
+  run: false,
+  interact: false,
+  interactPressed: false
 };
 
 describe('player stepping', () => {

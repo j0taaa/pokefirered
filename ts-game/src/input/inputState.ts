@@ -4,6 +4,8 @@ export interface InputSnapshot {
   left: boolean;
   right: boolean;
   run: boolean;
+  interact: boolean;
+  interactPressed: boolean;
 }
 
 const defaultSnapshot: InputSnapshot = {
@@ -11,10 +13,12 @@ const defaultSnapshot: InputSnapshot = {
   down: false,
   left: false,
   right: false,
-  run: false
+  run: false,
+  interact: false,
+  interactPressed: false
 };
 
-const keyMap: Record<string, keyof InputSnapshot> = {
+const keyMap: Record<string, keyof Omit<InputSnapshot, 'interactPressed'>> = {
   ArrowUp: 'up',
   KeyW: 'up',
   ArrowDown: 'down',
@@ -24,11 +28,15 @@ const keyMap: Record<string, keyof InputSnapshot> = {
   ArrowRight: 'right',
   KeyD: 'right',
   ShiftLeft: 'run',
-  ShiftRight: 'run'
+  ShiftRight: 'run',
+  KeyZ: 'interact',
+  Enter: 'interact'
 };
 
 export class BrowserInputAdapter {
   private readonly pressed = new Set<string>();
+  private interactHeldLastFrame = false;
+
   private readonly onKeyDown = (evt: KeyboardEvent): void => {
     if (evt.code in keyMap) {
       this.pressed.add(evt.code);
@@ -61,6 +69,8 @@ export class BrowserInputAdapter {
       snapshot[mapped] = true;
     }
 
+    snapshot.interactPressed = snapshot.interact && !this.interactHeldLastFrame;
+    this.interactHeldLastFrame = snapshot.interact;
     return snapshot;
   }
 }
