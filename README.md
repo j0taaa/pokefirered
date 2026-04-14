@@ -7,7 +7,7 @@ This repository currently contains the Pokémon FireRed / LeafGreen decompilatio
 - ✅ Existing decompilation source remains the primary codebase.
 - ✅ A dedicated destination folder for the TypeScript/browser version has been created at `ts-game/`.
 - ✅ This README and repository guidance have been updated to support incremental migration planning.
-- 🚧 No gameplay systems are ported yet (this change is documentation + structure only).
+- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, and runtime tests are in `ts-game/`.
 
 ## Original project outputs
 
@@ -34,6 +34,19 @@ Inside `ts-game/`, the initial structure is intended to support:
 - Input mapping (keyboard + future touch/controller)
 - Data loaders/adapters for extracted game data
 - A standalone TypeScript toolchain and test setup
+
+
+## Browser-port prototype quick start
+
+The TypeScript app is now runnable inside `ts-game/`:
+
+```bash
+cd ts-game
+npm install
+npm run dev
+```
+
+This currently renders a prototype route map with blocked terrain and a movable player marker (WASD/Arrows, Shift to run), backed by unit-tested movement/collision modules.
 
 ## Suggested migration phases
 
