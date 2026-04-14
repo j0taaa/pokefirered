@@ -16,6 +16,7 @@ export interface NpcState {
   moving: boolean;
   idleDurationSeconds: number;
   idleTimeRemaining: number;
+  interactScriptId?: string;
   dialogueLines: string[];
   dialogueIndex: number;
 }
@@ -38,10 +39,8 @@ export const createPrototypeNpcs = (): NpcState[] => [
     moving: false,
     idleDurationSeconds: 0.35,
     idleTimeRemaining: 0,
-    dialogueLines: [
-      'The grass rustles when wild Pokémon are near.',
-      'I am pacing this route to train my team!'
-    ],
+    interactScriptId: 'object.npc-lass-01.interact',
+    dialogueLines: [],
     dialogueIndex: 0
   },
   {
@@ -56,7 +55,8 @@ export const createPrototypeNpcs = (): NpcState[] => [
     moving: false,
     idleDurationSeconds: 0.5,
     idleTimeRemaining: 0,
-    dialogueLines: ['My Caterpie and I are taking a breather.'],
+    interactScriptId: 'object.npc-bugcatcher-01.interact',
+    dialogueLines: [],
     dialogueIndex: 0
   }
 ];

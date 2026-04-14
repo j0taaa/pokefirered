@@ -16,9 +16,9 @@ Add a first interaction vertical slice that mirrors core field behavior:
 - 2026-04-14: Added face-player parity with decomp behavior by setting NPC facing opposite player-facing direction (analogous to `Script_FacePlayer` + `ObjectEventFaceOppositeDirection`).
 - 2026-04-14: Updated main loop to lock player movement while dialogue is active and freeze active speaker NPC.
 - 2026-04-14: Added `test/interaction.test.ts` coverage and expanded `test/npc.test.ts` to verify idle/freeze behavior.
+- 2026-04-14: Switched NPC interactions to script registry callbacks (`interactScriptId`) with object-event-style IDs and added multi-line dialogue advance/close flow.
 
 ## Follow-ups
 
-- Replace string stubs with script callback bindings keyed by map object IDs.
 - Add a dedicated dialogue box renderer layer instead of HUD text.
-- Add optional multi-line advance/close behavior matching full script engine flow.
+- Continue aligning text window pacing/timing with full script engine behavior.

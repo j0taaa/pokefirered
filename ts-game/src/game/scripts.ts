@@ -1,4 +1,4 @@
-import type { DialogueState } from './interaction';
+import { openDialogueSequence, type DialogueState } from './interaction';
 import type { PlayerState } from './player';
 
 export interface ScriptRuntimeState {
@@ -26,9 +26,7 @@ export const openScriptDialogue = (
   speakerId: string,
   text: string
 ): void => {
-  dialogue.active = true;
-  dialogue.speakerId = speakerId;
-  dialogue.text = text;
+  openDialogueSequence(dialogue, speakerId, [text]);
 };
 
 // Script callbacks are intentionally registry-based, mirroring how the original
@@ -63,6 +61,22 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     player.position.x = 2 * 16;
     player.position.y = 2 * 16;
     openScriptDialogue(dialogue, 'system', 'You were whisked back to the trailhead.');
+  },
+  'object.npc-lass-01.interact': ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'npc-lass-01', [
+      'The grass rustles when wild Pokémon are near.',
+      'I am pacing this route to train my team!'
+    ]);
+  },
+  'object.npc-bugcatcher-01.interact': ({ dialogue, runtime }) => {
+    const seenCount = runtime.vars.bugcatcherSeen ?? 0;
+    runtime.vars.bugcatcherSeen = seenCount + 1;
+    openDialogueSequence(dialogue, 'npc-bugcatcher-01', [
+      'My Caterpie and I are taking a breather.',
+      seenCount === 0
+        ? 'Talk to me again and I will share more bug-catching tips.'
+        : 'Remember: look for moving grass to find wild encounters.'
+    ]);
   }
 };
 

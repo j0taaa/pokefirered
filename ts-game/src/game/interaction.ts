@@ -4,19 +4,68 @@ import type { NpcState } from './npc';
 import type { PlayerState } from './player';
 import type { TriggerZone } from '../world/mapSource';
 import type { ScriptHandler, ScriptRuntimeState } from './scripts';
+import { runScriptById } from './scripts';
 import { tryRunFacingTrigger } from './triggers';
 
 export interface DialogueState {
   active: boolean;
   speakerId: string | null;
   text: string;
+  queue: string[];
+  queueIndex: number;
 }
 
 export const createDialogueState = (): DialogueState => ({
   active: false,
   speakerId: null,
-  text: ''
+  text: '',
+  queue: [],
+  queueIndex: 0
 });
+
+export const openDialogueSequence = (
+  dialogue: DialogueState,
+  speakerId: string,
+  lines: string[]
+): void => {
+  if (lines.length === 0) {
+    dialogue.active = false;
+    dialogue.speakerId = null;
+    dialogue.text = '';
+    dialogue.queue = [];
+    dialogue.queueIndex = 0;
+    return;
+  }
+
+  dialogue.active = true;
+  dialogue.speakerId = speakerId;
+  dialogue.queue = [...lines];
+  dialogue.queueIndex = 0;
+  dialogue.text = dialogue.queue[0];
+};
+
+export const closeDialogue = (dialogue: DialogueState): void => {
+  dialogue.active = false;
+  dialogue.speakerId = null;
+  dialogue.text = '';
+  dialogue.queue = [];
+  dialogue.queueIndex = 0;
+};
+
+export const advanceDialogue = (dialogue: DialogueState): void => {
+  if (!dialogue.active) {
+    return;
+  }
+
+  const nextIndex = dialogue.queueIndex + 1;
+  if (nextIndex >= dialogue.queue.length) {
+    closeDialogue(dialogue);
+    return;
+  }
+
+  dialogue.queueIndex = nextIndex;
+  dialogue.text = dialogue.queue[nextIndex];
+};
 
 const facingVector = (facing: PlayerState['facing']): Vec2 => {
   switch (facing) {
@@ -84,26 +133,42 @@ export const stepInteraction = (
   }
 
   if (dialogue.active) {
-    dialogue.active = false;
-    dialogue.speakerId = null;
-    dialogue.text = '';
+    // Mirrors the A-button message flow in the original field engine:
+    // while a text printer is active, interaction advances message state before
+    // returning to normal object-event processing.
+    advanceDialogue(dialogue);
     return dialogue;
   }
 
   // Matches field_control_avatar.c interaction priority:
   // object events first, then background/facing triggers.
   const npc = findNpcInFront(player, npcs, tileSize);
-  if (npc && npc.dialogueLines.length > 0) {
+  if (npc) {
     npc.facing = oppositeFacing(player.facing);
     npc.moving = false;
     npc.idleTimeRemaining = Math.max(npc.idleTimeRemaining, 0.2);
 
-    const line = npc.dialogueLines[npc.dialogueIndex % npc.dialogueLines.length];
-    npc.dialogueIndex = (npc.dialogueIndex + 1) % npc.dialogueLines.length;
+    if (runtime && npc.interactScriptId) {
+      const ran = runScriptById(
+        npc.interactScriptId,
+        {
+          player,
+          dialogue,
+          runtime
+        },
+        scriptRegistry
+      );
+      if (ran) {
+        return dialogue;
+      }
+    }
 
-    dialogue.active = true;
-    dialogue.speakerId = npc.id;
-    dialogue.text = line;
+    if (npc.dialogueLines.length > 0) {
+      const line = npc.dialogueLines[npc.dialogueIndex % npc.dialogueLines.length];
+      npc.dialogueIndex = (npc.dialogueIndex + 1) % npc.dialogueLines.length;
+
+      openDialogueSequence(dialogue, npc.id, [line]);
+    }
     return dialogue;
   }
 
