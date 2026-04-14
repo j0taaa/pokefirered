@@ -1,5 +1,26 @@
 import type { InputSnapshot } from '../input/inputState';
 
+export type PokemonType =
+  | 'normal'
+  | 'fire'
+  | 'water'
+  | 'grass'
+  | 'electric'
+  | 'ice'
+  | 'fighting'
+  | 'poison'
+  | 'ground'
+  | 'flying'
+  | 'psychic'
+  | 'bug'
+  | 'rock'
+  | 'ghost'
+  | 'dragon'
+  | 'dark'
+  | 'steel';
+
+export type StatusCondition = 'none' | 'poison';
+
 export interface BattlePokemonSnapshot {
   species: string;
   level: number;
@@ -8,14 +29,16 @@ export interface BattlePokemonSnapshot {
   attack: number;
   defense: number;
   speed: number;
-  type: 'normal' | 'fire' | 'water' | 'grass';
+  catchRate: number;
+  types: PokemonType[];
+  status: StatusCondition;
 }
 
 export interface BattleMove {
   id: string;
   name: string;
   power: number;
-  type: 'normal' | 'fire' | 'water' | 'grass';
+  type: PokemonType;
   accuracy: number;
 }
 
@@ -47,11 +70,60 @@ export interface BattleState {
   runAttempts: number;
   bag: {
     pokeBalls: number;
+    greatBalls: number;
   };
+}
+
+export interface CaptureResult {
+  caught: boolean;
+  shakes: number;
+  ballLabel: string;
 }
 
 const RAND_MULT = 1103515245;
 const ISO_RANDOMIZE2_ADD = 12345;
+
+const TYPE_CHART: Partial<Record<PokemonType, Partial<Record<PokemonType, number>>>> = {
+  normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+  fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+  water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+  grass: {
+    fire: 0.5,
+    water: 2,
+    grass: 0.5,
+    poison: 0.5,
+    ground: 2,
+    flying: 0.5,
+    bug: 0.5,
+    rock: 2,
+    dragon: 0.5,
+    steel: 0.5
+  },
+  electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+  ice: { fire: 0.5, water: 0.5, grass: 2, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+  fighting: {
+    normal: 2,
+    ice: 2,
+    poison: 0.5,
+    flying: 0.5,
+    psychic: 0.5,
+    bug: 0.5,
+    rock: 2,
+    ghost: 0,
+    dark: 2,
+    steel: 2
+  },
+  poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0 },
+  ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+  flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+  psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+  bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5 },
+  rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+  ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+  dragon: { dragon: 2, steel: 0.5 },
+  dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, steel: 0.5 },
+  steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5 }
+};
 
 const clampDamage = (value: number): number => Math.max(1, Math.floor(value));
 
@@ -61,7 +133,7 @@ const nextBattleRng = (state: BattleEncounterState): number => {
 };
 
 // Mirrors the core Gen 3 base formula in src/pokemon.c::CalculateBaseDamage,
-// with intentionally scoped simplifications (single-type, no weather/items/abilities).
+// with intentionally scoped simplifications (single-hit, no weather/items/abilities).
 export const calculateBaseDamage = (
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
@@ -74,29 +146,21 @@ export const calculateBaseDamage = (
   return Math.floor(scaled / 50) + 2;
 };
 
-const typeEffectiveness = (
-  moveType: BattlePokemonSnapshot['type'],
-  defenderType: BattlePokemonSnapshot['type']
+const singleTypeEffectiveness = (moveType: PokemonType, defenderType: PokemonType): number =>
+  TYPE_CHART[moveType]?.[defenderType] ?? 1;
+
+export const calculateTypeEffectiveness = (
+  moveType: PokemonType,
+  defenderTypes: PokemonType[]
 ): number => {
-  if (moveType === 'fire' && defenderType === 'grass') {
-    return 2;
+  if (defenderTypes.length === 0) {
+    return 1;
   }
-  if (moveType === 'water' && defenderType === 'fire') {
-    return 2;
-  }
-  if (moveType === 'grass' && defenderType === 'water') {
-    return 2;
-  }
-  if (moveType === 'grass' && defenderType === 'fire') {
-    return 0.5;
-  }
-  if (moveType === 'fire' && defenderType === 'water') {
-    return 0.5;
-  }
-  if (moveType === 'water' && defenderType === 'grass') {
-    return 0.5;
-  }
-  return 1;
+
+  return defenderTypes.reduce(
+    (modifier, defenderType) => modifier * singleTypeEffectiveness(moveType, defenderType),
+    1
+  );
 };
 
 export const calculateDamagePreview = (
@@ -105,8 +169,8 @@ export const calculateDamagePreview = (
   move: BattleMove
 ): { min: number; max: number } => {
   const baseDamage = calculateBaseDamage(attacker, defender, move);
-  const stab = attacker.type === move.type ? 1.5 : 1;
-  const typeBonus = typeEffectiveness(move.type, defender.type);
+  const stab = attacker.types.includes(move.type) ? 1.5 : 1;
+  const typeBonus = calculateTypeEffectiveness(move.type, defender.types);
   const max = clampDamage(baseDamage * stab * typeBonus);
   // In Gen 3, random damage factor is 217..255 out of 255.
   const min = clampDamage((max * 217) / 255);
@@ -152,12 +216,19 @@ const tryRunFromBattle = (
 
 const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterState): number => {
   let bestIndex = 0;
-  let bestScore = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
   for (let i = 0; i < battle.moves.length; i += 1) {
     const move = battle.moves[i];
     const preview = calculateDamagePreview(battle.wildMon, battle.playerMon, move);
-    const knocksOut = preview.max >= battle.playerMon.hp ? 10_000 : 0;
-    const score = knocksOut + preview.max;
+    const typeBonus = calculateTypeEffectiveness(move.type, battle.playerMon.types);
+    const accuracyWeight = move.accuracy / 100;
+    const expectedDamage = preview.max * accuracyWeight;
+    const koBonus = preview.max >= battle.playerMon.hp ? 10_000 : 0;
+    const superEffectiveBonus = typeBonus > 1 ? 50 : 0;
+    const resistedPenalty = typeBonus < 1 ? -25 : 0;
+    const score = expectedDamage + koBonus + superEffectiveBonus + resistedPenalty;
+
     if (score > bestScore) {
       bestScore = score;
       bestIndex = i;
@@ -165,7 +236,6 @@ const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterSta
     }
 
     if (score === bestScore) {
-      // Mimics a PRNG tie-break instead of deterministic "first move always wins".
       const coinFlip = nextBattleRng(encounter) & 1;
       if (coinFlip === 1) {
         bestIndex = i;
@@ -191,7 +261,9 @@ export const createBattleState = (): BattleState => {
     attack: 13,
     defense: 11,
     speed: 14,
-    type: 'normal'
+    catchRate: 45,
+    types: ['fire'],
+    status: 'none'
   };
   const playerMonB: BattlePokemonSnapshot = {
     species: 'PIDGEY',
@@ -201,7 +273,9 @@ export const createBattleState = (): BattleState => {
     attack: 11,
     defense: 10,
     speed: 13,
-    type: 'normal'
+    catchRate: 255,
+    types: ['normal', 'flying'],
+    status: 'none'
   };
   const wildMon: BattlePokemonSnapshot = {
     species: 'PIDGEY',
@@ -211,7 +285,9 @@ export const createBattleState = (): BattleState => {
     attack: 8,
     defense: 7,
     speed: 8,
-    type: 'normal'
+    catchRate: 255,
+    types: ['normal', 'flying'],
+    status: 'none'
   };
 
   return {
@@ -222,7 +298,7 @@ export const createBattleState = (): BattleState => {
     wildMon,
     moves: [
       { id: 'tackle', name: 'TACKLE', power: 40, type: 'normal', accuracy: 100 },
-      { id: 'scratch', name: 'SCRATCH', power: 40, type: 'normal', accuracy: 100 }
+      { id: 'ember', name: 'EMBER', power: 40, type: 'fire', accuracy: 100 }
     ],
     selectedMoveIndex: 0,
     selectedCommandIndex: 0,
@@ -232,7 +308,8 @@ export const createBattleState = (): BattleState => {
     damagePreview: null,
     runAttempts: 0,
     bag: {
-      pokeBalls: 5
+      pokeBalls: 5,
+      greatBalls: 1
     }
   };
 };
@@ -253,9 +330,12 @@ export const tryStartWildBattle = (
   battle.active = true;
   battle.phase = 'intro';
   battle.wildMon.hp = battle.wildMon.maxHp;
+  battle.wildMon.status = 'none';
   battle.playerMon.hp = battle.playerMon.maxHp;
+  battle.playerMon.status = 'none';
   battle.party.forEach((mon) => {
     mon.hp = mon.maxHp;
+    mon.status = 'none';
   });
   battle.selectedMoveIndex = 0;
   battle.selectedCommandIndex = 0;
@@ -269,6 +349,73 @@ export const tryStartWildBattle = (
 };
 
 export const isBattleBlockingWorld = (battle: BattleState): boolean => battle.active;
+
+const applyEndOfTurnPoison = (pokemon: BattlePokemonSnapshot): string | null => {
+  if (pokemon.status !== 'poison' || pokemon.hp <= 0) {
+    return null;
+  }
+
+  const poisonDamage = Math.max(1, Math.floor(pokemon.maxHp / 8));
+  pokemon.hp = Math.max(0, pokemon.hp - poisonDamage);
+  return `${pokemon.species} is hurt by poison!`;
+};
+
+export const performCaptureAttempt = (
+  battle: BattleState,
+  encounterState: BattleEncounterState
+): CaptureResult => {
+  const useGreatBall = battle.bag.pokeBalls <= 0 && battle.bag.greatBalls > 0;
+
+  if (!useGreatBall && battle.bag.pokeBalls <= 0) {
+    return {
+      caught: false,
+      shakes: 0,
+      ballLabel: 'NONE'
+    };
+  }
+
+  if (useGreatBall) {
+    battle.bag.greatBalls -= 1;
+  } else {
+    battle.bag.pokeBalls -= 1;
+  }
+
+  const ballBonus = useGreatBall ? 1.5 : 1;
+  const statusBonus = battle.wildMon.status === 'poison' ? 1.5 : 1;
+
+  const catchNumerator =
+    ((3 * battle.wildMon.maxHp) - (2 * battle.wildMon.hp)) * battle.wildMon.catchRate * ballBonus;
+  const catchDenominator = 3 * battle.wildMon.maxHp;
+  const a = Math.floor((catchNumerator / Math.max(1, catchDenominator)) * statusBonus);
+
+  if (a >= 255) {
+    return {
+      caught: true,
+      shakes: 4,
+      ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL'
+    };
+  }
+
+  const aClamped = Math.max(1, a);
+  const b = Math.floor(1048560 / Math.sqrt(Math.sqrt(16711680 / aClamped)));
+
+  let shakes = 0;
+  for (let i = 0; i < 4; i += 1) {
+    const shakeRoll = nextBattleRng(encounterState) & 0xffff;
+    if (shakeRoll < b) {
+      shakes += 1;
+      continue;
+    }
+
+    break;
+  }
+
+  return {
+    caught: shakes === 4,
+    shakes,
+    ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL'
+  };
+};
 
 export const stepBattle = (
   battle: BattleState,
@@ -320,22 +467,22 @@ export const stepBattle = (
     }
 
     if (selectedCommand === 'bag') {
-      if (battle.bag.pokeBalls <= 0) {
-        battle.turnSummary = 'No Poké Balls left!';
+      if (battle.bag.pokeBalls <= 0 && battle.bag.greatBalls <= 0) {
+        battle.turnSummary = 'No balls left!';
         return;
       }
 
-      // Inspired by FRLG capture probability flow in BattleScript_ThrowPokeBall.
-      battle.bag.pokeBalls -= 1;
-      const hpFactor = ((3 * battle.wildMon.maxHp) - (2 * battle.wildMon.hp)) / (3 * battle.wildMon.maxHp);
-      const levelFactor = Math.max(1, 36 - (2 * battle.wildMon.level));
-      const catchChance = Math.min(0.95, 0.1 + hpFactor * (levelFactor / 36));
-      const roll = (nextBattleRng(encounterState) & 0xff) / 255;
-      if (roll < catchChance) {
+      const capture = performCaptureAttempt(battle, encounterState);
+      if (capture.ballLabel === 'NONE') {
+        battle.turnSummary = 'No balls left!';
+        return;
+      }
+
+      if (capture.caught) {
         battle.phase = 'resolved';
-        battle.turnSummary = `Gotcha! ${battle.wildMon.species} was caught!`;
+        battle.turnSummary = `${capture.ballLabel}... shake x4! Gotcha! ${battle.wildMon.species} was caught!`;
       } else {
-        battle.turnSummary = `Oh no! The Pokémon broke free!`;
+        battle.turnSummary = `${capture.ballLabel}... shake x${capture.shakes}. Oh no! The Pokémon broke free!`;
       }
       return;
     }
@@ -446,6 +593,21 @@ export const stepBattle = (
     }
 
     resolvePlayer();
+  }
+
+  const poisonMessages: string[] = [];
+  const enemyPoison = applyEndOfTurnPoison(battle.wildMon);
+  if (enemyPoison) {
+    poisonMessages.push(enemyPoison);
+  }
+
+  const playerPoison = applyEndOfTurnPoison(battle.playerMon);
+  if (playerPoison) {
+    poisonMessages.push(playerPoison);
+  }
+
+  if (poisonMessages.length > 0) {
+    battle.turnSummary = `${battle.turnSummary} ${poisonMessages.join(' ')}`;
   }
 
   if (battle.playerMon.hp === 0) {
