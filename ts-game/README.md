@@ -18,7 +18,7 @@ The app currently implements a functional runtime slice:
 - HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
 - START menu flow with FireRed-like dynamic option composition and submenu callbacks
 - START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
-- Battle vertical slice v3: command selection (`FIGHT`/`BAG`/`POKéMON`/`RUN`), type-aware damage preview, Poké Ball capture attempts, party switching, and improved enemy move-choice tie breaks
+- Battle vertical slice v4: command selection (`FIGHT`/`BAG`/`POKéMON`/`RUN`), full Gen-3 type-chart effectiveness sampling for preview math, Poké Ball/Great Ball shake-count capture messaging, poison end-turn chip damage, party switching, and improved enemy move-utility heuristics
 - Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
 
