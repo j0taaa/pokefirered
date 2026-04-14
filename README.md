@@ -1,16 +1,68 @@
-# Pokémon FireRed and LeafGreen
+# Pokémon FireRed Decomp + TypeScript Browser Port (WIP)
 
-This is a decompilation of English Pokémon FireRed and LeafGreen.
+This repository currently contains the Pokémon FireRed / LeafGreen decompilation project, and now also includes the initial scaffold direction for a **TypeScript browser-playable port**.
 
-It builds the following ROM images:
+## Current status
 
-* [**pokefirered.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1616) `sha1: 41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc`
-* [**pokeleafgreen.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1617) `sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e`
-* [**pokefirered_rev1.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1672) `sha1: dd5945db9b930750cb39d00c84da8571feebf417`
-* [**pokeleafgreen_rev1.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=1668) `sha1: 7862c67bdecbe21d1d69ce082ce34327e1c6ed5e`
-* [**pokefirered_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x550) `sha1: baa452d0b24629dd7782cfc07a8984085dde1311`
-* [**pokeleafgreen_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x551) `sha1: 62b9fc77549dbc67032eb6cbd0ea6ad3b825690f`
+- ✅ Existing decompilation source remains the primary codebase.
+- ✅ A dedicated destination folder for the TypeScript/browser version has been created at `ts-game/`.
+- ✅ This README and repository guidance have been updated to support incremental migration planning.
+- 🚧 No gameplay systems are ported yet (this change is documentation + structure only).
 
-To set up the repository, see [INSTALL.md](INSTALL.md).
+## Original project outputs
 
-For contacts and other pret projects, see [pret.github.io](https://pret.github.io/).
+The decompilation builds the following ROM images:
+
+- [**pokefirered.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1616) `sha1: 41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc`
+- [**pokeleafgreen.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1617) `sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e`
+- [**pokefirered_rev1.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1672) `sha1: dd5945db9b930750cb39d00c84da8571feebf417`
+- [**pokeleafgreen_rev1.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=1668) `sha1: 7862c67bdecbe21d1d69ce082ce34327e1c6ed5e`
+- [**pokefirered_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x550) `sha1: baa452d0b24629dd7782cfc07a8984085dde1311`
+- [**pokeleafgreen_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x551) `sha1: 62b9fc77549dbc67032eb6cbd0ea6ad3b825690f`
+
+## TypeScript browser-port destination
+
+The destination folder for the web port is:
+
+```text
+ts-game/
+```
+
+Inside `ts-game/`, the initial structure is intended to support:
+
+- Rendering and game loop systems (browser canvas/WebGL)
+- Input mapping (keyboard + future touch/controller)
+- Data loaders/adapters for extracted game data
+- A standalone TypeScript toolchain and test setup
+
+## Suggested migration phases
+
+1. **Bootstrap app shell**
+   - Add TS build tooling and a browser entrypoint in `ts-game/`
+   - Render a simple scene + frame counter
+2. **Core runtime primitives**
+   - Time step, input, camera, scene graph/state machine
+3. **Map + collision vertical slice**
+   - Load one map and walk a player entity with collisions
+4. **Battle/UI experimental slice**
+   - Prototype one battle scene and menu interactions
+5. **Data/system convergence**
+   - Move shared constants and game rules into TS modules
+
+## Developer setup (decomp side)
+
+To build and work with the original decompilation project, see:
+
+- [INSTALL.md](INSTALL.md)
+
+For contacts and other pret projects:
+
+- [pret.github.io](https://pret.github.io/)
+
+## Contribution notes for the port
+
+For now, prioritize:
+
+- Small, reviewable PRs
+- Deterministic tests around new logic
+- Avoiding direct coupling between emulator assumptions and browser runtime architecture
