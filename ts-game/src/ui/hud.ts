@@ -1,4 +1,5 @@
 import type { CameraState } from '../core/camera';
+import type { DialogueState } from '../game/interaction';
 import type { NpcState } from '../game/npc';
 import type { PlayerState } from '../game/player';
 
@@ -9,6 +10,7 @@ export interface HudBindings {
   facingValue: HTMLElement;
   cameraValue: HTMLElement;
   npcValue: HTMLElement;
+  dialogueValue: HTMLElement;
 }
 
 export const createHud = (): HudBindings => {
@@ -25,7 +27,8 @@ export const createHud = (): HudBindings => {
     'Pos: <strong data-role="pos">0,0</strong><br/>',
     'Facing: <strong data-role="facing">down</strong><br/>',
     'Camera: <strong data-role="camera">0,0</strong><br/>',
-    'NPCs: <strong data-role="npc">0</strong>'
+    'NPCs: <strong data-role="npc">0</strong><br/>',
+    'Dialog: <strong data-role="dialogue">(none)</strong>'
   ].join('');
 
   root.append(perfCard, stateCard);
@@ -36,7 +39,8 @@ export const createHud = (): HudBindings => {
     positionValue: stateCard.querySelector('[data-role="pos"]') as HTMLElement,
     facingValue: stateCard.querySelector('[data-role="facing"]') as HTMLElement,
     cameraValue: stateCard.querySelector('[data-role="camera"]') as HTMLElement,
-    npcValue: stateCard.querySelector('[data-role="npc"]') as HTMLElement
+    npcValue: stateCard.querySelector('[data-role="npc"]') as HTMLElement,
+    dialogueValue: stateCard.querySelector('[data-role="dialogue"]') as HTMLElement
   };
 };
 
@@ -45,11 +49,15 @@ export const updateHud = (
   player: PlayerState,
   npcs: NpcState[],
   fps: number,
-  camera: CameraState
+  camera: CameraState,
+  dialogue: DialogueState
 ): void => {
   bindings.fpsValue.textContent = fps.toFixed(0);
   bindings.positionValue.textContent = `${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}`;
   bindings.facingValue.textContent = player.facing;
   bindings.cameraValue.textContent = `${camera.x.toFixed(1)}, ${camera.y.toFixed(1)}`;
   bindings.npcValue.textContent = npcs.length.toString();
+  bindings.dialogueValue.textContent = dialogue.active
+    ? `${dialogue.speakerId ?? 'npc'}: ${dialogue.text}`
+    : '(none)';
 };
