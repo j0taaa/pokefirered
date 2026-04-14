@@ -90,3 +90,33 @@ strong {
 .hidden {
   display: none;
 }
+
+.menu-panel {
+  position: absolute;
+  left: 10px;
+  bottom: 90px;
+  width: 260px;
+  padding: 8px 10px;
+  border: 2px solid #d8e6ff;
+  border-radius: 6px;
+  background: rgba(20, 28, 44, 0.95);
+}
+
+.menu-panel-title {
+  margin: 0 0 6px;
+  color: #eaf2ff;
+  font-size: 0.9rem;
+}
+
+.menu-panel-description {
+  margin: 0;
+  color: #c9d8f5;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.menu-panel-hint {
+  margin: 8px 0 0;
+  color: #95add8;
+  font-size: 0.75rem;
+}

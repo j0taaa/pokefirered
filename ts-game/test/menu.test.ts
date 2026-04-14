@@ -53,21 +53,66 @@ describe('start menu stepping', () => {
     expect(menu.selectedIndex).toBe(menu.options.length - 1);
   });
 
-  test('EXIT closes menu and non-exit sets selection script id', () => {
+  test('non-exit opens placeholder panel and EXIT closes menu', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();
     const runtime = createScriptRuntimeState();
+    runtime.startMenu.playerName = 'RED';
 
     stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
     stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
 
-    expect(menu.active).toBe(true);
-    expect(runtime.lastScriptId).toBe('menu.select.pokédex');
+    expect(menu.active).toBe(false);
+    expect(menu.panel?.id).toBe('POKEDEX');
+    expect(runtime.lastScriptId).toBe('menu.open.pokedex');
 
-    menu.selectedIndex = menu.options.indexOf('EXIT');
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+    expect(runtime.lastScriptId).toBe('menu.panel.close.pokedex');
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'EXIT');
     stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
 
     expect(menu.active).toBe(false);
     expect(runtime.lastScriptId).toBe('menu.exit');
+  });
+
+  test('builds normal-field entries from runtime flags and player name', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    runtime.startMenu.playerName = 'LEAF';
+    runtime.startMenu.hasPokedex = false;
+    runtime.startMenu.hasPokemon = true;
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    expect(menu.options.map((entry) => entry.id)).toEqual([
+      'POKEMON',
+      'BAG',
+      'PLAYER',
+      'SAVE',
+      'OPTION',
+      'EXIT'
+    ]);
+    expect(menu.options[2].label).toBe('LEAF');
+  });
+
+  test('supports safari menu ordering including retire option', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    runtime.startMenu.mode = 'safari';
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    expect(menu.options.map((entry) => entry.id)).toEqual([
+      'RETIRE',
+      'POKEDEX',
+      'POKEMON',
+      'BAG',
+      'PLAYER',
+      'OPTION',
+      'EXIT'
+    ]);
   });
 });

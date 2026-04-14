@@ -71,6 +71,8 @@ export const updateHud = (
     : '(none)';
   bindings.scriptValue.textContent = lastScriptId ?? '(none)';
   bindings.menuValue.textContent = startMenu.active
-    ? `${startMenu.options[startMenu.selectedIndex] ?? 'UNKNOWN'} (${startMenu.selectedIndex + 1}/${startMenu.options.length})`
-    : 'closed';
+    ? `${startMenu.options[startMenu.selectedIndex]?.label ?? 'UNKNOWN'} (${startMenu.selectedIndex + 1}/${startMenu.options.length})`
+    : startMenu.panel
+      ? `${startMenu.panel.title} panel`
+      : 'closed';
 };
