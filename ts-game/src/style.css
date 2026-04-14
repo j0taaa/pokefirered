@@ -120,3 +120,43 @@ strong {
   color: #95add8;
   font-size: 0.75rem;
 }
+
+.battle-overlay {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  padding: 8px 10px;
+  border: 2px solid #f7f8ff;
+  border-radius: 6px;
+  background: rgba(12, 16, 26, 0.95);
+}
+
+.battle-title {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  color: #fff4c7;
+}
+
+.battle-status,
+.battle-preview,
+.battle-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #d7e5ff;
+}
+
+.battle-moves {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+  font-size: 0.82rem;
+}
+
+.battle-move-selected {
+  color: #9bd1ff;
+  font-weight: 700;
+}
