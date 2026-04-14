@@ -1,29 +1,31 @@
 # ts-game (TypeScript Browser Port Track)
 
-This folder now contains a runnable browser prototype for the FireRed port effort.
+This folder contains a runnable browser prototype for the FireRed port effort.
 
 ## Current vertical slice
 
-The app currently implements a small but functional runtime slice:
+The app currently implements a functional runtime slice:
 
 - Vite + TypeScript app shell (`index.html`, `src/main.ts`)
 - Fixed-step game loop
 - Browser keyboard input adapter (WASD/Arrows + Shift run)
 - Tile map data model with pixel collision checks
-- Basic player movement + facing state
-- Canvas renderer for map/player
-- HUD for FPS + player state
-- Unit tests for collision and movement logic
+- Player movement + facing + movement animation state
+- Camera-follow viewport with map-bound clamping
+- Canvas renderer with visible-tile culling and sprite-like player rendering
+- HUD for FPS + player state + camera coordinates
+- Unit tests for movement, collisions, and camera behavior
 
 ## Folder layout
 
-- `src/core` — shared runtime primitives (loop, vectors)
+- `src/core` — runtime primitives (loop, vectors, camera)
 - `src/input` — browser input adapters / snapshots
 - `src/world` — map and collision data structures
 - `src/game` — gameplay state stepping
 - `src/rendering` — canvas rendering adapter
 - `src/ui` — lightweight DOM HUD bindings
 - `test` — Vitest unit tests
+- `roadmap` — tracked roadmap + per-step planning notes
 
 ## Commands
 
@@ -36,9 +38,10 @@ Run inside `ts-game/`:
 
 ## Migration note / next steps
 
-This is still intentionally pre-production scaffolding. Recommended next increments:
+Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 
-1. Add sprite-sheet based character rendering (replace placeholder rectangle).
-2. Introduce camera + map chunking instead of full-map draw each frame.
-3. Load extracted map metadata from decomp-generated data adapters.
-4. Add NPC entities and script trigger zones.
+Near-term next increments:
+
+1. Introduce a map loading adapter boundary (`MapSource`) and JSON-backed map fixtures.
+2. Add NPC entities and simple trigger zones.
+3. Replace primitive player visuals with true sprite-sheet frames.

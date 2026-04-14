@@ -1,5 +1,8 @@
+import type { CameraState } from '../core/camera';
 import type { PlayerState } from '../game/player';
 import type { TileMap } from '../world/tileMap';
+
+const PLAYER_SIZE = 14;
 
 export class CanvasRenderer {
   private readonly canvas: HTMLCanvasElement;
@@ -21,41 +24,63 @@ export class CanvasRenderer {
     this.canvas.height = height;
   }
 
-  render(map: TileMap, player: PlayerState): void {
+  render(map: TileMap, player: PlayerState, camera: CameraState): void {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    for (let y = 0; y < map.height; y += 1) {
-      for (let x = 0; x < map.width; x += 1) {
+    const tileSize = map.tileSize;
+    const startX = Math.floor(camera.x / tileSize);
+    const startY = Math.floor(camera.y / tileSize);
+    const endX = Math.min(map.width, startX + Math.ceil(camera.viewportWidth / tileSize) + 1);
+    const endY = Math.min(map.height, startY + Math.ceil(camera.viewportHeight / tileSize) + 1);
+
+    for (let y = startY; y < endY; y += 1) {
+      for (let x = startX; x < endX; x += 1) {
         const idx = y * map.width + x;
         const walkable = map.walkable[idx];
 
         ctx.fillStyle = walkable ? '#4e9a51' : '#355c37';
-
         if (!walkable && y > 7 && x > 11) {
           ctx.fillStyle = '#2f6db0';
         }
 
-        ctx.fillRect(x * map.tileSize, y * map.tileSize, map.tileSize, map.tileSize);
+        ctx.fillRect(
+          x * tileSize - camera.x,
+          y * tileSize - camera.y,
+          tileSize,
+          tileSize
+        );
       }
     }
 
-    ctx.fillStyle = '#ffe37f';
-    ctx.fillRect(player.position.x, player.position.y, 14, 14);
+    this.drawPlayer(player, camera);
+  }
 
-    ctx.fillStyle = '#1b2234';
+  private drawPlayer(player: PlayerState, camera: CameraState): void {
+    const screenX = player.position.x - camera.x;
+    const screenY = player.position.y - camera.y;
+    const stepFrame = player.moving ? Math.floor(player.animationTime * 10) % 2 : 0;
+    const bobOffset = player.moving && stepFrame === 1 ? 1 : 0;
+
+    this.ctx.fillStyle = '#f2d07c';
+    this.ctx.fillRect(screenX, screenY - bobOffset, PLAYER_SIZE, PLAYER_SIZE);
+
+    this.ctx.fillStyle = '#355c7d';
+    this.ctx.fillRect(screenX + 2, screenY + 8 - bobOffset, 10, 5);
+
+    this.ctx.fillStyle = '#1b2234';
     switch (player.facing) {
       case 'up':
-        ctx.fillRect(player.position.x + 4, player.position.y + 1, 6, 3);
+        this.ctx.fillRect(screenX + 4, screenY + 1 - bobOffset, 6, 3);
         break;
       case 'down':
-        ctx.fillRect(player.position.x + 4, player.position.y + 10, 6, 3);
+        this.ctx.fillRect(screenX + 4, screenY + 10 - bobOffset, 6, 3);
         break;
       case 'left':
-        ctx.fillRect(player.position.x + 1, player.position.y + 4, 3, 6);
+        this.ctx.fillRect(screenX + 1, screenY + 4 - bobOffset, 3, 6);
         break;
       case 'right':
-        ctx.fillRect(player.position.x + 10, player.position.y + 4, 3, 6);
+        this.ctx.fillRect(screenX + 10, screenY + 4 - bobOffset, 3, 6);
         break;
     }
   }
