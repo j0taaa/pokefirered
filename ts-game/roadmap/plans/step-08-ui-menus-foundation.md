@@ -9,6 +9,8 @@ Status: ✅ Done on 2026-04-14
 - Added directional edge-trigger input booleans (`upPressed/downPressed/...`) for menu navigation fidelity.
 - Added a DOM start-menu overlay (`src/ui/startMenu.ts`) and HUD menu status field.
 - Frozen world stepping (player + NPC updates) while menu is active.
+- 2026-04-14 follow-up: start-menu setup now mirrors FireRed context builders (`normal`, `safari`, `link`, `unionRoom`) with runtime-driven entries.
+- 2026-04-14 follow-up: menu selections now execute callback-like transitions into placeholder panels (instead of only writing HUD script ids), with close behavior on B/START/A.
 
 ## FireRed parity notes
 
@@ -22,5 +24,6 @@ Status: ✅ Done on 2026-04-14
   - start-open behavior,
   - dialogue-close-on-open behavior,
   - cursor wraparound,
-  - EXIT close handling.
+  - EXIT close handling,
+  - context-specific menu composition and panel callback transitions.
 - Existing tests kept green with updated input snapshot shape.

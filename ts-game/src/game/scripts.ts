@@ -6,6 +6,12 @@ export interface ScriptRuntimeState {
   flags: Set<string>;
   consumedTriggerIds: Set<string>;
   lastScriptId: string | null;
+  startMenu: {
+    mode: 'normal' | 'safari' | 'link' | 'unionRoom';
+    playerName: string;
+    hasPokedex: boolean;
+    hasPokemon: boolean;
+  };
 }
 
 export interface ScriptContext {
@@ -20,7 +26,13 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => ({
   vars: {},
   flags: new Set<string>(),
   consumedTriggerIds: new Set<string>(),
-  lastScriptId: null
+  lastScriptId: null,
+  startMenu: {
+    mode: 'normal',
+    playerName: 'PLAYER',
+    hasPokedex: true,
+    hasPokemon: true
+  }
 });
 
 export const getScriptVar = (runtime: ScriptRuntimeState, key: string): number =>
