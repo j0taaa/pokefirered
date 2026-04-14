@@ -12,6 +12,7 @@ The app currently implements a functional runtime slice:
 - Map loading adapter boundary (`MapSource`) with JSON-backed prototype fixture
 - Player movement + facing + movement animation state
 - NPC entity starter with patrol paths, idle pauses, and map-aware collision probes
+- Object-event-style NPC interaction scripts (`interactScriptId`) with face-player behavior
 - Camera-follow viewport with map-bound clamping
 - Canvas renderer with visible-tile culling and sprite-like player rendering
 - HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id

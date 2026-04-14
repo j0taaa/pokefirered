@@ -56,7 +56,7 @@ describe('interaction stepping', () => {
     expect(npc.dialogueIndex).toBe(1);
   });
 
-  test('interaction toggles open dialogue closed on next press', () => {
+  test('interaction advances dialogue and then closes on final press', () => {
     const dialogue = createDialogueState();
     const player = createTestPlayer();
     const npc = createTestNpc();
@@ -68,6 +68,9 @@ describe('interaction stepping', () => {
       [npc],
       16
     );
+    expect(dialogue.active).toBe(true);
+    expect(dialogue.text).toBe('Hello!');
+
     stepInteraction(
       dialogue,
       { ...neutralInput, interact: true, interactPressed: true },
@@ -75,10 +78,46 @@ describe('interaction stepping', () => {
       [npc],
       16
     );
-
     expect(dialogue.active).toBe(false);
     expect(dialogue.text).toBe('');
     expect(dialogue.speakerId).toBe(null);
+    expect(dialogue.queue.length).toBe(0);
+  });
+
+  test('runs scripted npc interaction when script id is provided', () => {
+    const dialogue = createDialogueState();
+    const player = createTestPlayer();
+    const runtime = createScriptRuntimeState();
+    const npc = {
+      ...createTestNpc(),
+      interactScriptId: 'object.npc-test.interact',
+      dialogueLines: ['Fallback text should not run']
+    };
+    const registry: Record<string, ScriptHandler> = {
+      'object.npc-test.interact': ({ dialogue: d }) => {
+        d.active = true;
+        d.speakerId = 'npc-test';
+        d.text = 'Scripted hello';
+        d.queue = ['Scripted hello', 'Scripted bye'];
+        d.queueIndex = 0;
+      }
+    };
+
+    expect(dialogue.active).toBe(false);
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime,
+      registry
+    );
+
+    expect(dialogue.active).toBe(true);
+    expect(dialogue.text).toBe('Scripted hello');
+    expect(runtime.lastScriptId).toBe('object.npc-test.interact');
   });
 
   test('runs facing trigger when there is no npc in front', () => {
