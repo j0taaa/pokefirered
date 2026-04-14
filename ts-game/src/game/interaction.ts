@@ -2,6 +2,9 @@ import type { InputSnapshot } from '../input/inputState';
 import { vec2, type Vec2 } from '../core/vec2';
 import type { NpcState } from './npc';
 import type { PlayerState } from './player';
+import type { TriggerZone } from '../world/mapSource';
+import type { ScriptHandler, ScriptRuntimeState } from './scripts';
+import { tryRunFacingTrigger } from './triggers';
 
 export interface DialogueState {
   active: boolean;
@@ -71,7 +74,10 @@ export const stepInteraction = (
   input: InputSnapshot,
   player: PlayerState,
   npcs: NpcState[],
-  tileSize: number
+  tileSize: number,
+  triggers: TriggerZone[] = [],
+  runtime?: ScriptRuntimeState,
+  scriptRegistry?: Record<string, ScriptHandler>
 ): DialogueState => {
   if (!input.interactPressed) {
     return dialogue;
@@ -84,22 +90,31 @@ export const stepInteraction = (
     return dialogue;
   }
 
+  // Matches field_control_avatar.c interaction priority:
+  // object events first, then background/facing triggers.
   const npc = findNpcInFront(player, npcs, tileSize);
-  if (!npc || npc.dialogueLines.length === 0) {
+  if (npc && npc.dialogueLines.length > 0) {
+    npc.facing = oppositeFacing(player.facing);
+    npc.moving = false;
+    npc.idleTimeRemaining = Math.max(npc.idleTimeRemaining, 0.2);
+
+    const line = npc.dialogueLines[npc.dialogueIndex % npc.dialogueLines.length];
+    npc.dialogueIndex = (npc.dialogueIndex + 1) % npc.dialogueLines.length;
+
+    dialogue.active = true;
+    dialogue.speakerId = npc.id;
+    dialogue.text = line;
     return dialogue;
   }
 
-  // Matches the original field script behavior where the selected NPC turns to
-  // face opposite the player's facing direction (Script_FacePlayer).
-  npc.facing = oppositeFacing(player.facing);
-  npc.moving = false;
-  npc.idleTimeRemaining = Math.max(npc.idleTimeRemaining, 0.2);
+  if (runtime) {
+    tryRunFacingTrigger(triggers, player, tileSize, {
+      player,
+      dialogue,
+      runtime,
+      scriptRegistry
+    });
+  }
 
-  const line = npc.dialogueLines[npc.dialogueIndex % npc.dialogueLines.length];
-  npc.dialogueIndex = (npc.dialogueIndex + 1) % npc.dialogueLines.length;
-
-  dialogue.active = true;
-  dialogue.speakerId = npc.id;
-  dialogue.text = line;
   return dialogue;
 };

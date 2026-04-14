@@ -9,6 +9,7 @@ describe('map source loading', () => {
     expect(map.height).toBe(15);
     expect(map.tileSize).toBe(16);
     expect(map.walkable.length).toBe(300);
+    expect(map.triggers.length).toBeGreaterThan(0);
   });
 
   test('throws when walkable length does not match map size', () => {
@@ -37,5 +38,29 @@ describe('map source loading', () => {
         walkable: [1, 2]
       })
     ).toThrow(/boolean walkable array/i);
+  });
+
+
+  test('parses and validates triggers', () => {
+    const source = parseMapSource({
+      id: 'trigger-map',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      walkable: [true],
+      triggers: [{ id: 't', x: 0, y: 0, activation: 'step', scriptId: 'script.1' }]
+    });
+
+    expect(source.triggers?.[0].facing).toBe('any');
+    expect(source.triggers?.[0].once).toBe(false);
+
+    expect(() => parseMapSource({
+      id: 'bad-trigger',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      walkable: [true],
+      triggers: [{ id: 't2', x: 0, y: 0, activation: 'oops', scriptId: 's' }]
+    })).toThrow(/invalid activation/i);
   });
 });

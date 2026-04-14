@@ -1,11 +1,12 @@
 import type { Vec2 } from '../core/vec2';
-import { loadPrototypeRouteMap } from './mapSource';
+import { loadPrototypeRouteMap, type TriggerZone } from './mapSource';
 
 export interface TileMap {
   width: number;
   height: number;
   tileSize: number;
   walkable: boolean[];
+  triggers: TriggerZone[];
 }
 
 export const createPrototypeRouteMap = (): TileMap => loadPrototypeRouteMap();

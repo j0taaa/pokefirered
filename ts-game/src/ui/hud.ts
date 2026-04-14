@@ -11,6 +11,7 @@ export interface HudBindings {
   cameraValue: HTMLElement;
   npcValue: HTMLElement;
   dialogueValue: HTMLElement;
+  scriptValue: HTMLElement;
 }
 
 export const createHud = (): HudBindings => {
@@ -28,7 +29,8 @@ export const createHud = (): HudBindings => {
     'Facing: <strong data-role="facing">down</strong><br/>',
     'Camera: <strong data-role="camera">0,0</strong><br/>',
     'NPCs: <strong data-role="npc">0</strong><br/>',
-    'Dialog: <strong data-role="dialogue">(none)</strong>'
+    'Dialog: <strong data-role="dialogue">(none)</strong><br/>',
+    'Script: <strong data-role="script">(none)</strong>'
   ].join('');
 
   root.append(perfCard, stateCard);
@@ -40,7 +42,8 @@ export const createHud = (): HudBindings => {
     facingValue: stateCard.querySelector('[data-role="facing"]') as HTMLElement,
     cameraValue: stateCard.querySelector('[data-role="camera"]') as HTMLElement,
     npcValue: stateCard.querySelector('[data-role="npc"]') as HTMLElement,
-    dialogueValue: stateCard.querySelector('[data-role="dialogue"]') as HTMLElement
+    dialogueValue: stateCard.querySelector('[data-role="dialogue"]') as HTMLElement,
+    scriptValue: stateCard.querySelector('[data-role="script"]') as HTMLElement
   };
 };
 
@@ -50,7 +53,8 @@ export const updateHud = (
   npcs: NpcState[],
   fps: number,
   camera: CameraState,
-  dialogue: DialogueState
+  dialogue: DialogueState,
+  lastScriptId: string | null
 ): void => {
   bindings.fpsValue.textContent = fps.toFixed(0);
   bindings.positionValue.textContent = `${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}`;
@@ -60,4 +64,5 @@ export const updateHud = (
   bindings.dialogueValue.textContent = dialogue.active
     ? `${dialogue.speakerId ?? 'npc'}: ${dialogue.text}`
     : '(none)';
+  bindings.scriptValue.textContent = lastScriptId ?? '(none)';
 };

@@ -14,8 +14,8 @@ The app currently implements a functional runtime slice:
 - NPC entity starter with patrol paths, idle pauses, and map-aware collision probes
 - Camera-follow viewport with map-bound clamping
 - Canvas renderer with visible-tile culling and sprite-like player rendering
-- HUD for FPS + player state + camera coordinates + NPC/dialog status
-- Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, and map source parsing
+- HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
+- Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
 
 ## Folder layout
 
@@ -43,6 +43,6 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 
 Near-term next increments:
 
-1. Introduce trigger zones + script callback hooks.
+1. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
 2. Replace primitive player visuals with true sprite-sheet frames.
 3. Evolve dialog stubs into a script callback registry tied to extracted event data.

@@ -54,6 +54,13 @@ export class CanvasRenderer {
       }
     }
 
+    for (const trigger of map.triggers) {
+      const tx = trigger.x * tileSize - camera.x;
+      const ty = trigger.y * tileSize - camera.y;
+      this.ctx.fillStyle = trigger.activation === 'interact' ? '#f4e66a' : '#8cd3ff';
+      this.ctx.fillRect(tx + 5, ty + 5, 6, 6);
+    }
+
     this.drawNpcs(npcs, camera);
     this.drawPlayer(player, camera);
   }
