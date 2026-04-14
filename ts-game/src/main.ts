@@ -11,6 +11,12 @@ import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
 import { runStepTriggersAtPlayerTile } from './game/triggers';
 import { createStartMenuState, isStartMenuBlockingWorld, stepStartMenu } from './game/menu';
+import {
+  applySaveSnapshot,
+  DEFAULT_SAVE_SLOT_KEY,
+  loadGameFromStorage,
+  saveGameToStorage
+} from './game/saveData';
 import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -40,6 +46,18 @@ const startMenu = createStartMenuState();
 const input = new BrowserInputAdapter();
 input.attach();
 
+const storage = window.localStorage;
+const loadedSave = loadGameFromStorage(storage, DEFAULT_SAVE_SLOT_KEY);
+if (loadedSave && applySaveSnapshot(loadedSave, map.id, player, scriptRuntime)) {
+  scriptRuntime.lastScriptId = `save.load.success.${loadedSave.saveIndex}`;
+}
+
+const handleSaveConfirmed = () => {
+  const result = saveGameToStorage(storage, map.id, player, scriptRuntime, DEFAULT_SAVE_SLOT_KEY);
+  scriptRuntime.lastScriptId = `save.write.${result.saveIndex}`;
+  return result;
+};
+
 const renderer = new CanvasRenderer(canvas);
 const camera = createCamera(12 * map.tileSize, 10 * map.tileSize);
 renderer.resize(camera.viewportWidth, camera.viewportHeight);
@@ -52,7 +70,7 @@ const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
 
-    stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime);
+    stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, { onSaveConfirmed: handleSaveConfirmed });
 
     if (!isStartMenuBlockingWorld(startMenu)) {
       stepInteraction(

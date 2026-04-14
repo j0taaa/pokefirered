@@ -158,6 +158,7 @@ export const mapFromSource = (source: MapSource): TileMap => {
   }
 
   return {
+    id: source.id,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,

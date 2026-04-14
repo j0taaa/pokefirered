@@ -2,6 +2,7 @@ import type { Vec2 } from '../core/vec2';
 import { loadPrototypeRouteMap, type TriggerZone } from './mapSource';
 
 export interface TileMap {
+  id: string;
   width: number;
   height: number;
   tileSize: number;
