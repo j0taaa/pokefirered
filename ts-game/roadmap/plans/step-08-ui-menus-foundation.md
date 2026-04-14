@@ -11,6 +11,7 @@ Status: ✅ Done on 2026-04-14
 - Frozen world stepping (player + NPC updates) while menu is active.
 - 2026-04-14 follow-up: start-menu setup now mirrors FireRed context builders (`normal`, `safari`, `link`, `unionRoom`) with runtime-driven entries.
 - 2026-04-14 follow-up: menu selections now execute callback-like transitions into placeholder panels (instead of only writing HUD script ids), with close behavior on B/START/A.
+- 2026-04-14 follow-up: OPTION now behaves as an editable menu scene with row navigation + left/right setting changes for text speed, battle scene, and battle style (mirroring `option_menu.c` item structure at prototype scope).
 
 ## FireRed parity notes
 

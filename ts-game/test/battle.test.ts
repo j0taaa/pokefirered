@@ -58,21 +58,42 @@ describe('battle vertical slice', () => {
 
   test('advances intro, allows move selection, and resolves faint flow', () => {
     const battle = createBattleState();
+    const encounter = createBattleEncounterState();
     battle.active = true;
     battle.phase = 'intro';
     battle.wildMon.hp = 9;
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true });
+    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
     expect(battle.phase).toBe('command');
 
-    stepBattle(battle, { ...neutralInput, down: true, downPressed: true });
+    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    expect(battle.phase).toBe('moveSelect');
+
+    stepBattle(battle, { ...neutralInput, down: true, downPressed: true }, encounter);
     expect(battle.selectedMoveIndex).toBe(1);
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true });
+    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
     expect(battle.phase).toBe('resolved');
     expect(battle.wildMon.hp).toBe(0);
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true });
+    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
     expect(battle.active).toBe(false);
+  });
+
+  test('supports command selection and failed run attempts', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'command';
+    battle.playerMon.speed = 4;
+    battle.wildMon.speed = 40;
+    encounter.rngState = 1;
+
+    stepBattle(battle, { ...neutralInput, down: true, downPressed: true }, encounter);
+    expect(battle.selectedCommandIndex).toBe(1);
+
+    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    expect(battle.phase).toBe('moveSelect');
+    expect(battle.turnSummary).toContain("Can't escape");
   });
 });

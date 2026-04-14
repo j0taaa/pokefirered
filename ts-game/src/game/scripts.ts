@@ -13,6 +13,11 @@ export interface ScriptRuntimeState {
     hasPokedex: boolean;
     hasPokemon: boolean;
   };
+  options: {
+    textSpeed: 'slow' | 'mid' | 'fast';
+    battleScene: boolean;
+    battleStyle: 'shift' | 'set';
+  };
 }
 
 export interface ScriptContext {
@@ -34,6 +39,11 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => ({
     playerName: 'PLAYER',
     hasPokedex: true,
     hasPokemon: true
+  },
+  options: {
+    textSpeed: 'mid',
+    battleScene: true,
+    battleStyle: 'shift'
   }
 });
 
@@ -106,10 +116,23 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     player.position.y = 2 * 16;
     openScriptDialogue(dialogue, 'system', 'You were whisked back to the trailhead.');
   },
-  'object.npc-lass-01.interact': ({ dialogue }) => {
+  'object.npc-lass-01.interact': ({ dialogue, runtime }) => {
+    const seenIntro = isScriptFlagSet(runtime, 'npc.lass01.introSeen');
+    if (!seenIntro) {
+      setScriptFlag(runtime, 'npc.lass01.introSeen');
+      openDialogueSequence(dialogue, 'npc-lass-01', [
+        'The grass rustles when wild Pokémon are near.',
+        'I am pacing this route to train my team!'
+      ]);
+      return;
+    }
+
+    const routeWarnings = getScriptVar(runtime, 'routeWarningSeen');
     openDialogueSequence(dialogue, 'npc-lass-01', [
-      'The grass rustles when wild Pokémon are near.',
-      'I am pacing this route to train my team!'
+      'Back again? Keep your Pokémon healthy out there.',
+      routeWarnings >= 2
+        ? 'That eastern wind still feels strange... stay alert.'
+        : 'Try talking to every trainer and every sign.'
     ]);
   },
   'object.npc-bugcatcher-01.interact': ({ dialogue, runtime }) => {

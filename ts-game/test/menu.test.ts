@@ -109,6 +109,39 @@ describe('start menu stepping', () => {
     expect(runtime.lastScriptId).toBe('menu.panel.close.save');
   });
 
+  test('SAVE panel asks overwrite when a prior save exists', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    runtime.saveCounter = 1;
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'SAVE');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    expect(menu.panel?.kind).toBe('save');
+    expect(menu.panel?.description).toContain('Overwrite');
+  });
+
+  test('OPTION panel updates runtime options with directional input', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'OPTION');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    expect(menu.panel?.kind).toBe('options');
+
+    stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
+    expect(runtime.options.textSpeed).toBe('fast');
+
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
+    expect(runtime.options.battleScene).toBe(false);
+  });
+
   test('builds normal-field entries from runtime flags and player name', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();

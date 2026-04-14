@@ -28,3 +28,4 @@ Add a first trigger/script slice that mirrors core FireRed field flow:
 - 2026-04-14: Added FireRed-style trigger gating extensions that keep legacy `VarGet(trigger) == index` parity while also allowing additional AND conditions for variable ranges (`gt/gte/lt/lte/ne`) and flag-state checks.
 - 2026-04-14: Added script runtime helpers for var math and flags (`set/add/get var`, `set/clear/is flag`) so trigger/script code maps more directly to decomp-side `Var*` / `Flag*` operations.
 - 2026-04-14: Extended prototype route data with a follow-up coordinate trigger gated by both var progress and a one-time acknowledgement flag.
+- 2026-04-14: Updated prototype object-event script behavior so NPC dialogue branches on persisted flag/var state (first-talk flag set + follow-up lines), matching decomp-style event script statefulness.

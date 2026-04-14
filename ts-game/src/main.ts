@@ -77,7 +77,7 @@ const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
 
-    stepBattle(battle, snapshot);
+    stepBattle(battle, snapshot, battleEncounter);
 
     if (!isBattleBlockingWorld(battle)) {
       stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, { onSaveConfirmed: handleSaveConfirmed });

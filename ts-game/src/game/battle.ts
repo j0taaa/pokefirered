@@ -25,24 +25,34 @@ export interface BattleEncounterState {
   rngState: number;
 }
 
+export type BattleCommand = 'fight' | 'run';
+
 export interface BattleState {
   active: boolean;
-  phase: 'intro' | 'command' | 'resolved';
+  phase: 'intro' | 'command' | 'moveSelect' | 'resolved';
   playerMon: BattlePokemonSnapshot;
   wildMon: BattlePokemonSnapshot;
   moves: BattleMove[];
   selectedMoveIndex: number;
+  selectedCommandIndex: number;
+  commands: BattleCommand[];
   turnSummary: string;
   damagePreview: {
     min: number;
     max: number;
   } | null;
+  runAttempts: number;
 }
 
 const RAND_MULT = 1103515245;
 const ISO_RANDOMIZE2_ADD = 12345;
 
 const clampDamage = (value: number): number => Math.max(1, Math.floor(value));
+
+const nextBattleRng = (state: BattleEncounterState): number => {
+  state.rngState = (RAND_MULT * state.rngState + ISO_RANDOMIZE2_ADD) >>> 0;
+  return state.rngState >>> 16;
+};
 
 // Mirrors the core Gen 3 base formula in src/pokemon.c::CalculateBaseDamage,
 // with intentionally scoped simplifications (single-type, no weather/items/abilities).
@@ -71,11 +81,6 @@ export const calculateDamagePreview = (
   return { min, max };
 };
 
-const nextEncounterRng = (state: BattleEncounterState): number => {
-  state.rngState = (RAND_MULT * state.rngState + ISO_RANDOMIZE2_ADD) >>> 0;
-  return state.rngState >>> 16;
-};
-
 const getMapBaseEncounterCooldown = (encounterRate: number): number => {
   if (encounterRate >= 80) {
     return 0;
@@ -94,7 +99,38 @@ export const shouldStartWildEncounter = (state: BattleEncounterState): boolean =
   }
 
   state.stepsSinceLastEncounter += 1;
-  return (nextEncounterRng(state) % 100) < 5;
+  return (nextBattleRng(state) % 100) < 5;
+};
+
+const tryRunFromBattle = (
+  player: BattlePokemonSnapshot,
+  enemy: BattlePokemonSnapshot,
+  runAttempts: number,
+  encounter: BattleEncounterState
+): boolean => {
+  if (player.speed >= enemy.speed) {
+    return true;
+  }
+
+  // Mirrors battle_main.c::TryRunFromBattle speedVar branch.
+  const speedVar = Math.floor((player.speed * 128) / Math.max(1, enemy.speed)) + (runAttempts * 30);
+  const roll = nextBattleRng(encounter) & 0xff;
+  return speedVar > roll;
+};
+
+const chooseEnemyMoveIndex = (battle: BattleState): number => {
+  let bestIndex = 0;
+  let bestDamage = -1;
+  for (let i = 0; i < battle.moves.length; i += 1) {
+    const move = battle.moves[i];
+    const preview = calculateDamagePreview(battle.wildMon, battle.playerMon, move);
+    if (preview.max > bestDamage) {
+      bestDamage = preview.max;
+      bestIndex = i;
+    }
+  }
+
+  return bestIndex;
 };
 
 export const createBattleEncounterState = (): BattleEncounterState => ({
@@ -135,8 +171,11 @@ export const createBattleState = (): BattleState => {
       { id: 'scratch', name: 'SCRATCH', power: 40, type: 'normal', accuracy: 100 }
     ],
     selectedMoveIndex: 0,
+    selectedCommandIndex: 0,
+    commands: ['fight', 'run'],
     turnSummary: '',
-    damagePreview: null
+    damagePreview: null,
+    runAttempts: 0
   };
 };
 
@@ -158,6 +197,8 @@ export const tryStartWildBattle = (
   battle.wildMon.hp = battle.wildMon.maxHp;
   battle.playerMon.hp = battle.playerMon.maxHp;
   battle.selectedMoveIndex = 0;
+  battle.selectedCommandIndex = 0;
+  battle.runAttempts = 0;
   battle.turnSummary = `Wild ${battle.wildMon.species} appeared!`;
   battle.damagePreview = calculateDamagePreview(battle.playerMon, battle.wildMon, battle.moves[0]);
   encounter.stepsSinceLastEncounter = 0;
@@ -166,7 +207,11 @@ export const tryStartWildBattle = (
 
 export const isBattleBlockingWorld = (battle: BattleState): boolean => battle.active;
 
-export const stepBattle = (battle: BattleState, input: InputSnapshot): void => {
+export const stepBattle = (
+  battle: BattleState,
+  input: InputSnapshot,
+  encounterState: BattleEncounterState = createBattleEncounterState()
+): void => {
   if (!battle.active) {
     return;
   }
@@ -189,6 +234,46 @@ export const stepBattle = (battle: BattleState, input: InputSnapshot): void => {
     return;
   }
 
+  if (battle.phase === 'command') {
+    if (input.upPressed || input.downPressed) {
+      const direction = input.upPressed ? -1 : 1;
+      battle.selectedCommandIndex = (battle.selectedCommandIndex + direction + battle.commands.length) % battle.commands.length;
+    }
+
+    if (!input.interactPressed) {
+      return;
+    }
+
+    const selectedCommand = battle.commands[battle.selectedCommandIndex];
+    if (selectedCommand === 'fight') {
+      battle.phase = 'moveSelect';
+      battle.turnSummary = 'Choose a move.';
+      battle.damagePreview = calculateDamagePreview(
+        battle.playerMon,
+        battle.wildMon,
+        battle.moves[battle.selectedMoveIndex]
+      );
+      return;
+    }
+
+    const escaped = tryRunFromBattle(battle.playerMon, battle.wildMon, battle.runAttempts, encounterState);
+    battle.runAttempts += 1;
+    if (escaped) {
+      battle.phase = 'resolved';
+      battle.turnSummary = `${battle.playerMon.species} fled safely!`;
+    } else {
+      battle.phase = 'moveSelect';
+      battle.turnSummary = `Can't escape!`;
+    }
+    return;
+  }
+
+  if (input.cancelPressed) {
+    battle.phase = 'command';
+    battle.turnSummary = 'What will you do?';
+    return;
+  }
+
   if (input.upPressed || input.downPressed) {
     const direction = input.upPressed ? -1 : 1;
     const moveCount = battle.moves.length;
@@ -201,23 +286,53 @@ export const stepBattle = (battle: BattleState, input: InputSnapshot): void => {
     return;
   }
 
-  const selectedMove = battle.moves[battle.selectedMoveIndex];
-  const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, selectedMove);
-  battle.damagePreview = preview;
+  const playerMove = battle.moves[battle.selectedMoveIndex];
+  const enemyMove = battle.moves[chooseEnemyMoveIndex(battle)];
+  const playerActsFirst = battle.playerMon.speed >= battle.wildMon.speed;
 
-  battle.wildMon.hp = Math.max(0, battle.wildMon.hp - preview.max);
+  const resolvePlayer = () => {
+    const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, playerMove);
+    battle.wildMon.hp = Math.max(0, battle.wildMon.hp - preview.max);
+    battle.turnSummary = `${battle.playerMon.species} used ${playerMove.name}!`;
+  };
+
+  const resolveEnemy = () => {
+    const preview = calculateDamagePreview(battle.wildMon, battle.playerMon, enemyMove);
+    battle.playerMon.hp = Math.max(0, battle.playerMon.hp - preview.min);
+    battle.turnSummary += ` Enemy ${battle.wildMon.species} used ${enemyMove.name}!`;
+  };
+
+  if (playerActsFirst) {
+    resolvePlayer();
+    if (battle.wildMon.hp === 0) {
+      battle.phase = 'resolved';
+      battle.turnSummary = `Enemy ${battle.wildMon.species} fainted!`;
+      return;
+    }
+
+    resolveEnemy();
+  } else {
+    resolveEnemy();
+    if (battle.playerMon.hp === 0) {
+      battle.phase = 'resolved';
+      battle.turnSummary = `${battle.playerMon.species} fainted...`;
+      return;
+    }
+
+    resolvePlayer();
+  }
+
+  if (battle.playerMon.hp === 0) {
+    battle.phase = 'resolved';
+    battle.turnSummary = `${battle.playerMon.species} fainted...`;
+    return;
+  }
+
   if (battle.wildMon.hp === 0) {
     battle.phase = 'resolved';
     battle.turnSummary = `Enemy ${battle.wildMon.species} fainted!`;
     return;
   }
 
-  const enemyPreview = calculateDamagePreview(battle.wildMon, battle.playerMon, battle.moves[0]);
-  battle.playerMon.hp = Math.max(0, battle.playerMon.hp - enemyPreview.min);
-  battle.turnSummary = `${battle.playerMon.species} used ${selectedMove.name}!`; 
-
-  if (battle.playerMon.hp === 0) {
-    battle.phase = 'resolved';
-    battle.turnSummary = `${battle.playerMon.species} fainted...`;
-  }
+  battle.phase = 'command';
 };
