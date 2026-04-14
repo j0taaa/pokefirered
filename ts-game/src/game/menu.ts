@@ -21,6 +21,7 @@ interface MenuPanelState {
   id: Exclude<StartMenuOptionId, 'EXIT'>;
   title: string;
   description: string;
+  returnToMenuOnClose: boolean;
 }
 
 export interface StartMenuCallbacks {
@@ -156,8 +157,12 @@ export const stepStartMenu = (
     }
 
     if (input.cancelPressed || input.startPressed || input.interactPressed) {
+      const shouldReturnToMenu = menu.panel.returnToMenuOnClose;
       runtime.lastScriptId = `menu.panel.close.${menu.panel.id.toLowerCase()}`;
       closeMenuPanel(menu);
+      if (shouldReturnToMenu) {
+        menu.active = true;
+      }
     }
     return;
   }
@@ -205,11 +210,15 @@ export const stepStartMenu = (
     return;
   }
 
+  const isSave = selected.id === 'SAVE';
   closeStartMenu(menu);
   menu.panel = {
     id: selected.id,
     title: panelTitle(selected.id),
-    description: panelDescription(selected.id)
+    description: panelDescription(selected.id),
+    // In FireRed, choosing SAVE runs the save dialog from inside the start-menu flow.
+    // Backing out of that flow returns to the menu instead of the overworld.
+    returnToMenuOnClose: isSave
   };
   runtime.lastScriptId = `menu.open.${selected.id.toLowerCase()}`;
 };
