@@ -16,7 +16,8 @@ The app currently implements a functional runtime slice:
 - Camera-follow viewport with map-bound clamping
 - Canvas renderer with visible-tile culling and sprite-like player rendering
 - HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
-- START menu flow with FireRed-like dynamic option composition and placeholder submenu callbacks
+- START menu flow with FireRed-like dynamic option composition and submenu callbacks
+- Browser save/load persistence adapter (localStorage-backed) wired to START > SAVE confirmation
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
 
 ## Folder layout
@@ -45,6 +46,6 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 
 Near-term next increments:
 
-1. Replace START-menu placeholder panels with fully interactive menu scenes (party/bag/options/save state + navigation).
+1. Replace START-menu placeholder panels with fully interactive menu scenes (party/bag/options + deeper save UX parity).
 2. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
 3. Replace primitive player visuals with true sprite-sheet frames.

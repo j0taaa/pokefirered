@@ -78,6 +78,35 @@ describe('start menu stepping', () => {
     expect(runtime.lastScriptId).toBe('menu.exit');
   });
 
+
+  test('SAVE panel confirms save callback and reports result', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'SAVE');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    expect(menu.panel?.id).toBe('SAVE');
+
+    stepStartMenu(
+      menu,
+      { ...neutralInput, interact: true, interactPressed: true },
+      dialogue,
+      runtime,
+      {
+        onSaveConfirmed: () => ({ ok: true, summary: 'Saved at now (slot #2).' })
+      }
+    );
+
+    expect(menu.panel?.description).toBe('Saved at now (slot #2).');
+    expect(runtime.lastScriptId).toBe('menu.save.success');
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+  });
+
   test('builds normal-field entries from runtime flags and player name', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();

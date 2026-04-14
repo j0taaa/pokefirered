@@ -23,6 +23,13 @@ interface MenuPanelState {
   description: string;
 }
 
+export interface StartMenuCallbacks {
+  onSaveConfirmed?: () => {
+    ok: boolean;
+    summary: string;
+  };
+}
+
 export interface StartMenuState {
   active: boolean;
   options: StartMenuEntry[];
@@ -57,7 +64,7 @@ const panelDescription = (id: Exclude<StartMenuOptionId, 'EXIT'>): string => {
     case 'PLAYER':
       return 'Trainer card placeholder. In FireRed this opens the trainer card.';
     case 'SAVE':
-      return 'Save panel placeholder. In FireRed this starts save preparation callbacks.';
+      return 'Would you like to save the game? Press Z/Enter to confirm.';
     case 'OPTION':
       return 'Option panel placeholder. In FireRed this opens options and returns to field.';
     case 'RETIRE':
@@ -135,9 +142,19 @@ export const stepStartMenu = (
   menu: StartMenuState,
   input: InputSnapshot,
   dialogue: DialogueState,
-  runtime: ScriptRuntimeState
+  runtime: ScriptRuntimeState,
+  callbacks: StartMenuCallbacks = {}
 ): void => {
   if (menu.panel) {
+    if (menu.panel.id === 'SAVE' && input.interactPressed) {
+      const result = callbacks.onSaveConfirmed?.();
+      if (result) {
+        menu.panel.description = result.summary;
+        runtime.lastScriptId = result.ok ? 'menu.save.success' : 'menu.save.failed';
+        return;
+      }
+    }
+
     if (input.cancelPressed || input.startPressed || input.interactPressed) {
       runtime.lastScriptId = `menu.panel.close.${menu.panel.id.toLowerCase()}`;
       closeMenuPanel(menu);

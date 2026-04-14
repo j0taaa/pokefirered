@@ -11,6 +11,7 @@ import { createPrototypeRouteMap, type TileMap } from '../src/world/tileMap';
 describe('npc stepping', () => {
   test('moves npc along its patrol path', () => {
     const map: TileMap = {
+      id: 'test-map',
       width: 12,
       height: 12,
       tileSize: 16,
@@ -44,6 +45,7 @@ describe('npc stepping', () => {
 
   test('waits at patrol nodes before moving again', () => {
     const map: TileMap = {
+      id: 'test-map',
       width: 12,
       height: 12,
       tileSize: 16,

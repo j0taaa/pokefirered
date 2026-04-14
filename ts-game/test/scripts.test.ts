@@ -13,6 +13,7 @@ describe('script runtime helpers', () => {
   test('supports var reads/writes and increments', () => {
     const runtime = createScriptRuntimeState();
     expect(getScriptVar(runtime, 'counter')).toBe(0);
+    expect(runtime.saveCounter).toBe(0);
 
     setScriptVar(runtime, 'counter', 5);
     expect(getScriptVar(runtime, 'counter')).toBe(5);

@@ -5,6 +5,7 @@ export interface ScriptRuntimeState {
   vars: Record<string, number>;
   flags: Set<string>;
   consumedTriggerIds: Set<string>;
+  saveCounter: number;
   lastScriptId: string | null;
   startMenu: {
     mode: 'normal' | 'safari' | 'link' | 'unionRoom';
@@ -26,6 +27,7 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => ({
   vars: {},
   flags: new Set<string>(),
   consumedTriggerIds: new Set<string>(),
+  saveCounter: 0,
   lastScriptId: null,
   startMenu: {
     mode: 'normal',
