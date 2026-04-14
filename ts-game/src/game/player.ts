@@ -23,7 +23,8 @@ export const stepPlayer = (
   state: PlayerState,
   input: InputSnapshot,
   map: TileMap,
-  dtSeconds: number
+  dtSeconds: number,
+  isBlocked?: (nextPosition: Vec2) => boolean
 ): PlayerState => {
   const direction = vec2();
 
@@ -55,6 +56,12 @@ export const stepPlayer = (
   const collisionProbe = vec2(nextPosition.x + 8, nextPosition.y + 12);
 
   if (!isWalkableAtPixel(map, collisionProbe)) {
+    state.moving = false;
+    state.animationTime = 0;
+    return state;
+  }
+
+  if (isBlocked?.(nextPosition)) {
     state.moving = false;
     state.animationTime = 0;
     return state;

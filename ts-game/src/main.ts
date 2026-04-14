@@ -5,6 +5,7 @@ import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadPrototypeRouteMap } from './world/mapSource';
 import { createPlayer, stepPlayer } from './game/player';
+import { collidesWithNpcs, createPrototypeNpcs, stepNpcs } from './game/npc';
 import { createHud, updateHud } from './ui/hud';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -23,6 +24,7 @@ app.append(shell);
 
 const map = loadPrototypeRouteMap();
 const player = createPlayer();
+const npcs = createPrototypeNpcs();
 const input = new BrowserInputAdapter();
 input.attach();
 
@@ -37,7 +39,14 @@ let fpsAccumulator = 0;
 const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
-    stepPlayer(player, snapshot, map, dt);
+    stepPlayer(
+      player,
+      snapshot,
+      map,
+      dt,
+      (nextPosition) => collidesWithNpcs(nextPosition, npcs)
+    );
+    stepNpcs(npcs, map, dt);
 
     followTarget(
       camera,
@@ -54,8 +63,8 @@ const loop = new GameLoop({
     }
   },
   render() {
-    renderer.render(map, player, camera);
-    updateHud(hud, player, fps, camera);
+    renderer.render(map, player, npcs, camera);
+    updateHud(hud, player, npcs, fps, camera);
   }
 });
 

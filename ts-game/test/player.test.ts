@@ -53,4 +53,21 @@ describe('player stepping', () => {
     expect(player.position.y).toBeLessThan(5 * 16);
     expect(player.moving).toBe(false);
   });
+
+  test('prevents moving into entity collision callback', () => {
+    const map = createPrototypeRouteMap();
+    const player = createPlayer();
+
+    const startX = player.position.x;
+    stepPlayer(
+      player,
+      { ...idleInput, right: true },
+      map,
+      1 / 10,
+      () => true
+    );
+
+    expect(player.position.x).toBe(startX);
+    expect(player.moving).toBe(false);
+  });
 });

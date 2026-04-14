@@ -1,0 +1,119 @@
+import { vec2, type Vec2 } from '../core/vec2';
+import type { TileMap } from '../world/tileMap';
+import { isWalkableAtPixel } from '../world/tileMap';
+
+export interface NpcPathPoint {
+  x: number;
+  y: number;
+}
+
+export interface NpcState {
+  id: string;
+  position: Vec2;
+  path: NpcPathPoint[];
+  pathIndex: number;
+  facing: 'up' | 'down' | 'left' | 'right';
+  moving: boolean;
+}
+
+const NPC_SPEED = 24;
+const ARRIVAL_EPSILON = 0.75;
+
+export const createPrototypeNpcs = (): NpcState[] => [
+  {
+    id: 'npc-lass-01',
+    position: vec2(6 * 16, 5 * 16),
+    path: [
+      { x: 6 * 16, y: 5 * 16 },
+      { x: 8 * 16, y: 5 * 16 },
+      { x: 8 * 16, y: 7 * 16 },
+      { x: 6 * 16, y: 7 * 16 }
+    ],
+    pathIndex: 1,
+    facing: 'right',
+    moving: false
+  },
+  {
+    id: 'npc-bugcatcher-01',
+    position: vec2(3 * 16, 8 * 16),
+    path: [
+      { x: 3 * 16, y: 8 * 16 },
+      { x: 5 * 16, y: 8 * 16 }
+    ],
+    pathIndex: 1,
+    facing: 'right',
+    moving: false
+  }
+];
+
+const updateFacing = (npc: NpcState, dx: number, dy: number): void => {
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    npc.facing = dx >= 0 ? 'right' : 'left';
+    return;
+  }
+
+  npc.facing = dy >= 0 ? 'down' : 'up';
+};
+
+export const stepNpcs = (
+  npcs: NpcState[],
+  map: TileMap,
+  dtSeconds: number
+): NpcState[] => {
+  for (const npc of npcs) {
+    if (npc.path.length === 0) {
+      npc.moving = false;
+      continue;
+    }
+
+    const target = npc.path[npc.pathIndex];
+    const dx = target.x - npc.position.x;
+    const dy = target.y - npc.position.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance <= ARRIVAL_EPSILON) {
+      npc.position = vec2(target.x, target.y);
+      npc.pathIndex = (npc.pathIndex + 1) % npc.path.length;
+      npc.moving = false;
+      continue;
+    }
+
+    updateFacing(npc, dx, dy);
+
+    const maxStep = NPC_SPEED * dtSeconds;
+    const stepDistance = Math.min(maxStep, distance);
+    const nx = dx / distance;
+    const ny = dy / distance;
+    const nextPosition = vec2(
+      npc.position.x + nx * stepDistance,
+      npc.position.y + ny * stepDistance
+    );
+
+    const probe = vec2(nextPosition.x + 8, nextPosition.y + 12);
+    if (!isWalkableAtPixel(map, probe)) {
+      npc.moving = false;
+      continue;
+    }
+
+    npc.position = nextPosition;
+    npc.moving = true;
+  }
+
+  return npcs;
+};
+
+export const collidesWithNpcs = (
+  probePosition: Vec2,
+  npcs: NpcState[],
+  radius = 10
+): boolean => {
+  for (const npc of npcs) {
+    const dx = npc.position.x - probePosition.x;
+    const dy = npc.position.y - probePosition.y;
+    if (Math.hypot(dx, dy) <= radius) {
+      return true;
+    }
+  }
+
+  return false;
+};
