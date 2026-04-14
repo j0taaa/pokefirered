@@ -10,6 +10,8 @@ import { createDialogueState, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
 import { runStepTriggersAtPlayerTile } from './game/triggers';
+import { createStartMenuState, isStartMenuBlockingWorld, stepStartMenu } from './game/menu';
+import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -23,6 +25,10 @@ shell.append(canvas);
 
 const hud = createHud();
 shell.append(hud.root);
+
+const startMenuView = createStartMenuView();
+shell.append(startMenuView.root);
+
 app.append(shell);
 
 const map = loadPrototypeRouteMap();
@@ -30,6 +36,7 @@ const player = createPlayer();
 const npcs = createPrototypeNpcs();
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
+const startMenu = createStartMenuState();
 const input = new BrowserInputAdapter();
 input.attach();
 
@@ -44,21 +51,26 @@ let fpsAccumulator = 0;
 const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
-    stepInteraction(
-      dialogue,
-      snapshot,
-      player,
-      npcs,
-      map.tileSize,
-      map.triggers,
-      scriptRuntime,
-      prototypeScriptRegistry
-    );
+
+    stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime);
+
+    if (!isStartMenuBlockingWorld(startMenu)) {
+      stepInteraction(
+        dialogue,
+        snapshot,
+        player,
+        npcs,
+        map.tileSize,
+        map.triggers,
+        scriptRuntime,
+        prototypeScriptRegistry
+      );
+    }
 
     const previousX = player.position.x;
     const previousY = player.position.y;
 
-    if (!dialogue.active) {
+    if (!dialogue.active && !isStartMenuBlockingWorld(startMenu)) {
       stepPlayer(
         player,
         snapshot,
@@ -80,10 +92,12 @@ const loop = new GameLoop({
       player.animationTime = 0;
     }
 
-    const frozenNpcIds = dialogue.active && dialogue.speakerId
-      ? new Set<string>([dialogue.speakerId])
-      : new Set<string>();
-    stepNpcs(npcs, map, dt, frozenNpcIds);
+    if (!isStartMenuBlockingWorld(startMenu)) {
+      const frozenNpcIds = dialogue.active && dialogue.speakerId
+        ? new Set<string>([dialogue.speakerId])
+        : new Set<string>();
+      stepNpcs(npcs, map, dt, frozenNpcIds);
+    }
 
     followTarget(
       camera,
@@ -101,7 +115,8 @@ const loop = new GameLoop({
   },
   render() {
     renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId);
+    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu);
+    updateStartMenuView(startMenuView, startMenu);
   }
 });
 
