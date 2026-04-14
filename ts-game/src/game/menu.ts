@@ -19,7 +19,7 @@ interface StartMenuEntry {
 
 interface TextPanelState {
   kind: 'text';
-  id: Exclude<StartMenuOptionId, 'EXIT' | 'SAVE' | 'OPTION'>;
+  id: Exclude<StartMenuOptionId, 'EXIT' | 'SAVE' | 'OPTION' | 'RETIRE'>;
   title: string;
   description: string;
   returnToMenuOnClose: boolean;
@@ -50,10 +50,24 @@ interface OptionPanelState {
   returnToMenuOnClose: boolean;
 }
 
-type MenuPanelState = TextPanelState | SavePanelState | OptionPanelState;
+interface RetirePanelState {
+  kind: 'retire';
+  id: 'RETIRE';
+  title: string;
+  description: string;
+  rows: ['YES', 'NO'];
+  selectedIndex: 0 | 1;
+  returnToMenuOnClose: boolean;
+}
+
+type MenuPanelState = TextPanelState | SavePanelState | OptionPanelState | RetirePanelState;
 
 export interface StartMenuCallbacks {
   onSaveConfirmed?: () => {
+    ok: boolean;
+    summary: string;
+  };
+  onSafariRetireConfirmed?: () => {
     ok: boolean;
     summary: string;
   };
@@ -79,21 +93,18 @@ const optionLabel = (id: StartMenuOptionId, playerName: string): string => {
   }
 };
 
-const panelTitle = (id: Exclude<StartMenuOptionId, 'EXIT'>): string =>
-  optionLabel(id, 'PLAYER');
+const panelTitle = (id: Exclude<StartMenuOptionId, 'EXIT'>): string => optionLabel(id, 'PLAYER');
 
-const panelDescription = (id: Exclude<StartMenuOptionId, 'EXIT' | 'SAVE' | 'OPTION'>): string => {
+const panelDescription = (id: Exclude<StartMenuOptionId, 'EXIT' | 'SAVE' | 'OPTION' | 'RETIRE'>): string => {
   switch (id) {
     case 'POKEDEX':
-      return 'Pokédex panel placeholder. In FireRed this opens the Pokédex screen task.';
+      return 'A device that records POKéMON secrets upon meeting or catching them.';
     case 'POKEMON':
-      return 'Party panel placeholder. In FireRed this opens the party screen.';
+      return 'Check and organize POKéMON that are traveling with you in your party.';
     case 'BAG':
-      return 'Bag panel placeholder. In FireRed this opens bag pockets UI.';
+      return 'Equipped with pockets for storing items you bought, received, or found.';
     case 'PLAYER':
-      return 'Trainer card placeholder. In FireRed this opens the trainer card.';
-    case 'RETIRE':
-      return 'Safari retire placeholder. In FireRed this asks to retire from Safari Zone.';
+      return 'Check your money and other game data.';
   }
 };
 
@@ -108,19 +119,11 @@ const buildOptions = (runtime: ScriptRuntimeState): StartMenuEntry[] => {
     case 'unionRoom':
       return append(['POKEMON', 'BAG', 'PLAYER', 'OPTION', 'EXIT']);
     case 'safari':
-      return append([
-        'RETIRE',
-        'POKEDEX',
-        'POKEMON',
-        'BAG',
-        'PLAYER',
-        'OPTION',
-        'EXIT'
-      ]);
+      return append(['RETIRE', 'POKEDEX', 'POKEMON', 'BAG', 'PLAYER', 'OPTION', 'EXIT']);
     case 'normal':
       return append([
-        ...(hasPokedex ? ['POKEDEX'] as const : []),
-        ...(hasPokemon ? ['POKEMON'] as const : []),
+        ...(hasPokedex ? (['POKEDEX'] as const) : []),
+        ...(hasPokemon ? (['POKEMON'] as const) : []),
         'BAG',
         'PLAYER',
         'SAVE',
@@ -173,7 +176,8 @@ const stepOptionPanel = (
   if (adjustDirection) {
     if (selected === 'textSpeed') {
       const currentIndex = textSpeedValues.indexOf(runtime.options.textSpeed);
-      runtime.options.textSpeed = textSpeedValues[cycleIndex(currentIndex, textSpeedValues.length, adjustDirection)];
+      runtime.options.textSpeed =
+        textSpeedValues[cycleIndex(currentIndex, textSpeedValues.length, adjustDirection)];
       panel.description = `TEXT SPEED: ${getTextSpeedLabel(runtime.options.textSpeed)}`;
       updateOptionPanelRows(panel, runtime);
       return { close: false, consumed: true };
@@ -188,7 +192,8 @@ const stepOptionPanel = (
 
     if (selected === 'battleStyle') {
       const currentIndex = battleStyleValues.indexOf(runtime.options.battleStyle);
-      runtime.options.battleStyle = battleStyleValues[cycleIndex(currentIndex, battleStyleValues.length, adjustDirection)];
+      runtime.options.battleStyle =
+        battleStyleValues[cycleIndex(currentIndex, battleStyleValues.length, adjustDirection)];
       panel.description = `BATTLE STYLE: ${getBattleStyleLabel(runtime.options.battleStyle)}`;
       updateOptionPanelRows(panel, runtime);
       return { close: false, consumed: true };
@@ -201,6 +206,40 @@ const stepOptionPanel = (
   }
 
   return { close: false, consumed: false };
+};
+
+const stepRetirePanel = (
+  panel: RetirePanelState,
+  input: InputSnapshot,
+  runtime: ScriptRuntimeState,
+  callbacks: StartMenuCallbacks
+): { close: boolean; consumed: boolean; returnToMenu: boolean } => {
+  if (input.upPressed || input.downPressed) {
+    panel.selectedIndex = panel.selectedIndex === 0 ? 1 : 0;
+    return { close: false, consumed: true, returnToMenu: false };
+  }
+
+  if (input.interactPressed) {
+    if (panel.selectedIndex === 0) {
+      const result = callbacks.onSafariRetireConfirmed?.() ?? {
+        ok: true,
+        summary: 'Retired from the SAFARI GAME and returned to the counter.'
+      };
+      panel.description = result.summary;
+      runtime.lastScriptId = result.ok ? 'menu.retire.success' : 'menu.retire.failed';
+      return { close: true, consumed: true, returnToMenu: false };
+    }
+
+    runtime.lastScriptId = 'menu.retire.cancelled';
+    return { close: true, consumed: true, returnToMenu: true };
+  }
+
+  if (input.cancelPressed || input.startPressed) {
+    runtime.lastScriptId = 'menu.retire.cancelled';
+    return { close: true, consumed: true, returnToMenu: true };
+  }
+
+  return { close: false, consumed: false, returnToMenu: false };
 };
 
 export const createStartMenuState = (): StartMenuState => ({
@@ -311,6 +350,20 @@ export const stepStartMenu = (
       }
     }
 
+    if (menu.panel.kind === 'retire') {
+      const retireStep = stepRetirePanel(menu.panel, input, runtime, callbacks);
+      if (retireStep.close) {
+        const shouldReturnToMenu = menu.panel.returnToMenuOnClose || retireStep.returnToMenu;
+        closeMenuPanel(menu);
+        if (shouldReturnToMenu) {
+          menu.active = true;
+        }
+      }
+      if (retireStep.consumed) {
+        return;
+      }
+    }
+
     if (menu.panel.kind === 'text' && (input.cancelPressed || input.startPressed || input.interactPressed)) {
       const shouldReturnToMenu = menu.panel.returnToMenuOnClose;
       runtime.lastScriptId = `menu.panel.close.${menu.panel.id.toLowerCase()}`;
@@ -359,6 +412,11 @@ export const stepStartMenu = (
     return;
   }
 
+  if (selected.id === 'POKEDEX' && runtime.startMenu.seenPokemonCount === 0) {
+    runtime.lastScriptId = 'menu.pokedex.locked.empty';
+    return;
+  }
+
   if (selected.id === 'EXIT') {
     closeStartMenu(menu);
     runtime.lastScriptId = 'menu.exit';
@@ -392,6 +450,20 @@ export const stepStartMenu = (
       returnToMenuOnClose: true
     };
     runtime.lastScriptId = 'menu.open.option';
+    return;
+  }
+
+  if (selected.id === 'RETIRE') {
+    menu.panel = {
+      kind: 'retire',
+      id: 'RETIRE',
+      title: panelTitle('RETIRE'),
+      description: 'Retire from the SAFARI GAME and return to the counter?',
+      rows: ['YES', 'NO'],
+      selectedIndex: 1,
+      returnToMenuOnClose: false
+    };
+    runtime.lastScriptId = 'menu.open.retire';
     return;
   }
 

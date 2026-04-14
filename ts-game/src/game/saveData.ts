@@ -118,6 +118,8 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     || typeof startMenu.playerName !== 'string'
     || typeof startMenu.hasPokedex !== 'boolean'
     || typeof startMenu.hasPokemon !== 'boolean'
+    || !Number.isInteger(startMenu.seenPokemonCount)
+    || (startMenu.seenPokemonCount as number) < 0
   ) {
     return null;
   }
@@ -154,7 +156,8 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
         mode: startMenu.mode,
         playerName: startMenu.playerName,
         hasPokedex: startMenu.hasPokedex,
-        hasPokemon: startMenu.hasPokemon
+        hasPokemon: startMenu.hasPokemon,
+        seenPokemonCount: startMenu.seenPokemonCount as number
       },
       options: {
         textSpeed: options.textSpeed,

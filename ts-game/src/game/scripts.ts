@@ -12,6 +12,7 @@ export interface ScriptRuntimeState {
     playerName: string;
     hasPokedex: boolean;
     hasPokemon: boolean;
+    seenPokemonCount: number;
   };
   options: {
     textSpeed: 'slow' | 'mid' | 'fast';
@@ -38,7 +39,8 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => ({
     mode: 'normal',
     playerName: 'PLAYER',
     hasPokedex: true,
-    hasPokemon: true
+    hasPokemon: true,
+    seenPokemonCount: 1
   },
   options: {
     textSpeed: 'mid',

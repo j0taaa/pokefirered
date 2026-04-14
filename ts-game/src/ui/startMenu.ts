@@ -64,10 +64,11 @@ export const updateStartMenuView = (
 
   bindings.panelTitle.textContent = menu.panel?.title ?? '';
   bindings.panelDescription.textContent = menu.panel?.description ?? '';
-  bindings.panelRows.classList.toggle('hidden', menu.panel?.kind !== 'options');
-  bindings.panelRows.innerHTML = '';
   const panel = menu.panel;
-  if (panel?.kind === 'options') {
+  const hasRows = panel?.kind === 'options' || panel?.kind === 'retire';
+  bindings.panelRows.classList.toggle('hidden', !hasRows);
+  bindings.panelRows.innerHTML = '';
+  if (hasRows && panel) {
     panel.rows.forEach((row, index) => {
       const rowItem = document.createElement('li');
       rowItem.className = 'menu-panel-row';

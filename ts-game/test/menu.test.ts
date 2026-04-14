@@ -53,7 +53,7 @@ describe('start menu stepping', () => {
     expect(menu.selectedIndex).toBe(menu.options.length - 1);
   });
 
-  test('non-exit opens placeholder panel and EXIT closes menu', () => {
+  test('non-exit opens start-menu text panel using FireRed descriptions and EXIT closes menu', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();
     const runtime = createScriptRuntimeState();
@@ -64,6 +64,7 @@ describe('start menu stepping', () => {
 
     expect(menu.active).toBe(false);
     expect(menu.panel?.id).toBe('POKEDEX');
+    expect(menu.panel?.description).toContain('records POKéMON secrets');
     expect(runtime.lastScriptId).toBe('menu.open.pokedex');
 
     stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
@@ -78,6 +79,20 @@ describe('start menu stepping', () => {
     expect(runtime.lastScriptId).toBe('menu.exit');
   });
 
+  test('POKEDEX selection is blocked when no species have been seen yet', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    runtime.startMenu.seenPokemonCount = 0;
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'POKEDEX');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    expect(menu.active).toBe(true);
+    expect(menu.panel).toBe(null);
+    expect(runtime.lastScriptId).toBe('menu.pokedex.locked.empty');
+  });
 
   test('SAVE panel confirms save callback and reports result', () => {
     const menu = createStartMenuState();
@@ -140,6 +155,39 @@ describe('start menu stepping', () => {
     stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
     stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
     expect(runtime.options.battleScene).toBe(false);
+  });
+
+  test('supports safari retire prompt with YES/NO choices', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    runtime.startMenu.mode = 'safari';
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    expect(menu.panel?.kind).toBe('retire');
+    if (!menu.panel || menu.panel.kind !== 'retire') {
+      throw new Error('expected retire panel');
+    }
+    expect(menu.panel.rows).toEqual(['YES', 'NO']);
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(runtime.lastScriptId).toBe('menu.retire.cancelled');
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    if (!menu.panel || menu.panel.kind !== 'retire') {
+      throw new Error('expected retire panel');
+    }
+    stepStartMenu(menu, { ...neutralInput, up: true, upPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime, {
+      onSafariRetireConfirmed: () => ({ ok: true, summary: 'Safari run ended.' })
+    });
+
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(false);
+    expect(runtime.lastScriptId).toBe('menu.retire.success');
   });
 
   test('builds normal-field entries from runtime flags and player name', () => {
