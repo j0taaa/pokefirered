@@ -32,6 +32,8 @@ describe('save persistence', () => {
     };
     const runtime = createScriptRuntimeState();
     runtime.vars.story = 3;
+    runtime.options.textSpeed = 'fast';
+    runtime.options.battleStyle = 'set';
     runtime.consumedTriggerIds.add('route-warning');
     setScriptFlag(runtime, 'story.route-warning');
 
@@ -59,6 +61,8 @@ describe('save persistence', () => {
     expect(newRuntime.vars.story).toBe(3);
     expect(newRuntime.flags.has('story.route-warning')).toBe(true);
     expect(newRuntime.consumedTriggerIds.has('route-warning')).toBe(true);
+    expect(newRuntime.options.textSpeed).toBe('fast');
+    expect(newRuntime.options.battleStyle).toBe('set');
     expect(newRuntime.saveCounter).toBe(1);
   });
 

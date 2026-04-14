@@ -45,12 +45,21 @@ export const updateBattleOverlay = (bindings: BattleOverlayBindings, battle: Bat
   bindings.status.textContent = `${battle.turnSummary}  HP ${battle.playerMon.hp}/${battle.playerMon.maxHp} · Foe ${battle.wildMon.hp}/${battle.wildMon.maxHp}`;
 
   bindings.moveList.innerHTML = '';
-  battle.moves.forEach((move, index) => {
-    const entry = document.createElement('li');
-    entry.textContent = `${index === battle.selectedMoveIndex ? '▶' : ' '} ${move.name} (PWR ${move.power})`;
-    entry.className = index === battle.selectedMoveIndex ? 'battle-move-selected' : '';
-    bindings.moveList.append(entry);
-  });
+  if (battle.phase === 'command') {
+    battle.commands.forEach((command, index) => {
+      const entry = document.createElement('li');
+      entry.textContent = `${index === battle.selectedCommandIndex ? '▶' : ' '} ${command.toUpperCase()}`;
+      entry.className = index === battle.selectedCommandIndex ? 'battle-move-selected' : '';
+      bindings.moveList.append(entry);
+    });
+  } else {
+    battle.moves.forEach((move, index) => {
+      const entry = document.createElement('li');
+      entry.textContent = `${index === battle.selectedMoveIndex ? '▶' : ' '} ${move.name} (PWR ${move.power})`;
+      entry.className = index === battle.selectedMoveIndex ? 'battle-move-selected' : '';
+      bindings.moveList.append(entry);
+    });
+  }
 
   if (battle.damagePreview) {
     bindings.preview.textContent = `Damage preview: ${battle.damagePreview.min}-${battle.damagePreview.max}`;
@@ -62,7 +71,9 @@ export const updateBattleOverlay = (bindings: BattleOverlayBindings, battle: Bat
     bindings.hint.textContent = 'Z/Enter: Continue';
   } else if (battle.phase === 'resolved') {
     bindings.hint.textContent = 'Z/Enter/X/Esc: Return to field';
+  } else if (battle.phase === 'command') {
+    bindings.hint.textContent = 'Z/Enter: Confirm · ↑/↓: Choose command';
   } else {
-    bindings.hint.textContent = 'Z/Enter: Confirm · ↑/↓: Choose move';
+    bindings.hint.textContent = 'Z/Enter: Use move · X/Esc: Back';
   }
 };

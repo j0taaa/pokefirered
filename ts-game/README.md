@@ -17,8 +17,9 @@ The app currently implements a functional runtime slice:
 - Canvas renderer with visible-tile culling and sprite-like player rendering
 - HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
 - START menu flow with FireRed-like dynamic option composition and submenu callbacks
-- Battle vertical slice v1: step-triggered wild encounter entry, command-select move UI, and Gen-3-style damage preview
-- Browser save/load persistence adapter (localStorage-backed) wired to START > SAVE confirmation
+- START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
+- Battle vertical slice v2: command selection (`FIGHT`/`RUN`), speed-ordered turn resolution, enemy move choice, and Gen-3-style damage preview
+- Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
 
 ## Folder layout

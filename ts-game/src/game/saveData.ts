@@ -1,8 +1,8 @@
 import type { PlayerState } from './player';
 import type { ScriptRuntimeState } from './scripts';
 
-export const SAVE_SCHEMA_VERSION = 1;
-export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v1';
+export const SAVE_SCHEMA_VERSION = 2;
+export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v2';
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -24,6 +24,7 @@ export interface SaveSnapshot {
     flags: string[];
     consumedTriggerIds: string[];
     startMenu: ScriptRuntimeState['startMenu'];
+    options: ScriptRuntimeState['options'];
   };
 }
 
@@ -72,7 +73,8 @@ export const createSaveSnapshot = (
       vars: { ...runtime.vars },
       flags: [...runtime.flags],
       consumedTriggerIds: [...runtime.consumedTriggerIds],
-      startMenu: { ...runtime.startMenu }
+      startMenu: { ...runtime.startMenu },
+      options: { ...runtime.options }
     }
   };
 };
@@ -124,6 +126,16 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
+  const options = runtime.options as Record<string, unknown> | undefined;
+  if (
+    !options
+    || (options.textSpeed !== 'slow' && options.textSpeed !== 'mid' && options.textSpeed !== 'fast')
+    || typeof options.battleScene !== 'boolean'
+    || (options.battleStyle !== 'shift' && options.battleStyle !== 'set')
+  ) {
+    return null;
+  }
+
   return {
     schemaVersion: SAVE_SCHEMA_VERSION,
     mapId: candidate.mapId,
@@ -143,6 +155,11 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
         playerName: startMenu.playerName,
         hasPokedex: startMenu.hasPokedex,
         hasPokemon: startMenu.hasPokemon
+      },
+      options: {
+        textSpeed: options.textSpeed,
+        battleScene: options.battleScene,
+        battleStyle: options.battleStyle
       }
     }
   };
@@ -202,6 +219,7 @@ export const applySaveSnapshot = (
   runtime.flags = new Set<string>(snapshot.runtime.flags);
   runtime.consumedTriggerIds = new Set<string>(snapshot.runtime.consumedTriggerIds);
   runtime.startMenu = { ...snapshot.runtime.startMenu };
+  runtime.options = { ...snapshot.runtime.options };
   runtime.saveCounter = snapshot.saveIndex;
   return true;
 };
