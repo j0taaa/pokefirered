@@ -336,6 +336,26 @@
       "conditionEquals": 0
     },
     {
+      "id": "route-warning-followup",
+      "x": 13,
+      "y": 8,
+      "activation": "step",
+      "scriptId": "coord.route-warning-followup",
+      "facing": "any",
+      "once": false,
+      "conditions": [
+        {
+          "var": "routeWarningSeen",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "flag": "routeWarningAcknowledged",
+          "flagState": false
+        }
+      ]
+    },
+    {
       "id": "route-pool-warp",
       "x": 15,
       "y": 10,

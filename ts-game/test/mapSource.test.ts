@@ -53,6 +53,24 @@ describe('map source loading', () => {
 
     expect(source.triggers?.[0].facing).toBe('any');
     expect(source.triggers?.[0].once).toBe(false);
+    expect(source.triggers?.[0].conditions).toBeUndefined();
+
+    const sourceWithConditions = parseMapSource({
+      id: 'trigger-map-conditions',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      walkable: [true],
+      triggers: [{
+        id: 't3',
+        x: 0,
+        y: 0,
+        activation: 'step',
+        scriptId: 'script.2',
+        conditions: [{ var: 'progress', op: 'gte', value: 1 }, { flag: 'route.done', flagState: false }]
+      }]
+    });
+    expect(sourceWithConditions.triggers?.[0].conditions?.length).toBe(2);
 
     expect(() => parseMapSource({
       id: 'bad-trigger',
@@ -62,5 +80,21 @@ describe('map source loading', () => {
       walkable: [true],
       triggers: [{ id: 't2', x: 0, y: 0, activation: 'oops', scriptId: 's' }]
     })).toThrow(/invalid activation/i);
+
+    expect(() => parseMapSource({
+      id: 'bad-trigger-condition',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      walkable: [true],
+      triggers: [{
+        id: 't4',
+        x: 0,
+        y: 0,
+        activation: 'step',
+        scriptId: 's',
+        conditions: [{ var: 'progress', op: 'wat' }]
+      }]
+    })).toThrow(/invalid op/i);
   });
 });
