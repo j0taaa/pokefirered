@@ -1,3 +1,4 @@
+import type { CameraState } from '../core/camera';
 import type { PlayerState } from '../game/player';
 
 export interface HudBindings {
@@ -5,6 +6,7 @@ export interface HudBindings {
   fpsValue: HTMLElement;
   positionValue: HTMLElement;
   facingValue: HTMLElement;
+  cameraValue: HTMLElement;
 }
 
 export const createHud = (): HudBindings => {
@@ -19,7 +21,8 @@ export const createHud = (): HudBindings => {
   stateCard.className = 'card';
   stateCard.innerHTML = [
     'Pos: <strong data-role="pos">0,0</strong><br/>',
-    'Facing: <strong data-role="facing">down</strong>'
+    'Facing: <strong data-role="facing">down</strong><br/>',
+    'Camera: <strong data-role="camera">0,0</strong>'
   ].join('');
 
   root.append(perfCard, stateCard);
@@ -28,16 +31,19 @@ export const createHud = (): HudBindings => {
     root,
     fpsValue: perfCard.querySelector('[data-role="fps"]') as HTMLElement,
     positionValue: stateCard.querySelector('[data-role="pos"]') as HTMLElement,
-    facingValue: stateCard.querySelector('[data-role="facing"]') as HTMLElement
+    facingValue: stateCard.querySelector('[data-role="facing"]') as HTMLElement,
+    cameraValue: stateCard.querySelector('[data-role="camera"]') as HTMLElement
   };
 };
 
 export const updateHud = (
   bindings: HudBindings,
   player: PlayerState,
-  fps: number
+  fps: number,
+  camera: CameraState
 ): void => {
   bindings.fpsValue.textContent = fps.toFixed(0);
   bindings.positionValue.textContent = `${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}`;
   bindings.facingValue.textContent = player.facing;
+  bindings.cameraValue.textContent = `${camera.x.toFixed(1)}, ${camera.y.toFixed(1)}`;
 };

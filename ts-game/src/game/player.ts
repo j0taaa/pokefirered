@@ -5,6 +5,8 @@ import { isWalkableAtPixel, type TileMap } from '../world/tileMap';
 export interface PlayerState {
   position: Vec2;
   facing: 'up' | 'down' | 'left' | 'right';
+  moving: boolean;
+  animationTime: number;
 }
 
 const WALK_SPEED = 54;
@@ -12,7 +14,9 @@ const RUN_SPEED = 84;
 
 export const createPlayer = (): PlayerState => ({
   position: vec2(3 * 16, 3 * 16),
-  facing: 'down'
+  facing: 'down',
+  moving: false,
+  animationTime: 0
 });
 
 export const stepPlayer = (
@@ -29,6 +33,8 @@ export const stepPlayer = (
   if (input.down) direction.y += 1;
 
   if (direction.x === 0 && direction.y === 0) {
+    state.moving = false;
+    state.animationTime = 0;
     return state;
   }
 
@@ -49,9 +55,13 @@ export const stepPlayer = (
   const collisionProbe = vec2(nextPosition.x + 8, nextPosition.y + 12);
 
   if (!isWalkableAtPixel(map, collisionProbe)) {
+    state.moving = false;
+    state.animationTime = 0;
     return state;
   }
 
   state.position = nextPosition;
+  state.moving = true;
+  state.animationTime += dtSeconds;
   return state;
 };

@@ -19,6 +19,7 @@ describe('player stepping', () => {
     stepPlayer(player, idleInput, map, 1 / 60);
 
     expect(player.position.x).toBe(startX);
+    expect(player.moving).toBe(false);
   });
 
   test('moves right and updates facing direction', () => {
@@ -34,6 +35,8 @@ describe('player stepping', () => {
 
     expect(player.position.x).toBeGreaterThan(3 * 16);
     expect(player.facing).toBe('right');
+    expect(player.moving).toBe(true);
+    expect(player.animationTime).toBeGreaterThan(0);
   });
 
   test('prevents crossing blocked tiles', () => {
@@ -48,5 +51,6 @@ describe('player stepping', () => {
     }
 
     expect(player.position.y).toBeLessThan(5 * 16);
+    expect(player.moving).toBe(false);
   });
 });

@@ -46,21 +46,19 @@ npm install
 npm run dev
 ```
 
-This currently renders a prototype route map with blocked terrain and a movable player marker (WASD/Arrows, Shift to run), backed by unit-tested movement/collision modules.
+This currently renders a prototype route map with blocked terrain, camera-follow viewport, and a movable player with basic animation (WASD/Arrows, Shift to run), backed by unit-tested movement/collision/camera modules.
 
 ## Suggested migration phases
 
-1. **Bootstrap app shell**
-   - Add TS build tooling and a browser entrypoint in `ts-game/`
-   - Render a simple scene + frame counter
-2. **Core runtime primitives**
-   - Time step, input, camera, scene graph/state machine
-3. **Map + collision vertical slice**
-   - Load one map and walk a player entity with collisions
-4. **Battle/UI experimental slice**
-   - Prototype one battle scene and menu interactions
-5. **Data/system convergence**
-   - Move shared constants and game rules into TS modules
+Roadmap now lives at `ts-game/roadmap/ROADMAP.md` with status markers and per-step notes under `ts-game/roadmap/plans/`.
+
+Current completion snapshot:
+
+1. ✅ Runtime baseline + planning scaffolding
+2. ✅ Playable viewport + camera follow
+3. ✅ Player visual pass v1
+4. 🟡 Map loading adapter boundary (next in progress)
+5. ⬜ NPCs, triggers, menus, battle slice, persistence, and data convergence
 
 ## Developer setup (decomp side)
 
