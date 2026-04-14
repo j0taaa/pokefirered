@@ -52,6 +52,15 @@ export const updateBattleOverlay = (bindings: BattleOverlayBindings, battle: Bat
       entry.className = index === battle.selectedCommandIndex ? 'battle-move-selected' : '';
       bindings.moveList.append(entry);
     });
+  } else if (battle.phase === 'partySelect') {
+    battle.party.forEach((member, index) => {
+      const hpInfo = member.hp > 0 ? `HP ${member.hp}/${member.maxHp}` : 'FNT';
+      const activeMarker = member === battle.playerMon ? ' (IN)' : '';
+      const entry = document.createElement('li');
+      entry.textContent = `${index === battle.selectedPartyIndex ? '▶' : ' '} ${member.species} ${hpInfo}${activeMarker}`;
+      entry.className = index === battle.selectedPartyIndex ? 'battle-move-selected' : '';
+      bindings.moveList.append(entry);
+    });
   } else {
     battle.moves.forEach((move, index) => {
       const entry = document.createElement('li');
@@ -72,7 +81,9 @@ export const updateBattleOverlay = (bindings: BattleOverlayBindings, battle: Bat
   } else if (battle.phase === 'resolved') {
     bindings.hint.textContent = 'Z/Enter/X/Esc: Return to field';
   } else if (battle.phase === 'command') {
-    bindings.hint.textContent = 'Z/Enter: Confirm · ↑/↓: Choose command';
+    bindings.hint.textContent = `Z/Enter: Confirm · ↑/↓: Choose command · Balls ${battle.bag.pokeBalls}`;
+  } else if (battle.phase === 'partySelect') {
+    bindings.hint.textContent = 'Z/Enter: Switch · X/Esc: Back';
   } else {
     bindings.hint.textContent = 'Z/Enter: Use move · X/Esc: Back';
   }

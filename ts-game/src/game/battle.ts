@@ -8,14 +8,14 @@ export interface BattlePokemonSnapshot {
   attack: number;
   defense: number;
   speed: number;
-  type: 'normal';
+  type: 'normal' | 'fire' | 'water' | 'grass';
 }
 
 export interface BattleMove {
   id: string;
   name: string;
   power: number;
-  type: 'normal';
+  type: 'normal' | 'fire' | 'water' | 'grass';
   accuracy: number;
 }
 
@@ -25,23 +25,29 @@ export interface BattleEncounterState {
   rngState: number;
 }
 
-export type BattleCommand = 'fight' | 'run';
+export type BattleCommand = 'fight' | 'bag' | 'pokemon' | 'run';
+export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'partySelect' | 'resolved';
 
 export interface BattleState {
   active: boolean;
-  phase: 'intro' | 'command' | 'moveSelect' | 'resolved';
+  phase: BattlePhase;
   playerMon: BattlePokemonSnapshot;
+  party: BattlePokemonSnapshot[];
   wildMon: BattlePokemonSnapshot;
   moves: BattleMove[];
   selectedMoveIndex: number;
   selectedCommandIndex: number;
   commands: BattleCommand[];
+  selectedPartyIndex: number;
   turnSummary: string;
   damagePreview: {
     min: number;
     max: number;
   } | null;
   runAttempts: number;
+  bag: {
+    pokeBalls: number;
+  };
 }
 
 const RAND_MULT = 1103515245;
@@ -68,6 +74,31 @@ export const calculateBaseDamage = (
   return Math.floor(scaled / 50) + 2;
 };
 
+const typeEffectiveness = (
+  moveType: BattlePokemonSnapshot['type'],
+  defenderType: BattlePokemonSnapshot['type']
+): number => {
+  if (moveType === 'fire' && defenderType === 'grass') {
+    return 2;
+  }
+  if (moveType === 'water' && defenderType === 'fire') {
+    return 2;
+  }
+  if (moveType === 'grass' && defenderType === 'water') {
+    return 2;
+  }
+  if (moveType === 'grass' && defenderType === 'fire') {
+    return 0.5;
+  }
+  if (moveType === 'fire' && defenderType === 'water') {
+    return 0.5;
+  }
+  if (moveType === 'water' && defenderType === 'grass') {
+    return 0.5;
+  }
+  return 1;
+};
+
 export const calculateDamagePreview = (
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
@@ -75,7 +106,8 @@ export const calculateDamagePreview = (
 ): { min: number; max: number } => {
   const baseDamage = calculateBaseDamage(attacker, defender, move);
   const stab = attacker.type === move.type ? 1.5 : 1;
-  const max = clampDamage(baseDamage * stab);
+  const typeBonus = typeEffectiveness(move.type, defender.type);
+  const max = clampDamage(baseDamage * stab * typeBonus);
   // In Gen 3, random damage factor is 217..255 out of 255.
   const min = clampDamage((max * 217) / 255);
   return { min, max };
@@ -118,15 +150,26 @@ const tryRunFromBattle = (
   return speedVar > roll;
 };
 
-const chooseEnemyMoveIndex = (battle: BattleState): number => {
+const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterState): number => {
   let bestIndex = 0;
-  let bestDamage = -1;
+  let bestScore = -1;
   for (let i = 0; i < battle.moves.length; i += 1) {
     const move = battle.moves[i];
     const preview = calculateDamagePreview(battle.wildMon, battle.playerMon, move);
-    if (preview.max > bestDamage) {
-      bestDamage = preview.max;
+    const knocksOut = preview.max >= battle.playerMon.hp ? 10_000 : 0;
+    const score = knocksOut + preview.max;
+    if (score > bestScore) {
+      bestScore = score;
       bestIndex = i;
+      continue;
+    }
+
+    if (score === bestScore) {
+      // Mimics a PRNG tie-break instead of deterministic "first move always wins".
+      const coinFlip = nextBattleRng(encounter) & 1;
+      if (coinFlip === 1) {
+        bestIndex = i;
+      }
     }
   }
 
@@ -140,7 +183,7 @@ export const createBattleEncounterState = (): BattleEncounterState => ({
 });
 
 export const createBattleState = (): BattleState => {
-  const playerMon: BattlePokemonSnapshot = {
+  const playerMonA: BattlePokemonSnapshot = {
     species: 'CHARMANDER',
     level: 8,
     maxHp: 23,
@@ -148,6 +191,16 @@ export const createBattleState = (): BattleState => {
     attack: 13,
     defense: 11,
     speed: 14,
+    type: 'normal'
+  };
+  const playerMonB: BattlePokemonSnapshot = {
+    species: 'PIDGEY',
+    level: 7,
+    maxHp: 21,
+    hp: 21,
+    attack: 11,
+    defense: 10,
+    speed: 13,
     type: 'normal'
   };
   const wildMon: BattlePokemonSnapshot = {
@@ -164,7 +217,8 @@ export const createBattleState = (): BattleState => {
   return {
     active: false,
     phase: 'intro',
-    playerMon,
+    playerMon: playerMonA,
+    party: [playerMonA, playerMonB],
     wildMon,
     moves: [
       { id: 'tackle', name: 'TACKLE', power: 40, type: 'normal', accuracy: 100 },
@@ -172,10 +226,14 @@ export const createBattleState = (): BattleState => {
     ],
     selectedMoveIndex: 0,
     selectedCommandIndex: 0,
-    commands: ['fight', 'run'],
+    commands: ['fight', 'bag', 'pokemon', 'run'],
+    selectedPartyIndex: 0,
     turnSummary: '',
     damagePreview: null,
-    runAttempts: 0
+    runAttempts: 0,
+    bag: {
+      pokeBalls: 5
+    }
   };
 };
 
@@ -196,8 +254,13 @@ export const tryStartWildBattle = (
   battle.phase = 'intro';
   battle.wildMon.hp = battle.wildMon.maxHp;
   battle.playerMon.hp = battle.playerMon.maxHp;
+  battle.party.forEach((mon) => {
+    mon.hp = mon.maxHp;
+  });
   battle.selectedMoveIndex = 0;
   battle.selectedCommandIndex = 0;
+  battle.selectedPartyIndex = 0;
+  battle.commands = ['fight', 'bag', 'pokemon', 'run'];
   battle.runAttempts = 0;
   battle.turnSummary = `Wild ${battle.wildMon.species} appeared!`;
   battle.damagePreview = calculateDamagePreview(battle.playerMon, battle.wildMon, battle.moves[0]);
@@ -256,6 +319,33 @@ export const stepBattle = (
       return;
     }
 
+    if (selectedCommand === 'bag') {
+      if (battle.bag.pokeBalls <= 0) {
+        battle.turnSummary = 'No Poké Balls left!';
+        return;
+      }
+
+      // Inspired by FRLG capture probability flow in BattleScript_ThrowPokeBall.
+      battle.bag.pokeBalls -= 1;
+      const hpFactor = ((3 * battle.wildMon.maxHp) - (2 * battle.wildMon.hp)) / (3 * battle.wildMon.maxHp);
+      const levelFactor = Math.max(1, 36 - (2 * battle.wildMon.level));
+      const catchChance = Math.min(0.95, 0.1 + hpFactor * (levelFactor / 36));
+      const roll = (nextBattleRng(encounterState) & 0xff) / 255;
+      if (roll < catchChance) {
+        battle.phase = 'resolved';
+        battle.turnSummary = `Gotcha! ${battle.wildMon.species} was caught!`;
+      } else {
+        battle.turnSummary = `Oh no! The Pokémon broke free!`;
+      }
+      return;
+    }
+
+    if (selectedCommand === 'pokemon') {
+      battle.phase = 'partySelect';
+      battle.turnSummary = 'Choose a Pokémon.';
+      return;
+    }
+
     const escaped = tryRunFromBattle(battle.playerMon, battle.wildMon, battle.runAttempts, encounterState);
     battle.runAttempts += 1;
     if (escaped) {
@@ -265,6 +355,41 @@ export const stepBattle = (
       battle.phase = 'moveSelect';
       battle.turnSummary = `Can't escape!`;
     }
+    return;
+  }
+
+  if (battle.phase === 'partySelect') {
+    if (input.upPressed || input.downPressed) {
+      const direction = input.upPressed ? -1 : 1;
+      battle.selectedPartyIndex =
+        (battle.selectedPartyIndex + direction + battle.party.length) % battle.party.length;
+    }
+
+    if (input.cancelPressed) {
+      battle.phase = 'command';
+      battle.turnSummary = 'What will you do?';
+      return;
+    }
+
+    if (!input.interactPressed) {
+      return;
+    }
+
+    const target = battle.party[battle.selectedPartyIndex];
+    if (!target || target.hp <= 0) {
+      battle.turnSummary = "That Pokémon can't battle!";
+      return;
+    }
+
+    if (target === battle.playerMon) {
+      battle.turnSummary = `${target.species} is already in battle!`;
+      return;
+    }
+
+    battle.playerMon = target;
+    battle.phase = 'command';
+    battle.turnSummary = `Go! ${target.species}!`;
+    battle.damagePreview = calculateDamagePreview(battle.playerMon, battle.wildMon, battle.moves[battle.selectedMoveIndex]);
     return;
   }
 
@@ -287,13 +412,14 @@ export const stepBattle = (
   }
 
   const playerMove = battle.moves[battle.selectedMoveIndex];
-  const enemyMove = battle.moves[chooseEnemyMoveIndex(battle)];
+  const enemyMove = battle.moves[chooseEnemyMoveIndex(battle, encounterState)];
   const playerActsFirst = battle.playerMon.speed >= battle.wildMon.speed;
 
   const resolvePlayer = () => {
     const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, playerMove);
     battle.wildMon.hp = Math.max(0, battle.wildMon.hp - preview.max);
-    battle.turnSummary = `${battle.playerMon.species} used ${playerMove.name}!`;
+    const playerText = `${battle.playerMon.species} used ${playerMove.name}!`;
+    battle.turnSummary = battle.turnSummary ? `${battle.turnSummary} ${playerText}` : playerText;
   };
 
   const resolveEnemy = () => {
