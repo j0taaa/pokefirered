@@ -3,7 +3,7 @@ import { GameLoop } from './core/gameLoop';
 import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
-import { createPrototypeRouteMap } from './world/tileMap';
+import { loadPrototypeRouteMap } from './world/mapSource';
 import { createPlayer, stepPlayer } from './game/player';
 import { createHud, updateHud } from './ui/hud';
 
@@ -21,7 +21,7 @@ const hud = createHud();
 shell.append(hud.root);
 app.append(shell);
 
-const map = createPrototypeRouteMap();
+const map = loadPrototypeRouteMap();
 const player = createPlayer();
 const input = new BrowserInputAdapter();
 input.attach();

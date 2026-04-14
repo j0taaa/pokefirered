@@ -57,7 +57,7 @@ Current completion snapshot:
 1. ✅ Runtime baseline + planning scaffolding
 2. ✅ Playable viewport + camera follow
 3. ✅ Player visual pass v1
-4. 🟡 Map loading adapter boundary (next in progress)
+4. ✅ Map loading adapter boundary
 5. ⬜ NPCs, triggers, menus, battle slice, persistence, and data convergence
 
 ## Developer setup (decomp side)
