@@ -61,7 +61,8 @@ Current completion snapshot:
 5. ✅ Entity system starter (NPC patrols + collision probes)
 6. ✅ Interaction pass v1 (NPC idle pauses, face-player interaction, dialog stubs)
 7. ✅ Trigger zones + script callback hooks v1 (sign/step/warp prototype events)
-8. ⬜ Menus, battle slice, persistence, and data convergence
+8. ✅ UI menus foundation (START menu open/close + selection + tests)
+9. ⬜ Battle slice, persistence, and data convergence
 
 ## Developer setup (decomp side)
 
