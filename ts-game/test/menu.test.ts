@@ -105,6 +105,8 @@ describe('start menu stepping', () => {
 
     stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
     expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(runtime.lastScriptId).toBe('menu.panel.close.save');
   });
 
   test('builds normal-field entries from runtime flags and player name', () => {

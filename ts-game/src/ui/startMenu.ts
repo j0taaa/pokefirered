@@ -2,6 +2,7 @@ import type { StartMenuState } from '../game/menu';
 
 export interface StartMenuViewBindings {
   root: HTMLElement;
+  title: HTMLElement;
   optionsList: HTMLElement;
   panelRoot: HTMLElement;
   panelTitle: HTMLElement;
@@ -35,14 +36,17 @@ export const createStartMenuView = (): StartMenuViewBindings => {
   panelRoot.append(panelTitle, panelDescription, panelHint);
   root.append(title, optionsList, panelRoot);
 
-  return { root, optionsList, panelRoot, panelTitle, panelDescription };
+  return { root, title, optionsList, panelRoot, panelTitle, panelDescription };
 };
 
 export const updateStartMenuView = (
   bindings: StartMenuViewBindings,
   menu: StartMenuState
 ): void => {
-  bindings.root.classList.toggle('hidden', !menu.active);
+  const hasPanel = !!menu.panel;
+  bindings.root.classList.toggle('hidden', !menu.active && !hasPanel);
+  bindings.title.classList.toggle('hidden', !menu.active);
+  bindings.optionsList.classList.toggle('hidden', !menu.active);
   bindings.panelRoot.classList.toggle('hidden', !menu.panel);
 
   bindings.optionsList.innerHTML = '';
