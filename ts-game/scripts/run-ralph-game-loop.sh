@@ -9,6 +9,8 @@ MODEL="${RALPH_MODEL:-zai-coding-plan/glm-5.1}"
 AGENT="${RALPH_AGENT:-opencode}"
 MAX_ITERATIONS="${RALPH_MAX_ITERATIONS:-200}"
 RALPH_BIN="${RALPH_BIN:-ralph}"
+AUTO_PUSH="${RALPH_AUTO_PUSH:-1}"
+PUSH_INTERVAL_SECONDS="${RALPH_PUSH_INTERVAL_SECONDS:-30}"
 
 usage() {
   cat <<USAGE
@@ -22,11 +24,14 @@ Environment overrides:
   RALPH_AGENT           Ralph agent adapter. Default: opencode
   RALPH_MODEL           OpenCode model. Default: zai-coding-plan/glm-5.1
   RALPH_MAX_ITERATIONS  Max Ralph loop iterations. Default: 200
+  RALPH_AUTO_PUSH       Push new Ralph commits automatically. Default: 1
+  RALPH_PUSH_INTERVAL_SECONDS
+                        Seconds between auto-push checks. Default: 30
 Expected prerequisites:
   npm install -g @th0rgal/ralph-wiggum
   opencode configured with access to the Z.ai Coding Plan / GLM 5.1 model
 
-The script does not push by itself. Let Ralph/OpenCode edit files, then review and push intentionally.
+By default this script watches for new Ralph commits and pushes the current branch to GitHub automatically.
 USAGE
 }
 
@@ -97,6 +102,7 @@ Hard rules:
 - Run relevant checks before marking tasks complete.
 - Update .ralph/ralph-tasks.md by checking off completed items and adding a short dated progress note.
 - Keep the project runnable.
+- Commit completed task changes directly to the current branch after checks pass, and push them to GitHub. The gh CLI is present if you need GitHub context or authentication checks.
 - Do not commit generated bundles or binary artifacts.
 - Do not stop after only tiny edits if a larger coherent task group is available.
 
@@ -113,6 +119,39 @@ PROMPT
 
 cd "${REPO_ROOT}"
 
+current_branch() {
+  git branch --show-current
+}
+
+push_current_branch() {
+  local branch
+  branch="$(current_branch)"
+  if [[ -z "${branch}" ]]; then
+    echo "Auto-push skipped: detached HEAD." >&2
+    return 0
+  fi
+
+  git push -u origin "${branch}"
+}
+
+auto_push_loop() {
+  local last_pushed_head current_head
+  last_pushed_head="$(git rev-parse HEAD)"
+
+  while true; do
+    sleep "${PUSH_INTERVAL_SECONDS}"
+    current_head="$(git rev-parse HEAD)"
+    if [[ "${current_head}" != "${last_pushed_head}" ]]; then
+      echo "Detected new commit ${current_head}; pushing current branch to GitHub..."
+      if push_current_branch; then
+        last_pushed_head="${current_head}"
+      else
+        echo "Auto-push failed; will retry on the next check." >&2
+      fi
+    fi
+  done
+}
+
 CMD=(
   "${RALPH_BIN}"
   "${PROMPT}"
@@ -127,6 +166,7 @@ echo "Task file:  ${TASKS_FILE}"
 echo "Agent:      ${AGENT}"
 echo "Model:      ${MODEL}"
 echo "Max loops:  ${MAX_ITERATIONS}"
+echo "Auto-push:  ${AUTO_PUSH}"
 printf 'Command:'
 printf ' %q' "${CMD[@]}"
 printf '\n'
@@ -135,4 +175,20 @@ if [[ "${DRY_RUN}" == "1" ]]; then
   exit 0
 fi
 
-exec "${CMD[@]}"
+if [[ "${AUTO_PUSH}" == "1" ]]; then
+  auto_push_loop &
+  PUSH_WATCHER_PID="$!"
+  cleanup() {
+    kill "${PUSH_WATCHER_PID}" >/dev/null 2>&1 || true
+  }
+  trap cleanup EXIT INT TERM
+fi
+
+"${CMD[@]}"
+RALPH_EXIT_CODE="$?"
+
+if [[ "${AUTO_PUSH}" == "1" ]]; then
+  push_current_branch || true
+fi
+
+exit "${RALPH_EXIT_CODE}"

@@ -11,6 +11,8 @@ This file is the task source for the Ralph/OpenCode loop. Work from top to botto
 - Add or update tests for non-trivial logic.
 - Run the relevant checks before marking a task complete.
 - Mark completed tasks by changing `[ ]` to `[x]` in this file and add a short note under "Ralph Progress Notes".
+- Commit completed task changes directly to the current branch after checks pass.
+- Push commits to GitHub whenever something is added or changed; the `gh` CLI is present if GitHub context or authentication checks are needed.
 - Do not commit generated bundles or binary artifacts.
 - Keep implementation decoupled: rendering, input, data adapters, scripts, battle, menus, and save systems should remain separable.
 - If blocked, add a note with exact file paths and the blocker, then continue to the next independent task.
