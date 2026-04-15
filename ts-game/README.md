@@ -15,6 +15,7 @@ The app currently implements a functional runtime slice:
 - Route 1 metadata/connections exported from decomp map JSON
 - Route 1 FireRed land wild encounters exported from `src/data/wild_encounters.json`
 - Route 1 connection-edge detection for north/south map boundaries
+- Route 1 Mart clerk Potion gift now mutates a persisted bag item model and follows the original flag branch
 - South ledge jumping as a two-tile movement action
 - Player movement + facing + movement animation state
 - NPC entity starter with patrol paths, idle pauses, and map-aware collision probes

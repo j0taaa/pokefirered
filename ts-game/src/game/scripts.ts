@@ -5,6 +5,11 @@ export interface ScriptRuntimeState {
   vars: Record<string, number>;
   flags: Set<string>;
   consumedTriggerIds: Set<string>;
+  bag: {
+    items: Record<string, number>;
+    itemCapacity: number;
+    maxStackQuantity: number;
+  };
   saveCounter: number;
   lastScriptId: string | null;
   startMenu: {
@@ -33,6 +38,11 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => ({
   vars: {},
   flags: new Set<string>(),
   consumedTriggerIds: new Set<string>(),
+  bag: {
+    items: {},
+    itemCapacity: 42,
+    maxStackQuantity: 999
+  },
   saveCounter: 0,
   lastScriptId: null,
   startMenu: {
@@ -71,6 +81,32 @@ export const setScriptFlag = (runtime: ScriptRuntimeState, flag: string): void =
 
 export const clearScriptFlag = (runtime: ScriptRuntimeState, flag: string): void => {
   runtime.flags.delete(flag);
+};
+
+export const checkBagHasSpace = (
+  runtime: ScriptRuntimeState,
+  itemId: string,
+  count: number
+): boolean => {
+  const currentQuantity = runtime.bag.items[itemId];
+  if (currentQuantity !== undefined) {
+    return currentQuantity + count <= runtime.bag.maxStackQuantity;
+  }
+
+  return Object.keys(runtime.bag.items).length < runtime.bag.itemCapacity;
+};
+
+export const addBagItem = (
+  runtime: ScriptRuntimeState,
+  itemId: string,
+  count: number
+): boolean => {
+  if (!checkBagHasSpace(runtime, itemId, count)) {
+    return false;
+  }
+
+  runtime.bag.items[itemId] = (runtime.bag.items[itemId] ?? 0) + count;
+  return true;
 };
 
 export const openScriptDialogue = (
@@ -168,6 +204,14 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       return;
     }
 
+    if (!checkBagHasSpace(runtime, 'ITEM_POTION', 1)) {
+      openDialogueSequence(dialogue, 'Route1_ObjectEvent_MartClerk', [
+        'The BAG is full.'
+      ]);
+      return;
+    }
+
+    addBagItem(runtime, 'ITEM_POTION', 1);
     setScriptFlag(runtime, 'FLAG_GOT_POTION_ON_ROUTE_1');
     openDialogueSequence(dialogue, 'Route1_ObjectEvent_MartClerk', [
       'Hi! I work at a POKEMON MART.',

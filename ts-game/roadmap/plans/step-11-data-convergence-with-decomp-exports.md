@@ -19,6 +19,7 @@ Replace prototype-only data with adapter data that can be checked against the or
 - 2026-04-15: Added Route 1 FireRed land wild-encounter data from `src/data/wild_encounters.json` to the map adapter/exporter and battle startup.
 - 2026-04-15: Added wild encounter slot rates from the original land encounter rate table and weighted Route 1 wild species selection by those slots.
 - 2026-04-15: Added connection-edge detection for Route 1's north/south decomp connections as a first map-switching hook.
+- 2026-04-15: Added a small FRLG-style bag item model for Route 1's Mart clerk Potion gift (`checkitemspace`, `additem`, `setflag`) and save persistence.
 
 ## Follow-ups
 

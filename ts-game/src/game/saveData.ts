@@ -23,6 +23,7 @@ export interface SaveSnapshot {
     vars: Record<string, number>;
     flags: string[];
     consumedTriggerIds: string[];
+    bag: ScriptRuntimeState['bag'];
     startMenu: ScriptRuntimeState['startMenu'];
     options: ScriptRuntimeState['options'];
   };
@@ -73,6 +74,11 @@ export const createSaveSnapshot = (
       vars: { ...runtime.vars },
       flags: [...runtime.flags],
       consumedTriggerIds: [...runtime.consumedTriggerIds],
+      bag: {
+        items: { ...runtime.bag.items },
+        itemCapacity: runtime.bag.itemCapacity,
+        maxStackQuantity: runtime.bag.maxStackQuantity
+      },
       startMenu: { ...runtime.startMenu },
       options: { ...runtime.options }
     }
@@ -128,6 +134,16 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
+  const bag = runtime.bag as Record<string, unknown> | undefined;
+  if (
+    !bag
+    || !isObjectWithNumberValues(bag.items)
+    || !Number.isInteger(bag.itemCapacity)
+    || !Number.isInteger(bag.maxStackQuantity)
+  ) {
+    return null;
+  }
+
   const options = runtime.options as Record<string, unknown> | undefined;
   if (
     !options
@@ -152,6 +168,11 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
       vars: { ...(runtime.vars as Record<string, number>) },
       flags: [...(runtime.flags as string[])],
       consumedTriggerIds: [...(runtime.consumedTriggerIds as string[])],
+      bag: {
+        items: { ...(bag.items as Record<string, number>) },
+        itemCapacity: bag.itemCapacity as number,
+        maxStackQuantity: bag.maxStackQuantity as number
+      },
       startMenu: {
         mode: startMenu.mode,
         playerName: startMenu.playerName,
@@ -221,6 +242,11 @@ export const applySaveSnapshot = (
   runtime.vars = { ...snapshot.runtime.vars };
   runtime.flags = new Set<string>(snapshot.runtime.flags);
   runtime.consumedTriggerIds = new Set<string>(snapshot.runtime.consumedTriggerIds);
+  runtime.bag = {
+    items: { ...snapshot.runtime.bag.items },
+    itemCapacity: snapshot.runtime.bag.itemCapacity,
+    maxStackQuantity: snapshot.runtime.bag.maxStackQuantity
+  };
   runtime.startMenu = { ...snapshot.runtime.startMenu };
   runtime.options = { ...snapshot.runtime.options };
   runtime.saveCounter = snapshot.saveIndex;
