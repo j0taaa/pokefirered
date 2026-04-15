@@ -3,10 +3,18 @@ import { GameLoop } from './core/gameLoop';
 import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
-import { loadPrototypeRouteMap } from './world/mapSource';
+import { loadMapById, loadRoute1Map } from './world/mapSource';
+import { findConnectionForInput, resolveMapConnection } from './world/connections';
+import { isLandEncounterAtPixel } from './world/tileMap';
 import { createPlayer, stepPlayer } from './game/player';
-import { collidesWithNpcs, createPrototypeNpcs, stepNpcs } from './game/npc';
-import { createDialogueState, stepInteraction } from './game/interaction';
+import {
+  collidesWithNpcs,
+  createNpcsFromSources,
+  stepNpcs,
+  syncNpcsWithSourceVisibility,
+  type NpcState
+} from './game/npc';
+import { createDialogueState, openDialogueSequence, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
 import { runStepTriggersAtPlayerTile } from './game/triggers';
@@ -42,9 +50,9 @@ shell.append(battleOverlay.root);
 
 app.append(shell);
 
-const map = loadPrototypeRouteMap();
+let map = loadRoute1Map();
 const player = createPlayer();
-const npcs = createPrototypeNpcs();
+let npcs: NpcState[] = [];
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();
@@ -53,9 +61,36 @@ const battleEncounter = createBattleEncounterState();
 const input = new BrowserInputAdapter();
 input.attach();
 
+const syncMapRuntime = (): void => {
+  battleEncounter.encounterRate = map.wildEncounters?.land?.encounterRate ?? 0;
+};
+
+const applyMap = (nextMap: typeof map, position?: { x: number; y: number }): void => {
+  map = nextMap;
+  npcs = createNpcsFromSources(map.npcs, map.tileSize, scriptRuntime.flags);
+  if (position) {
+    player.position.x = position.x;
+    player.position.y = position.y;
+  }
+  player.moving = false;
+  player.jumping = false;
+  player.animationTime = 0;
+  syncMapRuntime();
+};
+
+syncMapRuntime();
+npcs = createNpcsFromSources(map.npcs, map.tileSize, scriptRuntime.flags);
+
 const storage = window.localStorage;
 const loadedSave = loadGameFromStorage(storage, DEFAULT_SAVE_SLOT_KEY);
+if (loadedSave && loadedSave.mapId !== map.id) {
+  const savedMap = loadMapById(loadedSave.mapId);
+  if (savedMap) {
+    applyMap(savedMap);
+  }
+}
 if (loadedSave && applySaveSnapshot(loadedSave, map.id, player, scriptRuntime)) {
+  npcs = syncNpcsWithSourceVisibility(npcs, map.npcs, scriptRuntime, map.tileSize);
   scriptRuntime.lastScriptId = `save.load.success.${loadedSave.saveIndex}`;
 }
 
@@ -94,6 +129,7 @@ const loop = new GameLoop({
         scriptRuntime,
         prototypeScriptRegistry
       );
+      npcs = syncNpcsWithSourceVisibility(npcs, map.npcs, scriptRuntime, map.tileSize);
     }
 
     const previousX = player.position.x;
@@ -109,7 +145,22 @@ const loop = new GameLoop({
       );
 
       const movedThisFrame = previousX !== player.position.x || previousY !== player.position.y;
-      if (movedThisFrame) {
+      if (!movedThisFrame) {
+        const resolvedConnection = resolveMapConnection(map, player, snapshot, loadMapById);
+        if (resolvedConnection) {
+          scriptRuntime.lastScriptId = `connection.${resolvedConnection.map.id}`;
+          applyMap(resolvedConnection.map, resolvedConnection.position);
+        } else {
+          const connection = findConnectionForInput(map, player, snapshot);
+          if (connection) {
+            scriptRuntime.lastScriptId = `connection.${connection.map}`;
+            openDialogueSequence(dialogue, 'system', [
+              `${map.metadata?.name ?? map.id} connects ${connection.direction} to ${connection.map}.`,
+              'That destination is still waiting on a decomp-backed browser adapter.'
+            ]);
+          }
+        }
+      } else {
         runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
           player,
           dialogue,
@@ -117,7 +168,14 @@ const loop = new GameLoop({
           scriptRegistry: prototypeScriptRegistry
         });
 
-        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame)) {
+        const collisionProbe = { x: player.position.x + 8, y: player.position.y + 12 };
+        if (tryStartWildBattle(
+          battle,
+          battleEncounter,
+          movedThisFrame,
+          isLandEncounterAtPixel(map, collisionProbe),
+          map.wildEncounters?.land
+        )) {
           scriptRuntime.lastScriptId = 'battle.wild.start';
         }
       }
@@ -149,7 +207,7 @@ const loop = new GameLoop({
   },
   render() {
     renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
+    updateHud(hud, player, npcs, fps, camera, map, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
     updateStartMenuView(startMenuView, startMenu);
     updateBattleOverlay(battleOverlay, battle);
   }

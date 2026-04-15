@@ -1,0 +1,33 @@
+# Step 11 — Data convergence with decomp exports
+
+## Goal
+
+Replace prototype-only data with adapter data that can be checked against the original decomp map/layout sources.
+
+## Implementation notes
+
+- 2026-04-15: Added compact Route 1 adapter data under `src/world/maps/route1.ts`.
+- 2026-04-15: Added map-source NPC metadata so object events can be instantiated from route data.
+- 2026-04-15: Wired the runtime to load Route 1 and its object events instead of the synthetic prototype route.
+- 2026-04-15: Added Route 1 parity tests that compare object/background events against `data/maps/Route1/map.json` and collision rows against `data/layouts/Route1/map.bin` using the original `MAPGRID_COLLISION_MASK` bit rule.
+- 2026-04-15: Added Route 1 encounter-terrain rows derived from metatile attribute bits 24-26 (`METATILE_ATTRIBUTE_ENCOUNTER_TYPE`) and gated wild battles to land-encounter tiles, matching the `TILE_ENCOUNTER_NONE` early return in `wild_encounter.c`.
+- 2026-04-15: Added `npm run export:map -- <MapName>` for repeatable compact map exports from decomp map/layout/tileset data.
+- 2026-04-15: Added metatile behavior rows from `METATILE_ATTRIBUTE_BEHAVIOR` plus runtime helpers for ledges and directional impassable checks, mirroring `MetatileBehavior_IsJump*` and `MetatileBehavior_Is*Blocked`.
+- 2026-04-15: Added Route 1 metadata/connections to the compact adapter and exporter output.
+- 2026-04-15: Added south-ledge jumping as a discrete two-tile player movement, matching `GetLedgeJumpDirection` + `GetJump2MovementAction` behavior at prototype scope.
+- 2026-04-15: Updated the canvas renderer and HUD to consume real map metadata/behavior data for grass, ledges, signs, and map identity.
+- 2026-04-15: Added Route 1 FireRed land wild-encounter data from `src/data/wild_encounters.json` to the map adapter/exporter and battle startup.
+- 2026-04-15: Added wild encounter slot rates from the original land encounter rate table and weighted Route 1 wild species selection by those slots.
+- 2026-04-15: Added connection-edge detection for Route 1's north/south decomp connections as a first map-switching hook.
+- 2026-04-15: Added a small FRLG-style bag item model for Route 1's Mart clerk Potion gift (`checkitemspace`, `additem`, `setflag`) and save persistence.
+- 2026-04-15: Added Pallet Town as a compact decomp-backed map with metadata, connections, NPCs, sign scripts, water encounter terrain, and parity tests.
+- 2026-04-15: Replaced the Route 1 <-> Pallet Town connection stub with runtime map switching that preserves connection offsets and reloads map-scoped NPCs.
+- 2026-04-15: Added Viridian City as a compact decomp-backed map with metadata, connections, NPCs, signs, coord-event step triggers, a Potion item ball, and parity tests.
+- 2026-04-15: Updated the map exporter to emit coord events as step triggers and hidden-item background events as one-shot flag-gated triggers.
+- 2026-04-15: Replaced the Route 1 north connection stub with Route 1 <-> Viridian City switching and corrected connection offset application for inverse map alignment.
+- 2026-04-15: Added runtime object-event hide-flag filtering so collected item balls and other flag-hidden NPC/object events disappear from the browser map.
+
+## Follow-ups
+
+- Convert Route 2, Route 22, and Route 21 to remove the next outdoor connection stubs.
+- Add warp-event export/runtime support for Pokémon Centers, Marts, houses, gyms, and schools.

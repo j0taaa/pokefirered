@@ -3,9 +3,12 @@ import { vec2 } from '../src/core/vec2';
 import {
   collidesWithNpcs,
   createPrototypeNpcs,
+  createNpcsFromSources,
   stepNpcs,
+  syncNpcsWithSourceVisibility,
   type NpcState
 } from '../src/game/npc';
+import { createScriptRuntimeState, setScriptFlag } from '../src/game/scripts';
 import { createPrototypeRouteMap, type TileMap } from '../src/world/tileMap';
 
 describe('npc stepping', () => {
@@ -16,7 +19,10 @@ describe('npc stepping', () => {
       height: 12,
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
-      triggers: []
+      encounterTypes: Array.from({ length: 12 * 12 }, () => 'none' as const),
+      metatileBehaviors: Array.from({ length: 12 * 12 }, () => 0),
+      triggers: [],
+      npcs: []
     };
     const npcs: NpcState[] = [
       {
@@ -50,7 +56,10 @@ describe('npc stepping', () => {
       height: 12,
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
-      triggers: []
+      encounterTypes: Array.from({ length: 12 * 12 }, () => 'none' as const),
+      metatileBehaviors: Array.from({ length: 12 * 12 }, () => 0),
+      triggers: [],
+      npcs: []
     };
 
     const npc: NpcState = {
@@ -111,6 +120,62 @@ describe('npc stepping', () => {
 
     expect(npc.position.x).toBe(startX);
     expect(npc.moving).toBe(false);
+  });
+
+  test('maps decomp wander-around movement ranges to a bounded patrol', () => {
+    const [npc] = createNpcsFromSources([{
+      id: 'LOCALID_PALLET_SIGN_LADY',
+      x: 3,
+      y: 10,
+      graphicsId: 'OBJ_EVENT_GFX_WOMAN_1',
+      movementType: 'MOVEMENT_TYPE_WANDER_AROUND',
+      movementRangeX: 1,
+      movementRangeY: 4,
+      scriptId: 'PalletTown_EventScript_SignLady'
+    }], 16);
+
+    expect(npc.path).toEqual([
+      { x: 3 * 16, y: 10 * 16 },
+      { x: 4 * 16, y: 10 * 16 },
+      { x: 3 * 16, y: 14 * 16 },
+      { x: 2 * 16, y: 10 * 16 },
+      { x: 3 * 16, y: 6 * 16 }
+    ]);
+    expect(npc.pathIndex).toBe(1);
+  });
+
+  test('hides object events whose original hide flag is set', () => {
+    const sources = [
+      {
+        id: 'visible',
+        x: 1,
+        y: 1,
+        graphicsId: 'OBJ_EVENT_GFX_BOY',
+        movementType: 'MOVEMENT_TYPE_FACE_DOWN',
+        movementRangeX: 0,
+        movementRangeY: 0,
+        scriptId: 'VisibleScript',
+        flag: '0'
+      },
+      {
+        id: 'item-ball',
+        x: 2,
+        y: 1,
+        graphicsId: 'OBJ_EVENT_GFX_ITEM_BALL',
+        movementType: 'MOVEMENT_TYPE_FACE_DOWN',
+        movementRangeX: 0,
+        movementRangeY: 0,
+        scriptId: 'ItemScript',
+        flag: 'FLAG_HIDE_ITEM'
+      }
+    ];
+    const runtime = createScriptRuntimeState();
+    const npcs = createNpcsFromSources(sources, 16, runtime.flags);
+    expect(npcs.map((npc) => npc.id)).toEqual(['visible', 'item-ball']);
+
+    setScriptFlag(runtime, 'FLAG_HIDE_ITEM');
+    const synced = syncNpcsWithSourceVisibility(npcs, sources, runtime, 16);
+    expect(synced.map((npc) => npc.id)).toEqual(['visible']);
   });
 });
 

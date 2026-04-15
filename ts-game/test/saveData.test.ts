@@ -32,6 +32,7 @@ describe('save persistence', () => {
     };
     const runtime = createScriptRuntimeState();
     runtime.vars.story = 3;
+    runtime.bag.items.ITEM_POTION = 1;
     runtime.options.textSpeed = 'fast';
     runtime.options.battleStyle = 'set';
     runtime.consumedTriggerIds.add('route-warning');
@@ -60,6 +61,7 @@ describe('save persistence', () => {
     expect(newPlayer.facing).toBe('left');
     expect(newRuntime.vars.story).toBe(3);
     expect(newRuntime.flags.has('story.route-warning')).toBe(true);
+    expect(newRuntime.bag.items.ITEM_POTION).toBe(1);
     expect(newRuntime.consumedTriggerIds.has('route-warning')).toBe(true);
     expect(newRuntime.options.textSpeed).toBe('fast');
     expect(newRuntime.options.battleStyle).toBe('set');

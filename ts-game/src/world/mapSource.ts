@@ -1,8 +1,12 @@
 import prototypeRouteMapJson from './maps/prototypeRoute.json';
+import { palletTownCompactMapSource } from './maps/palletTown';
+import { route1CompactMapSource } from './maps/route1';
+import viridianCityCompactMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
 export type TriggerConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte';
+export type EncounterType = 'none' | 'land' | 'water';
 
 export interface TriggerCondition {
   var?: string;
@@ -25,13 +29,81 @@ export interface TriggerZone {
   conditionEquals?: number;
 }
 
+export interface NpcSource {
+  id: string;
+  x: number;
+  y: number;
+  graphicsId: string;
+  movementType: string;
+  movementRangeX: number;
+  movementRangeY: number;
+  scriptId?: string;
+  flag?: string;
+}
+
+export interface MapConnectionSource {
+  map: string;
+  offset: number;
+  direction: TriggerFacing;
+}
+
+export interface MapMetadataSource {
+  name?: string;
+  layout?: string;
+  music?: string;
+  regionMapSection?: string;
+  weather?: string;
+  mapType?: string;
+  allowCycling?: boolean;
+  allowEscaping?: boolean;
+  allowRunning?: boolean;
+  showMapName?: boolean;
+  battleScene?: string;
+  connections?: MapConnectionSource[];
+}
+
+export interface WildEncounterMonSource {
+  minLevel: number;
+  maxLevel: number;
+  species: string;
+  slotRate?: number;
+}
+
+export interface WildEncounterGroupSource {
+  encounterRate: number;
+  mons: WildEncounterMonSource[];
+}
+
+export interface MapWildEncountersSource {
+  land?: WildEncounterGroupSource;
+}
+
 export interface MapSource {
   id: string;
+  metadata?: MapMetadataSource;
+  wildEncounters?: MapWildEncountersSource;
   width: number;
   height: number;
   tileSize: number;
   walkable: boolean[];
+  encounterTypes?: EncounterType[];
+  metatileBehaviors?: number[];
   triggers?: TriggerZone[];
+  npcs?: NpcSource[];
+}
+
+export interface CompactMapSource {
+  id: string;
+  metadata?: MapMetadataSource;
+  wildEncounters?: MapWildEncountersSource;
+  width: number;
+  height: number;
+  tileSize: number;
+  collisionRows: string[];
+  encounterRows?: string[];
+  behaviorRows?: string[];
+  triggers?: TriggerZone[];
+  npcs?: NpcSource[];
 }
 
 const isPositiveInteger = (value: unknown): value is number =>
@@ -39,6 +111,9 @@ const isPositiveInteger = (value: unknown): value is number =>
 
 const isBooleanArray = (value: unknown): value is boolean[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'boolean');
+
+const isEncounterTypeArray = (value: unknown): value is EncounterType[] =>
+  Array.isArray(value) && value.every((entry) => entry === 'none' || entry === 'land' || entry === 'water');
 
 const isFacing = (value: unknown): value is TriggerFacing =>
   value === 'any' || value === 'up' || value === 'down' || value === 'left' || value === 'right';
@@ -148,6 +223,45 @@ const parseTriggerZone = (raw: unknown, mapId: string): TriggerZone => {
   };
 };
 
+const parseNpcSource = (raw: unknown, mapId: string): NpcSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" has an NPC that is not an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if (typeof candidate.id !== 'string' || candidate.id.length === 0) {
+    throw new Error(`Map source "${mapId}" has an NPC with an invalid id.`);
+  }
+
+  if (!Number.isInteger(candidate.x) || !Number.isInteger(candidate.y)) {
+    throw new Error(`Map source "${mapId}" NPC "${candidate.id}" must define integer x/y.`);
+  }
+
+  if (typeof candidate.graphicsId !== 'string' || candidate.graphicsId.length === 0) {
+    throw new Error(`Map source "${mapId}" NPC "${candidate.id}" must define graphicsId.`);
+  }
+
+  if (typeof candidate.movementType !== 'string' || candidate.movementType.length === 0) {
+    throw new Error(`Map source "${mapId}" NPC "${candidate.id}" must define movementType.`);
+  }
+
+  if (!Number.isInteger(candidate.movementRangeX) || !Number.isInteger(candidate.movementRangeY)) {
+    throw new Error(`Map source "${mapId}" NPC "${candidate.id}" must define integer movement ranges.`);
+  }
+
+  return {
+    id: candidate.id,
+    x: candidate.x as number,
+    y: candidate.y as number,
+    graphicsId: candidate.graphicsId as string,
+    movementType: candidate.movementType as string,
+    movementRangeX: candidate.movementRangeX as number,
+    movementRangeY: candidate.movementRangeY as number,
+    scriptId: candidate.scriptId as string | undefined,
+    flag: candidate.flag as string | undefined
+  };
+};
+
 export const mapFromSource = (source: MapSource): TileMap => {
   const expectedTiles = source.width * source.height;
 
@@ -157,13 +271,30 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.encounterTypes && source.encounterTypes.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has encounterTypes length ${source.encounterTypes.length}, expected ${expectedTiles}.`
+    );
+  }
+
+  if (source.metatileBehaviors && source.metatileBehaviors.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has metatileBehaviors length ${source.metatileBehaviors.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
+    metadata: source.metadata,
+    wildEncounters: source.wildEncounters,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
     walkable: [...source.walkable],
-    triggers: source.triggers ? [...source.triggers] : []
+    encounterTypes: source.encounterTypes ? [...source.encounterTypes] : Array.from({ length: expectedTiles }, () => 'none'),
+    metatileBehaviors: source.metatileBehaviors ? [...source.metatileBehaviors] : Array.from({ length: expectedTiles }, () => 0),
+    triggers: source.triggers ? [...source.triggers] : [],
+    npcs: source.npcs ? [...source.npcs] : []
   };
 };
 
@@ -191,19 +322,127 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include a boolean walkable array.`);
   }
 
+  if (candidate.encounterTypes !== undefined && !isEncounterTypeArray(candidate.encounterTypes)) {
+    throw new Error(`Map source "${id}" encounterTypes must be an encounter type array.`);
+  }
+
+  if (candidate.metatileBehaviors !== undefined && (
+    !Array.isArray(candidate.metatileBehaviors)
+    || !candidate.metatileBehaviors.every((entry) => Number.isInteger(entry) && entry >= 0)
+  )) {
+    throw new Error(`Map source "${id}" metatileBehaviors must be a non-negative integer array.`);
+  }
+
   if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
     throw new Error(`Map source "${id}" triggers must be an array.`);
   }
 
+  if (candidate.npcs !== undefined && !Array.isArray(candidate.npcs)) {
+    throw new Error(`Map source "${id}" npcs must be an array.`);
+  }
+
   return {
     id,
+    metadata: candidate.metadata as MapMetadataSource | undefined,
+    wildEncounters: candidate.wildEncounters as MapWildEncountersSource | undefined,
     width: candidate.width,
     height: candidate.height,
     tileSize: candidate.tileSize,
     walkable: candidate.walkable,
-    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id))
+    encounterTypes: candidate.encounterTypes,
+    metatileBehaviors: candidate.metatileBehaviors as number[] | undefined,
+    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
+    npcs: (candidate.npcs ?? []).map((entry) => parseNpcSource(entry, id))
   };
 };
 
+const expandRows = <T>(
+  source: CompactMapSource,
+  rows: string[],
+  mapper: (tile: string, y: number) => T,
+  rowLabel: string
+): T[] => {
+  if (rows.length !== source.height) {
+    throw new Error(`Compact map source "${source.id}" has ${rows.length} ${rowLabel} rows, expected ${source.height}.`);
+  }
+
+  return rows.flatMap((row, y) => {
+    if (row.length !== source.width) {
+      throw new Error(`Compact map source "${source.id}" ${rowLabel} row ${y} has width ${row.length}, expected ${source.width}.`);
+    }
+
+    return [...row].map((tile) => mapper(tile, y));
+  });
+};
+
+export const expandCollisionRows = (source: CompactMapSource): boolean[] =>
+  expandRows(source, source.collisionRows, (tile, y) => {
+    if (tile === '.') return true;
+    if (tile === '#') return false;
+    throw new Error(`Compact map source "${source.id}" collision row ${y} has invalid collision marker "${tile}".`);
+  }, 'collision');
+
+export const expandEncounterRows = (source: CompactMapSource): EncounterType[] =>
+  expandRows(source, source.encounterRows ?? [], (tile, y) => {
+    if (tile === '.') return 'none';
+    if (tile === 'L') return 'land';
+    if (tile === 'W') return 'water';
+    throw new Error(`Compact map source "${source.id}" encounter row ${y} has invalid encounter marker "${tile}".`);
+  }, 'encounter');
+
+export const expandBehaviorRows = (source: CompactMapSource): number[] =>
+  (source.behaviorRows ?? []).flatMap((row, y) => {
+    if (row.length !== source.width * 2) {
+      throw new Error(`Compact map source "${source.id}" behavior row ${y} has width ${row.length}, expected ${source.width * 2}.`);
+    }
+
+    const entries: number[] = [];
+    for (let x = 0; x < row.length; x += 2) {
+      const hex = row.slice(x, x + 2);
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) {
+        throw new Error(`Compact map source "${source.id}" behavior row ${y} has invalid behavior marker "${hex}".`);
+      }
+      entries.push(Number.parseInt(hex, 16));
+    }
+    return entries;
+  });
+
+export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
+  mapFromSource(parseMapSource({
+    id: source.id,
+    metadata: source.metadata,
+    wildEncounters: source.wildEncounters,
+    width: source.width,
+    height: source.height,
+    tileSize: source.tileSize,
+    walkable: expandCollisionRows(source),
+    encounterTypes: source.encounterRows ? expandEncounterRows(source) : undefined,
+    metatileBehaviors: source.behaviorRows ? expandBehaviorRows(source) : undefined,
+    triggers: source.triggers,
+    npcs: source.npcs
+  }));
+
 export const loadPrototypeRouteMap = (): TileMap =>
   mapFromSource(parseMapSource(prototypeRouteMapJson));
+
+export const loadRoute1Map = (): TileMap =>
+  mapFromCompactSource(route1CompactMapSource);
+
+export const loadPalletTownMap = (): TileMap =>
+  mapFromCompactSource(palletTownCompactMapSource);
+
+export const loadViridianCityMap = (): TileMap =>
+  mapFromCompactSource(viridianCityCompactMapJson as CompactMapSource);
+
+export const loadMapById = (mapId: string): TileMap | null => {
+  switch (mapId) {
+    case 'MAP_ROUTE1':
+      return loadRoute1Map();
+    case 'MAP_PALLET_TOWN':
+      return loadPalletTownMap();
+    case 'MAP_VIRIDIAN_CITY':
+      return loadViridianCityMap();
+    default:
+      return null;
+  }
+};
