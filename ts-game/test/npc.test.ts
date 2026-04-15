@@ -17,6 +17,7 @@ describe('npc stepping', () => {
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
       encounterTypes: Array.from({ length: 12 * 12 }, () => 'none' as const),
+      metatileBehaviors: Array.from({ length: 12 * 12 }, () => 0),
       triggers: [],
       npcs: []
     };
@@ -53,6 +54,7 @@ describe('npc stepping', () => {
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
       encounterTypes: Array.from({ length: 12 * 12 }, () => 'none' as const),
+      metatileBehaviors: Array.from({ length: 12 * 12 }, () => 0),
       triggers: [],
       npcs: []
     };

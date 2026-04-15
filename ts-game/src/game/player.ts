@@ -1,6 +1,6 @@
 import type { InputSnapshot } from '../input/inputState';
 import { vec2, type Vec2 } from '../core/vec2';
-import { isWalkableAtPixel, type TileMap } from '../world/tileMap';
+import { isDirectionalMoveBlocked, isWalkableAtPixel, type TileMap } from '../world/tileMap';
 
 export interface PlayerState {
   position: Vec2;
@@ -54,8 +54,15 @@ export const stepPlayer = (
   );
 
   const collisionProbe = vec2(nextPosition.x + 8, nextPosition.y + 12);
+  const currentProbe = vec2(state.position.x + 8, state.position.y + 12);
 
   if (!isWalkableAtPixel(map, collisionProbe)) {
+    state.moving = false;
+    state.animationTime = 0;
+    return state;
+  }
+
+  if (isDirectionalMoveBlocked(map, currentProbe, collisionProbe, state.facing)) {
     state.moving = false;
     state.animationTime = 0;
     return state;

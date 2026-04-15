@@ -46,6 +46,7 @@ export interface MapSource {
   tileSize: number;
   walkable: boolean[];
   encounterTypes?: EncounterType[];
+  metatileBehaviors?: number[];
   triggers?: TriggerZone[];
   npcs?: NpcSource[];
 }
@@ -57,6 +58,7 @@ export interface CompactMapSource {
   tileSize: number;
   collisionRows: string[];
   encounterRows?: string[];
+  behaviorRows?: string[];
   triggers?: TriggerZone[];
   npcs?: NpcSource[];
 }
@@ -232,6 +234,12 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.metatileBehaviors && source.metatileBehaviors.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has metatileBehaviors length ${source.metatileBehaviors.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
     width: source.width,
@@ -239,6 +247,7 @@ export const mapFromSource = (source: MapSource): TileMap => {
     tileSize: source.tileSize,
     walkable: [...source.walkable],
     encounterTypes: source.encounterTypes ? [...source.encounterTypes] : Array.from({ length: expectedTiles }, () => 'none'),
+    metatileBehaviors: source.metatileBehaviors ? [...source.metatileBehaviors] : Array.from({ length: expectedTiles }, () => 0),
     triggers: source.triggers ? [...source.triggers] : [],
     npcs: source.npcs ? [...source.npcs] : []
   };
@@ -272,6 +281,13 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" encounterTypes must be an encounter type array.`);
   }
 
+  if (candidate.metatileBehaviors !== undefined && (
+    !Array.isArray(candidate.metatileBehaviors)
+    || !candidate.metatileBehaviors.every((entry) => Number.isInteger(entry) && entry >= 0)
+  )) {
+    throw new Error(`Map source "${id}" metatileBehaviors must be a non-negative integer array.`);
+  }
+
   if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
     throw new Error(`Map source "${id}" triggers must be an array.`);
   }
@@ -287,6 +303,7 @@ export const parseMapSource = (raw: unknown): MapSource => {
     tileSize: candidate.tileSize,
     walkable: candidate.walkable,
     encounterTypes: candidate.encounterTypes,
+    metatileBehaviors: candidate.metatileBehaviors as number[] | undefined,
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     npcs: (candidate.npcs ?? []).map((entry) => parseNpcSource(entry, id))
   };
@@ -326,6 +343,23 @@ export const expandEncounterRows = (source: CompactMapSource): EncounterType[] =
     throw new Error(`Compact map source "${source.id}" encounter row ${y} has invalid encounter marker "${tile}".`);
   }, 'encounter');
 
+export const expandBehaviorRows = (source: CompactMapSource): number[] =>
+  (source.behaviorRows ?? []).flatMap((row, y) => {
+    if (row.length !== source.width * 2) {
+      throw new Error(`Compact map source "${source.id}" behavior row ${y} has width ${row.length}, expected ${source.width * 2}.`);
+    }
+
+    const entries: number[] = [];
+    for (let x = 0; x < row.length; x += 2) {
+      const hex = row.slice(x, x + 2);
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) {
+        throw new Error(`Compact map source "${source.id}" behavior row ${y} has invalid behavior marker "${hex}".`);
+      }
+      entries.push(Number.parseInt(hex, 16));
+    }
+    return entries;
+  });
+
 export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
   mapFromSource(parseMapSource({
     id: source.id,
@@ -334,6 +368,7 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     tileSize: source.tileSize,
     walkable: expandCollisionRows(source),
     encounterTypes: source.encounterRows ? expandEncounterRows(source) : undefined,
+    metatileBehaviors: source.behaviorRows ? expandBehaviorRows(source) : undefined,
     triggers: source.triggers,
     npcs: source.npcs
   }));

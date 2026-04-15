@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  expandBehaviorRows,
   expandCollisionRows,
   expandEncounterRows,
   loadPrototypeRouteMap,
@@ -29,6 +30,8 @@ describe('map source loading', () => {
     expect(map.height).toBe(40);
     expect(map.walkable.length).toBe(960);
     expect(map.encounterTypes.filter((type) => type === 'land').length).toBeGreaterThan(0);
+    expect(map.metatileBehaviors).toContain(0x3b);
+    expect(map.metatileBehaviors).toContain(0x84);
     expect(map.triggers).toHaveLength(1);
     expect(map.npcs.map((npc) => npc.scriptId)).toEqual([
       'Route1_EventScript_MartClerk',
@@ -89,6 +92,15 @@ describe('map source loading', () => {
       collisionRows: ['.'],
       encounterRows: ['x']
     })).toThrow(/invalid encounter marker/i);
+
+    expect(() => expandBehaviorRows({
+      id: 'bad-behavior-marker',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      collisionRows: ['.'],
+      behaviorRows: ['0x']
+    })).toThrow(/invalid behavior marker/i);
   });
 
   test('parses and validates triggers', () => {
@@ -231,6 +243,7 @@ describe('Route 1 decomp parity', () => {
 
     const rows: string[] = [];
     const encounterRows: string[] = [];
+    const behaviorRows: string[] = [];
     const readMetatileAttributes = (metatileId: number): number => {
       const attributes = metatileId < 0x200 ? primaryAttributes : secondaryAttributes;
       const index = metatileId < 0x200 ? metatileId : metatileId - 0x200;
@@ -242,18 +255,23 @@ describe('Route 1 decomp parity', () => {
     for (let y = 0; y < layout.height; y += 1) {
       let row = '';
       let encounterRow = '';
+      let behaviorRow = '';
       for (let x = 0; x < layout.width; x += 1) {
         const block = blockData.readUInt16LE((y * layout.width + x) * 2);
         const metatileId = block & 0x03ff;
-        const encounterType = (readMetatileAttributes(metatileId) & 0x07000000) >>> 24;
+        const attributes = readMetatileAttributes(metatileId);
+        const encounterType = (attributes & 0x07000000) >>> 24;
         row += ((block & 0x0c00) >> 10) === 0 ? '.' : '#';
         encounterRow += encounterType === 1 ? 'L' : encounterType === 2 ? 'W' : '.';
+        behaviorRow += (attributes & 0x000001ff).toString(16).padStart(2, '0');
       }
       rows.push(row);
       encounterRows.push(encounterRow);
+      behaviorRows.push(behaviorRow);
     }
 
     expect(route1CompactMapSource.collisionRows).toEqual(rows);
     expect(route1CompactMapSource.encounterRows).toEqual(encounterRows);
+    expect(route1CompactMapSource.behaviorRows).toEqual(behaviorRows);
   });
 });

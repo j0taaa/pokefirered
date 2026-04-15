@@ -8,6 +8,7 @@ const MAPGRID_METATILE_ID_MASK = 0x03ff;
 const NUM_METATILES_IN_PRIMARY = 0x200;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_MASK = 0x07000000;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_SHIFT = 24;
+const METATILE_ATTRIBUTE_BEHAVIOR_MASK = 0x000001ff;
 
 const TILE_ENCOUNTER_LAND = 1;
 const TILE_ENCOUNTER_WATER = 2;
@@ -79,10 +80,12 @@ const exportMap = (mapName) => {
   const secondaryAttributes = readBinary(tilesetAttributePath(layout.secondary_tileset));
   const collisionRows = [];
   const encounterRows = [];
+  const behaviorRows = [];
 
   for (let y = 0; y < layout.height; y += 1) {
     let collisionRow = '';
     let encounterRow = '';
+    let behaviorRow = '';
 
     for (let x = 0; x < layout.width; x += 1) {
       const block = blockData.readUInt16LE((y * layout.width + x) * 2);
@@ -92,10 +95,12 @@ const exportMap = (mapName) => {
 
       collisionRow += collision === 0 ? '.' : '#';
       encounterRow += toEncounterMarker(attributes);
+      behaviorRow += (attributes & METATILE_ATTRIBUTE_BEHAVIOR_MASK).toString(16).padStart(2, '0');
     }
 
     collisionRows.push(collisionRow);
     encounterRows.push(encounterRow);
+    behaviorRows.push(behaviorRow);
   }
 
   return {
@@ -105,6 +110,7 @@ const exportMap = (mapName) => {
     tileSize: 16,
     collisionRows,
     encounterRows,
+    behaviorRows,
     triggers: map.bg_events.map((event) => ({
       id: event.script,
       x: event.x,
