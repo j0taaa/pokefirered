@@ -43,6 +43,7 @@ Run inside `ts-game/`:
 - `npm run dev`
 - `npm run test`
 - `npm run build`
+- `npm run export:map -- Route1`
 
 ## Migration note / next steps
 
