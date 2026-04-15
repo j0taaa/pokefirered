@@ -67,20 +67,32 @@ const stationaryPath = (x: number, y: number): NpcPathPoint[] => [{ x, y }];
 const pathFromSource = (source: NpcSource, tileSize: number): NpcPathPoint[] => {
   const x = source.x * tileSize;
   const y = source.y * tileSize;
+  const left = (source.x - source.movementRangeX) * tileSize;
+  const right = (source.x + source.movementRangeX) * tileSize;
+  const up = (source.y - source.movementRangeY) * tileSize;
+  const down = (source.y + source.movementRangeY) * tileSize;
 
   switch (source.movementType) {
+    case 'MOVEMENT_TYPE_WANDER_AROUND':
+      return [
+        { x, y },
+        { x: right, y },
+        { x, y: down },
+        { x: left, y },
+        { x, y: up }
+      ];
     case 'MOVEMENT_TYPE_WANDER_UP_AND_DOWN':
       return [
-        { x, y: (source.y - source.movementRangeY) * tileSize },
+        { x, y: up },
         { x, y },
-        { x, y: (source.y + source.movementRangeY) * tileSize },
+        { x, y: down },
         { x, y }
       ];
     case 'MOVEMENT_TYPE_WANDER_LEFT_AND_RIGHT':
       return [
-        { x: (source.x - source.movementRangeX) * tileSize, y },
+        { x: left, y },
         { x, y },
-        { x: (source.x + source.movementRangeX) * tileSize, y },
+        { x: right, y },
         { x, y }
       ];
     case 'MOVEMENT_TYPE_FACE_UP':

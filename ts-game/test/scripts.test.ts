@@ -80,4 +80,38 @@ describe('script runtime helpers', () => {
     expect(runtime.bag.items.ITEM_POTION).toBe(1);
     expect(dialogue.text).toContain('POKE BALLS');
   });
+
+  test('Pallet Town sign scripts mirror original text and side effects', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('PalletTown_EventScript_TownSign', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toBe('PALLET TOWN');
+    expect(dialogue.queue[1]).toContain('Shades of your journey');
+
+    runScriptById('PalletTown_EventScript_PlayersHouseSign', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toBe("PLAYER's house");
+
+    runScriptById('PalletTown_EventScript_TrainerTips', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toBe('TRAINER TIPS');
+    expect(dialogue.queue[1]).toContain('Press START');
+    expect(getScriptVar(runtime, 'VAR_MAP_SCENE_PALLET_TOWN_SIGN_LADY')).toBe(1);
+  });
+
+  test('Pallet Town NPC scripts follow the original branch cues', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('PalletTown_EventScript_FatMan', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toContain('Technology is incredible');
+
+    runScriptById('PalletTown_EventScript_SignLady', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toContain('Hmm');
+
+    setScriptVar(runtime, 'VAR_MAP_SCENE_PALLET_TOWN_SIGN_LADY', 2);
+    runScriptById('PalletTown_EventScript_SignLady', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toContain('raising POKEMON');
+  });
 });

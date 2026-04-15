@@ -3,12 +3,14 @@ import {
   expandBehaviorRows,
   expandCollisionRows,
   expandEncounterRows,
+  loadPalletTownMap,
   loadPrototypeRouteMap,
   loadRoute1Map,
   mapFromCompactSource,
   mapFromSource,
   parseMapSource
 } from '../src/world/mapSource';
+import { palletTownCompactMapSource } from '../src/world/maps/palletTown';
 import { route1CompactMapSource } from '../src/world/maps/route1';
 
 describe('map source loading', () => {
@@ -43,6 +45,35 @@ describe('map source loading', () => {
     expect(map.npcs.map((npc) => npc.scriptId)).toEqual([
       'Route1_EventScript_MartClerk',
       'Route1_EventScript_Boy'
+    ]);
+  });
+
+  test('loads Pallet Town from compact decomp adapter data', () => {
+    const map = loadPalletTownMap();
+
+    expect(map.id).toBe('MAP_PALLET_TOWN');
+    expect(map.width).toBe(24);
+    expect(map.height).toBe(20);
+    expect(map.metadata?.music).toBe('MUS_PALLET');
+    expect(map.metadata?.connections?.map((connection) => connection.map)).toEqual([
+      'MAP_ROUTE1',
+      'MAP_ROUTE21_NORTH'
+    ]);
+    expect(map.walkable.length).toBe(480);
+    expect(map.encounterTypes.filter((type) => type === 'water').length).toBe(10);
+    expect(map.metatileBehaviors).toContain(0x15);
+    expect(map.metatileBehaviors).toContain(0x84);
+    expect(map.triggers.map((trigger) => trigger.scriptId)).toEqual([
+      'PalletTown_EventScript_OaksLabSign',
+      'PalletTown_EventScript_PlayersHouseSign',
+      'PalletTown_EventScript_RivalsHouseSign',
+      'PalletTown_EventScript_TownSign',
+      'PalletTown_EventScript_TrainerTips'
+    ]);
+    expect(map.npcs.map((npc) => npc.scriptId)).toEqual([
+      'PalletTown_EventScript_SignLady',
+      'PalletTown_EventScript_FatMan',
+      '0x0'
     ]);
   });
 
@@ -306,5 +337,98 @@ describe('Route 1 decomp parity', () => {
     expect(route1CompactMapSource.collisionRows).toEqual(rows);
     expect(route1CompactMapSource.encounterRows).toEqual(encounterRows);
     expect(route1CompactMapSource.behaviorRows).toEqual(behaviorRows);
+  });
+});
+
+describe('Pallet Town decomp parity', () => {
+  test('matches original PalletTown map event coordinates and scripts', async () => {
+    const fs = await import('node:fs');
+    const raw = JSON.parse(fs.readFileSync('../data/maps/PalletTown/map.json', 'utf8'));
+
+    expect(palletTownCompactMapSource.id).toBe(raw.id);
+    expect(palletTownCompactMapSource.metadata).toMatchObject({
+      name: raw.name,
+      layout: raw.layout,
+      music: raw.music,
+      weather: raw.weather,
+      mapType: raw.map_type,
+      battleScene: raw.battle_scene,
+      connections: raw.connections
+    });
+    expect(palletTownCompactMapSource.npcs?.map((npc) => ({
+      x: npc.x,
+      y: npc.y,
+      graphics_id: npc.graphicsId,
+      movement_type: npc.movementType,
+      movement_range_x: npc.movementRangeX,
+      movement_range_y: npc.movementRangeY,
+      script: npc.scriptId,
+      flag: npc.flag
+    }))).toEqual(raw.object_events.map((event: Record<string, unknown>) => ({
+      x: event.x,
+      y: event.y,
+      graphics_id: event.graphics_id,
+      movement_type: event.movement_type,
+      movement_range_x: event.movement_range_x,
+      movement_range_y: event.movement_range_y,
+      script: event.script,
+      flag: event.flag
+    })));
+
+    expect(palletTownCompactMapSource.triggers?.map((trigger) => ({
+      x: trigger.x,
+      y: trigger.y,
+      script: trigger.scriptId
+    }))).toEqual(raw.bg_events.map((event: Record<string, unknown>) => ({
+      x: event.x,
+      y: event.y,
+      script: event.script
+    })));
+  });
+
+  test('matches original PalletTown layout dimensions and MAPGRID collision bits', async () => {
+    const fs = await import('node:fs');
+    const palletTown = JSON.parse(fs.readFileSync('../data/maps/PalletTown/map.json', 'utf8'));
+    const layouts = JSON.parse(fs.readFileSync('../data/layouts/layouts.json', 'utf8')).layouts;
+    const layout = layouts.find((entry: Record<string, unknown>) => entry.id === palletTown.layout);
+    const blockData = fs.readFileSync(`../${layout.blockdata_filepath}`);
+    const primaryAttributes = fs.readFileSync('../data/tilesets/primary/general/metatile_attributes.bin');
+    const secondaryAttributes = fs.readFileSync('../data/tilesets/secondary/pallet_town/metatile_attributes.bin');
+
+    expect(palletTownCompactMapSource.width).toBe(layout.width);
+    expect(palletTownCompactMapSource.height).toBe(layout.height);
+
+    const rows: string[] = [];
+    const encounterRows: string[] = [];
+    const behaviorRows: string[] = [];
+    const readMetatileAttributes = (metatileId: number): number => {
+      const attributes = metatileId < 0x200 ? primaryAttributes : secondaryAttributes;
+      const index = metatileId < 0x200 ? metatileId : metatileId - 0x200;
+      const offset = index * 4;
+
+      return offset + 4 <= attributes.length ? attributes.readUInt32LE(offset) : 0;
+    };
+
+    for (let y = 0; y < layout.height; y += 1) {
+      let row = '';
+      let encounterRow = '';
+      let behaviorRow = '';
+      for (let x = 0; x < layout.width; x += 1) {
+        const block = blockData.readUInt16LE((y * layout.width + x) * 2);
+        const metatileId = block & 0x03ff;
+        const attributes = readMetatileAttributes(metatileId);
+        const encounterType = (attributes & 0x07000000) >>> 24;
+        row += ((block & 0x0c00) >> 10) === 0 ? '.' : '#';
+        encounterRow += encounterType === 1 ? 'L' : encounterType === 2 ? 'W' : '.';
+        behaviorRow += (attributes & 0x000001ff).toString(16).padStart(2, '0');
+      }
+      rows.push(row);
+      encounterRows.push(encounterRow);
+      behaviorRows.push(behaviorRow);
+    }
+
+    expect(palletTownCompactMapSource.collisionRows).toEqual(rows);
+    expect(palletTownCompactMapSource.encounterRows).toEqual(encounterRows);
+    expect(palletTownCompactMapSource.behaviorRows).toEqual(behaviorRows);
   });
 });

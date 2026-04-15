@@ -3,6 +3,7 @@ import { vec2 } from '../src/core/vec2';
 import {
   collidesWithNpcs,
   createPrototypeNpcs,
+  createNpcsFromSources,
   stepNpcs,
   type NpcState
 } from '../src/game/npc';
@@ -117,6 +118,28 @@ describe('npc stepping', () => {
 
     expect(npc.position.x).toBe(startX);
     expect(npc.moving).toBe(false);
+  });
+
+  test('maps decomp wander-around movement ranges to a bounded patrol', () => {
+    const [npc] = createNpcsFromSources([{
+      id: 'LOCALID_PALLET_SIGN_LADY',
+      x: 3,
+      y: 10,
+      graphicsId: 'OBJ_EVENT_GFX_WOMAN_1',
+      movementType: 'MOVEMENT_TYPE_WANDER_AROUND',
+      movementRangeX: 1,
+      movementRangeY: 4,
+      scriptId: 'PalletTown_EventScript_SignLady'
+    }], 16);
+
+    expect(npc.path).toEqual([
+      { x: 3 * 16, y: 10 * 16 },
+      { x: 4 * 16, y: 10 * 16 },
+      { x: 3 * 16, y: 14 * 16 },
+      { x: 2 * 16, y: 10 * 16 },
+      { x: 3 * 16, y: 6 * 16 }
+    ]);
+    expect(npc.pathIndex).toBe(1);
   });
 });
 

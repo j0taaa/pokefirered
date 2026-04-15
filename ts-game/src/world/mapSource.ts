@@ -1,4 +1,5 @@
 import prototypeRouteMapJson from './maps/prototypeRoute.json';
+import { palletTownCompactMapSource } from './maps/palletTown';
 import { route1CompactMapSource } from './maps/route1';
 import type { TileMap } from './tileMap';
 
@@ -425,3 +426,17 @@ export const loadPrototypeRouteMap = (): TileMap =>
 
 export const loadRoute1Map = (): TileMap =>
   mapFromCompactSource(route1CompactMapSource);
+
+export const loadPalletTownMap = (): TileMap =>
+  mapFromCompactSource(palletTownCompactMapSource);
+
+export const loadMapById = (mapId: string): TileMap | null => {
+  switch (mapId) {
+    case 'MAP_ROUTE1':
+      return loadRoute1Map();
+    case 'MAP_PALLET_TOWN':
+      return loadPalletTownMap();
+    default:
+      return null;
+  }
+};

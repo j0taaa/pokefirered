@@ -7,7 +7,7 @@ This repository currently contains the Pokémon FireRed / LeafGreen decompilatio
 - ✅ Existing decompilation source remains the primary codebase.
 - ✅ A dedicated destination folder for the TypeScript/browser version has been created at `ts-game/`.
 - ✅ This README and repository guidance have been updated to support incremental migration planning.
-- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, Route 1 adapter-data loading, metatile behavior metadata, ledge jumps, connection-edge detection, Route 1 item-script state, encounter-tile-gated Route 1 wild battles, and runtime tests are in `ts-game/`.
+- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, Route 1 and Pallet Town adapter-data loading, metatile behavior metadata, ledge jumps, Route 1 <-> Pallet Town map switching, Route 1 item-script state, encounter-tile-gated Route 1 wild battles, and runtime tests are in `ts-game/`.
 
 ## Original project outputs
 
@@ -64,7 +64,7 @@ Current completion snapshot:
 8. ✅ UI menus foundation (START menu open/close + selection + tests)
 9. ✅ Battle slice v1 (wild encounter entry + move select + damage preview prototype)
 10. ✅ Save/load browser persistence
-11. 🟡 Data convergence with decomp exports (Route 1 adapter data and parity tests)
+11. 🟡 Data convergence with decomp exports (Route 1 + Pallet Town adapter data and parity tests)
 
 ## Developer setup (decomp side)
 

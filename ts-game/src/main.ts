@@ -3,11 +3,11 @@ import { GameLoop } from './core/gameLoop';
 import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
-import { loadRoute1Map } from './world/mapSource';
-import { findConnectionForInput } from './world/connections';
+import { loadMapById, loadRoute1Map } from './world/mapSource';
+import { findConnectionForInput, resolveMapConnection } from './world/connections';
 import { isLandEncounterAtPixel } from './world/tileMap';
 import { createPlayer, stepPlayer } from './game/player';
-import { collidesWithNpcs, createNpcsFromSources, stepNpcs } from './game/npc';
+import { collidesWithNpcs, createNpcsFromSources, stepNpcs, type NpcState } from './game/npc';
 import { createDialogueState, openDialogueSequence, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
@@ -44,20 +44,44 @@ shell.append(battleOverlay.root);
 
 app.append(shell);
 
-const map = loadRoute1Map();
+let map = loadRoute1Map();
 const player = createPlayer();
-const npcs = createNpcsFromSources(map.npcs, map.tileSize);
+let npcs: NpcState[] = createNpcsFromSources(map.npcs, map.tileSize);
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();
 const battle = createBattleState();
 const battleEncounter = createBattleEncounterState();
-battleEncounter.encounterRate = map.wildEncounters?.land?.encounterRate ?? battleEncounter.encounterRate;
 const input = new BrowserInputAdapter();
 input.attach();
 
+const syncMapRuntime = (): void => {
+  battleEncounter.encounterRate = map.wildEncounters?.land?.encounterRate ?? 0;
+};
+
+const applyMap = (nextMap: typeof map, position?: { x: number; y: number }): void => {
+  map = nextMap;
+  npcs = createNpcsFromSources(map.npcs, map.tileSize);
+  if (position) {
+    player.position.x = position.x;
+    player.position.y = position.y;
+  }
+  player.moving = false;
+  player.jumping = false;
+  player.animationTime = 0;
+  syncMapRuntime();
+};
+
+syncMapRuntime();
+
 const storage = window.localStorage;
 const loadedSave = loadGameFromStorage(storage, DEFAULT_SAVE_SLOT_KEY);
+if (loadedSave && loadedSave.mapId !== map.id) {
+  const savedMap = loadMapById(loadedSave.mapId);
+  if (savedMap) {
+    applyMap(savedMap);
+  }
+}
 if (loadedSave && applySaveSnapshot(loadedSave, map.id, player, scriptRuntime)) {
   scriptRuntime.lastScriptId = `save.load.success.${loadedSave.saveIndex}`;
 }
@@ -113,13 +137,19 @@ const loop = new GameLoop({
 
       const movedThisFrame = previousX !== player.position.x || previousY !== player.position.y;
       if (!movedThisFrame) {
-        const connection = findConnectionForInput(map, player, snapshot);
-        if (connection) {
-          scriptRuntime.lastScriptId = `connection.${connection.map}`;
-          openDialogueSequence(dialogue, 'system', [
-            `${map.metadata?.name ?? map.id} connects ${connection.direction} to ${connection.map}.`,
-            'Destination map loading is not implemented yet.'
-          ]);
+        const resolvedConnection = resolveMapConnection(map, player, snapshot, loadMapById);
+        if (resolvedConnection) {
+          scriptRuntime.lastScriptId = `connection.${resolvedConnection.map.id}`;
+          applyMap(resolvedConnection.map, resolvedConnection.position);
+        } else {
+          const connection = findConnectionForInput(map, player, snapshot);
+          if (connection) {
+            scriptRuntime.lastScriptId = `connection.${connection.map}`;
+            openDialogueSequence(dialogue, 'system', [
+              `${map.metadata?.name ?? map.id} connects ${connection.direction} to ${connection.map}.`,
+              'That destination is still waiting on a decomp-backed browser adapter.'
+            ]);
+          }
         }
       } else {
         runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {

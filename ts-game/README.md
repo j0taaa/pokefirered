@@ -11,10 +11,12 @@ The app currently implements a functional runtime slice:
 - Browser keyboard input adapter (WASD/Arrows + Shift run + Z/Enter interact)
 - Map loading adapter boundary (`MapSource`) with JSON-backed prototype fixture
 - Compact Route 1 adapter data checked against original decomp map/layout files
+- Compact Pallet Town adapter data checked against original decomp map/layout files
 - Metatile behavior rows for Route 1 ledges/signs/grass and directional blocking helpers
 - Route 1 metadata/connections exported from decomp map JSON
+- Pallet Town metadata/connections, NPCs, water tiles, signs, and Trainer Tips sign script exported from decomp data
 - Route 1 FireRed land wild encounters exported from `src/data/wild_encounters.json`
-- Route 1 connection-edge detection for north/south map boundaries
+- Route 1 <-> Pallet Town map switching through decomp connection metadata
 - Route 1 Mart clerk Potion gift now mutates a persisted bag item model and follows the original flag branch
 - South ledge jumping as a two-tile movement action
 - Player movement + facing + movement animation state
@@ -29,7 +31,7 @@ The app currently implements a functional runtime slice:
 - Wild battles on Route 1 now choose species/level from the exported FireRed land encounter table
 - Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
-- Route 1 parity tests compare metadata, connections, object events, background events, dimensions, `MAPGRID_COLLISION_MASK` collision rows, encounter-terrain bits, and metatile behavior rows with the original decomp data
+- Route 1 and Pallet Town parity tests compare metadata, connections, object events, background events, dimensions, `MAPGRID_COLLISION_MASK` collision rows, encounter-terrain bits, and metatile behavior rows with the original decomp data
 
 ## Folder layout
 
@@ -51,6 +53,7 @@ Run inside `ts-game/`:
 - `npm run test`
 - `npm run build`
 - `npm run export:map -- Route1`
+- `npm run export:map -- PalletTown`
 
 ## Migration note / next steps
 
@@ -59,6 +62,6 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 Near-term next increments:
 
 1. Replace START-menu placeholder panels with fully interactive menu scenes (party/bag/options + deeper save UX parity).
-2. Load connected destination maps instead of surfacing connection stubs.
+2. Continue loading connected destination maps, starting with Viridian City and Route 21.
 3. Replace primitive player visuals with true sprite-sheet frames.
 4. Extend battle scene parity with status conditions, proper Poké Ball shake phases, and richer AI move utility heuristics.

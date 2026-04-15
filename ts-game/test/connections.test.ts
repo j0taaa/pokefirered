@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { findConnectionForInput } from '../src/world/connections';
-import { loadRoute1Map } from '../src/world/mapSource';
+import { findConnectionForInput, resolveMapConnection } from '../src/world/connections';
+import { loadMapById, loadPalletTownMap, loadRoute1Map } from '../src/world/mapSource';
 import { createPlayer } from '../src/game/player';
 
 const input = {
@@ -42,5 +42,43 @@ describe('map connection edge probes', () => {
     player.position.y = 10 * map.tileSize;
 
     expect(findConnectionForInput(map, player, { ...input, up: true })).toBeNull();
+  });
+
+  test('resolves Route 1 south edge into Pallet Town with preserved x', () => {
+    const route1 = loadRoute1Map();
+    const player = createPlayer();
+
+    player.position.x = 12 * route1.tileSize;
+    player.position.y = (route1.height - 1) * route1.tileSize - 12;
+
+    const resolved = resolveMapConnection(route1, player, { ...input, down: true }, loadMapById);
+
+    expect(resolved?.connection.map).toBe('MAP_PALLET_TOWN');
+    expect(resolved?.map.id).toBe('MAP_PALLET_TOWN');
+    expect(resolved?.position).toEqual({ x: 12 * route1.tileSize, y: route1.tileSize });
+  });
+
+  test('resolves Pallet Town north edge back into Route 1 near the south entrance', () => {
+    const palletTown = loadPalletTownMap();
+    const player = createPlayer();
+
+    player.position.x = 13 * palletTown.tileSize;
+    player.position.y = -12;
+
+    const resolved = resolveMapConnection(palletTown, player, { ...input, up: true }, loadMapById);
+
+    expect(resolved?.connection.map).toBe('MAP_ROUTE1');
+    expect(resolved?.map.id).toBe('MAP_ROUTE1');
+    expect(resolved?.position).toEqual({ x: 13 * palletTown.tileSize, y: 38 * palletTown.tileSize });
+  });
+
+  test('leaves unloaded decomp connection destinations unresolved', () => {
+    const route1 = loadRoute1Map();
+    const player = createPlayer();
+
+    player.position.x = 12 * route1.tileSize;
+    player.position.y = -12;
+
+    expect(resolveMapConnection(route1, player, { ...input, up: true }, loadMapById)).toBeNull();
   });
 });

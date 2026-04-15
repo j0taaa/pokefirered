@@ -219,6 +219,59 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'I know, I will give you a sample. Here you go!',
       'PLAYER put the POTION away in the BAG ITEMS POCKET.'
     ]);
+  },
+  PalletTown_EventScript_SignLady: ({ dialogue, runtime }) => {
+    const scene = getScriptVar(runtime, 'VAR_MAP_SCENE_PALLET_TOWN_SIGN_LADY');
+    if (scene === 2) {
+      openDialogueSequence(dialogue, 'LOCALID_PALLET_SIGN_LADY', [
+        'I am raising POKEMON, too.',
+        'When they get strong, they can protect me.'
+      ]);
+      return;
+    }
+
+    if (scene === 1) {
+      openScriptDialogue(dialogue, 'LOCALID_PALLET_SIGN_LADY', 'Signs are useful, are they not?');
+      return;
+    }
+
+    if (isScriptFlagSet(runtime, 'FLAG_TEMP_2')) {
+      openScriptDialogue(dialogue, 'LOCALID_PALLET_SIGN_LADY', 'Read it, read it!');
+      return;
+    }
+
+    openDialogueSequence(dialogue, 'LOCALID_PALLET_SIGN_LADY', [
+      'Hmm...',
+      'Is that right...'
+    ]);
+  },
+  PalletTown_EventScript_FatMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'LOCALID_PALLET_FAT_MAN', [
+      'Technology is incredible!',
+      'You can now store and recall items and POKEMON as data via PC.'
+    ]);
+  },
+  PalletTown_EventScript_OaksLabSign: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'sign', 'OAK POKEMON RESEARCH LAB');
+  },
+  PalletTown_EventScript_PlayersHouseSign: ({ dialogue, runtime }) => {
+    openScriptDialogue(dialogue, 'sign', `${runtime.startMenu.playerName}'s house`);
+  },
+  PalletTown_EventScript_RivalsHouseSign: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'sign', "RIVAL's house");
+  },
+  PalletTown_EventScript_TownSign: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'sign', [
+      'PALLET TOWN',
+      'Shades of your journey await!'
+    ]);
+  },
+  PalletTown_EventScript_TrainerTips: ({ dialogue, runtime }) => {
+    setScriptVar(runtime, 'VAR_MAP_SCENE_PALLET_TOWN_SIGN_LADY', 1);
+    openDialogueSequence(dialogue, 'sign', [
+      'TRAINER TIPS',
+      'Press START to open the MENU!'
+    ]);
   }
 };
 
