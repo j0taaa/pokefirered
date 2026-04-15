@@ -105,6 +105,20 @@ const exportMap = (mapName) => {
 
   return {
     id: map.id,
+    metadata: {
+      name: map.name,
+      layout: map.layout,
+      music: map.music,
+      regionMapSection: map.region_map_section,
+      weather: map.weather,
+      mapType: map.map_type,
+      allowCycling: map.allow_cycling,
+      allowEscaping: map.allow_escaping,
+      allowRunning: map.allow_running,
+      showMapName: map.show_map_name,
+      battleScene: map.battle_scene,
+      connections: map.connections
+    },
     width: layout.width,
     height: layout.height,
     tileSize: 16,

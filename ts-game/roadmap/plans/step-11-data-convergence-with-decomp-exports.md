@@ -13,8 +13,11 @@ Replace prototype-only data with adapter data that can be checked against the or
 - 2026-04-15: Added Route 1 encounter-terrain rows derived from metatile attribute bits 24-26 (`METATILE_ATTRIBUTE_ENCOUNTER_TYPE`) and gated wild battles to land-encounter tiles, matching the `TILE_ENCOUNTER_NONE` early return in `wild_encounter.c`.
 - 2026-04-15: Added `npm run export:map -- <MapName>` for repeatable compact map exports from decomp map/layout/tileset data.
 - 2026-04-15: Added metatile behavior rows from `METATILE_ATTRIBUTE_BEHAVIOR` plus runtime helpers for ledges and directional impassable checks, mirroring `MetatileBehavior_IsJump*` and `MetatileBehavior_Is*Blocked`.
+- 2026-04-15: Added Route 1 metadata/connections to the compact adapter and exporter output.
+- 2026-04-15: Added south-ledge jumping as a discrete two-tile player movement, matching `GetLedgeJumpDirection` + `GetJump2MovementAction` behavior at prototype scope.
+- 2026-04-15: Updated the canvas renderer and HUD to consume real map metadata/behavior data for grass, ledges, signs, and map identity.
 
 ## Follow-ups
 
-- Apply ledge jump movement as a field action instead of only exposing behavior metadata.
+- Expand map switching through Route 1 connections.
 - Convert additional early-game maps and add connection/warp-driven map switching.

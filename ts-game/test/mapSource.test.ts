@@ -28,6 +28,11 @@ describe('map source loading', () => {
     expect(map.id).toBe('MAP_ROUTE1');
     expect(map.width).toBe(24);
     expect(map.height).toBe(40);
+    expect(map.metadata?.music).toBe('MUS_ROUTE1');
+    expect(map.metadata?.connections?.map((connection) => connection.map)).toEqual([
+      'MAP_VIRIDIAN_CITY',
+      'MAP_PALLET_TOWN'
+    ]);
     expect(map.walkable.length).toBe(960);
     expect(map.encounterTypes.filter((type) => type === 'land').length).toBeGreaterThan(0);
     expect(map.metatileBehaviors).toContain(0x3b);
@@ -198,6 +203,15 @@ describe('Route 1 decomp parity', () => {
     const raw = JSON.parse(fs.readFileSync('../data/maps/Route1/map.json', 'utf8'));
 
     expect(route1CompactMapSource.id).toBe(raw.id);
+    expect(route1CompactMapSource.metadata).toMatchObject({
+      name: raw.name,
+      layout: raw.layout,
+      music: raw.music,
+      weather: raw.weather,
+      mapType: raw.map_type,
+      battleScene: raw.battle_scene,
+      connections: raw.connections
+    });
     expect(route1CompactMapSource.npcs?.map((npc) => ({
       x: npc.x,
       y: npc.y,

@@ -5,6 +5,31 @@ import type { CompactMapSource } from '../mapSource';
 // "." means MAPGRID_COLLISION_MASK == 0; "#" means non-zero collision.
 export const route1CompactMapSource: CompactMapSource = {
   id: 'MAP_ROUTE1',
+  metadata: {
+    name: 'Route1',
+    layout: 'LAYOUT_ROUTE1',
+    music: 'MUS_ROUTE1',
+    regionMapSection: 'MAPSEC_ROUTE_1',
+    weather: 'WEATHER_SUNNY',
+    mapType: 'MAP_TYPE_ROUTE',
+    allowCycling: true,
+    allowEscaping: false,
+    allowRunning: true,
+    showMapName: true,
+    battleScene: 'MAP_BATTLE_SCENE_NORMAL',
+    connections: [
+      {
+        map: 'MAP_VIRIDIAN_CITY',
+        offset: -12,
+        direction: 'up'
+      },
+      {
+        map: 'MAP_PALLET_TOWN',
+        offset: 0,
+        direction: 'down'
+      }
+    ]
+  },
   width: 24,
   height: 40,
   tileSize: 16,

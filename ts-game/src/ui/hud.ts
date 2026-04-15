@@ -4,9 +4,11 @@ import type { NpcState } from '../game/npc';
 import type { PlayerState } from '../game/player';
 import type { StartMenuState } from '../game/menu';
 import type { BattleState } from '../game/battle';
+import type { TileMap } from '../world/tileMap';
 
 export interface HudBindings {
   root: HTMLElement;
+  mapValue: HTMLElement;
   fpsValue: HTMLElement;
   positionValue: HTMLElement;
   facingValue: HTMLElement;
@@ -30,6 +32,7 @@ export const createHud = (): HudBindings => {
   stateCard.className = 'card';
   stateCard.innerHTML = [
     'Pos: <strong data-role="pos">0,0</strong><br/>',
+    'Map: <strong data-role="map">(unknown)</strong><br/>',
     'Facing: <strong data-role="facing">down</strong><br/>',
     'Camera: <strong data-role="camera">0,0</strong><br/>',
     'NPCs: <strong data-role="npc">0</strong><br/>',
@@ -43,6 +46,7 @@ export const createHud = (): HudBindings => {
 
   return {
     root,
+    mapValue: stateCard.querySelector('[data-role="map"]') as HTMLElement,
     fpsValue: perfCard.querySelector('[data-role="fps"]') as HTMLElement,
     positionValue: stateCard.querySelector('[data-role="pos"]') as HTMLElement,
     facingValue: stateCard.querySelector('[data-role="facing"]') as HTMLElement,
@@ -61,12 +65,14 @@ export const updateHud = (
   npcs: NpcState[],
   fps: number,
   camera: CameraState,
+  map: TileMap,
   dialogue: DialogueState,
   lastScriptId: string | null,
   startMenu: StartMenuState,
   battle: BattleState
 ): void => {
   bindings.fpsValue.textContent = fps.toFixed(0);
+  bindings.mapValue.textContent = map.metadata?.name ?? map.id;
   bindings.positionValue.textContent = `${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}`;
   bindings.facingValue.textContent = player.facing;
   bindings.cameraValue.textContent = `${camera.x.toFixed(1)}, ${camera.y.toFixed(1)}`;
@@ -84,4 +90,3 @@ export const updateHud = (
     ? `${battle.phase} (${battle.playerMon.hp}/${battle.playerMon.maxHp} vs ${battle.wildMon.hp}/${battle.wildMon.maxHp})`
     : 'idle';
 };
-

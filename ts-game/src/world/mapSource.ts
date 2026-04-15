@@ -39,8 +39,30 @@ export interface NpcSource {
   flag?: string;
 }
 
+export interface MapConnectionSource {
+  map: string;
+  offset: number;
+  direction: TriggerFacing;
+}
+
+export interface MapMetadataSource {
+  name?: string;
+  layout?: string;
+  music?: string;
+  regionMapSection?: string;
+  weather?: string;
+  mapType?: string;
+  allowCycling?: boolean;
+  allowEscaping?: boolean;
+  allowRunning?: boolean;
+  showMapName?: boolean;
+  battleScene?: string;
+  connections?: MapConnectionSource[];
+}
+
 export interface MapSource {
   id: string;
+  metadata?: MapMetadataSource;
   width: number;
   height: number;
   tileSize: number;
@@ -53,6 +75,7 @@ export interface MapSource {
 
 export interface CompactMapSource {
   id: string;
+  metadata?: MapMetadataSource;
   width: number;
   height: number;
   tileSize: number;
@@ -242,6 +265,7 @@ export const mapFromSource = (source: MapSource): TileMap => {
 
   return {
     id: source.id,
+    metadata: source.metadata,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
@@ -298,6 +322,7 @@ export const parseMapSource = (raw: unknown): MapSource => {
 
   return {
     id,
+    metadata: candidate.metadata as MapMetadataSource | undefined,
     width: candidate.width,
     height: candidate.height,
     tileSize: candidate.tileSize,
@@ -363,6 +388,7 @@ export const expandBehaviorRows = (source: CompactMapSource): number[] =>
 export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
   mapFromSource(parseMapSource({
     id: source.id,
+    metadata: source.metadata,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,

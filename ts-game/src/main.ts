@@ -151,7 +151,7 @@ const loop = new GameLoop({
   },
   render() {
     renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
+    updateHud(hud, player, npcs, fps, camera, map, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
     updateStartMenuView(startMenuView, startMenu);
     updateBattleOverlay(battleOverlay, battle);
   }

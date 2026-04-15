@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { createPlayer, stepPlayer } from '../src/game/player';
 import { createPrototypeRouteMap } from '../src/world/tileMap';
+import { loadRoute1Map } from '../src/world/mapSource';
 
 const idleInput = {
   up: false,
@@ -79,5 +80,32 @@ describe('player stepping', () => {
 
     expect(player.position.x).toBe(startX);
     expect(player.moving).toBe(false);
+  });
+
+  test('jumps two tiles over a south ledge like FireRed GetJump2MovementAction', () => {
+    const map = loadRoute1Map();
+    const player = createPlayer();
+    player.position.x = 4 * 16;
+    player.position.y = 4 * 16;
+
+    stepPlayer(player, { ...idleInput, down: true }, map, 1 / 60);
+
+    expect(player.position.x).toBe(4 * 16);
+    expect(player.position.y).toBe(6 * 16);
+    expect(player.facing).toBe('down');
+    expect(player.moving).toBe(true);
+    expect(player.jumping).toBe(true);
+  });
+
+  test('does not jump a ledge when walking against its one-way direction', () => {
+    const map = loadRoute1Map();
+    const player = createPlayer();
+    player.position.x = 4 * 16;
+    player.position.y = 6 * 16;
+
+    stepPlayer(player, { ...idleInput, up: true }, map, 1 / 60);
+
+    expect(player.position.y).toBeGreaterThan(5 * 16);
+    expect(player.jumping).toBe(false);
   });
 });

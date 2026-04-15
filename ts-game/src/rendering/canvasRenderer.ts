@@ -1,7 +1,7 @@
 import type { CameraState } from '../core/camera';
 import type { NpcState } from '../game/npc';
 import type { PlayerState } from '../game/player';
-import type { TileMap } from '../world/tileMap';
+import { getMetatileBehaviorAtPixel, type TileMap } from '../world/tileMap';
 
 const PLAYER_SIZE = 14;
 
@@ -40,10 +40,13 @@ export class CanvasRenderer {
         const idx = y * map.width + x;
         const walkable = map.walkable[idx];
 
-        ctx.fillStyle = walkable ? '#4e9a51' : '#355c37';
-        if (!walkable && y > 7 && x > 11) {
-          ctx.fillStyle = '#2f6db0';
-        }
+        const encounterType = map.encounterTypes[idx];
+        const behavior = getMetatileBehaviorAtPixel(map, {
+          x: x * tileSize + Math.floor(tileSize / 2),
+          y: y * tileSize + Math.floor(tileSize / 2)
+        });
+
+        ctx.fillStyle = this.getTileColor(walkable, encounterType, behavior);
 
         ctx.fillRect(
           x * tileSize - camera.x,
@@ -63,6 +66,14 @@ export class CanvasRenderer {
 
     this.drawNpcs(npcs, camera);
     this.drawPlayer(player, camera);
+  }
+
+  private getTileColor(walkable: boolean, encounterType: string, behavior: number): string {
+    if (behavior >= 0x38 && behavior <= 0x3b) return '#b9a05f';
+    if (behavior === 0x84) return '#d8c35a';
+    if (encounterType === 'land') return '#347d42';
+    if (encounterType === 'water') return '#2f6db0';
+    return walkable ? '#5c9f5e' : '#334936';
   }
 
   private drawNpcs(npcs: NpcState[], camera: CameraState): void {
@@ -98,7 +109,7 @@ export class CanvasRenderer {
     const screenX = player.position.x - camera.x;
     const screenY = player.position.y - camera.y;
     const stepFrame = player.moving ? Math.floor(player.animationTime * 10) % 2 : 0;
-    const bobOffset = player.moving && stepFrame === 1 ? 1 : 0;
+    const bobOffset = player.jumping ? 4 : player.moving && stepFrame === 1 ? 1 : 0;
 
     this.ctx.fillStyle = '#f2d07c';
     this.ctx.fillRect(screenX, screenY - bobOffset, PLAYER_SIZE, PLAYER_SIZE);

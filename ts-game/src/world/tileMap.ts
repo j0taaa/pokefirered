@@ -1,8 +1,15 @@
 import type { Vec2 } from '../core/vec2';
-import { loadPrototypeRouteMap, type EncounterType, type NpcSource, type TriggerZone } from './mapSource';
+import {
+  loadPrototypeRouteMap,
+  type EncounterType,
+  type MapMetadataSource,
+  type NpcSource,
+  type TriggerZone
+} from './mapSource';
 
 export interface TileMap {
   id: string;
+  metadata?: MapMetadataSource;
   width: number;
   height: number;
   tileSize: number;
@@ -104,6 +111,15 @@ export const isJumpMetatileBehavior = (
     case 'right':
       return behavior === MB_JUMP_EAST;
   }
+};
+
+export const getLedgeJumpDirectionAtPixel = (
+  map: TileMap,
+  pos: Vec2,
+  direction: MovementDirection
+): MovementDirection | null => {
+  const behavior = getMetatileBehaviorAtPixel(map, pos);
+  return isJumpMetatileBehavior(behavior, direction) ? direction : null;
 };
 
 const oppositeDirection = (direction: MovementDirection): MovementDirection => {
