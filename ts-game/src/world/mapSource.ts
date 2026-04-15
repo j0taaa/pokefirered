@@ -4,6 +4,7 @@ import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
 export type TriggerConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte';
+export type EncounterType = 'none' | 'land' | 'water';
 
 export interface TriggerCondition {
   var?: string;
@@ -44,6 +45,7 @@ export interface MapSource {
   height: number;
   tileSize: number;
   walkable: boolean[];
+  encounterTypes?: EncounterType[];
   triggers?: TriggerZone[];
   npcs?: NpcSource[];
 }
@@ -54,6 +56,7 @@ export interface CompactMapSource {
   height: number;
   tileSize: number;
   collisionRows: string[];
+  encounterRows?: string[];
   triggers?: TriggerZone[];
   npcs?: NpcSource[];
 }
@@ -63,6 +66,9 @@ const isPositiveInteger = (value: unknown): value is number =>
 
 const isBooleanArray = (value: unknown): value is boolean[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'boolean');
+
+const isEncounterTypeArray = (value: unknown): value is EncounterType[] =>
+  Array.isArray(value) && value.every((entry) => entry === 'none' || entry === 'land' || entry === 'water');
 
 const isFacing = (value: unknown): value is TriggerFacing =>
   value === 'any' || value === 'up' || value === 'down' || value === 'left' || value === 'right';
@@ -220,12 +226,19 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.encounterTypes && source.encounterTypes.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has encounterTypes length ${source.encounterTypes.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
     walkable: [...source.walkable],
+    encounterTypes: source.encounterTypes ? [...source.encounterTypes] : Array.from({ length: expectedTiles }, () => 'none'),
     triggers: source.triggers ? [...source.triggers] : [],
     npcs: source.npcs ? [...source.npcs] : []
   };
@@ -255,6 +268,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include a boolean walkable array.`);
   }
 
+  if (candidate.encounterTypes !== undefined && !isEncounterTypeArray(candidate.encounterTypes)) {
+    throw new Error(`Map source "${id}" encounterTypes must be an encounter type array.`);
+  }
+
   if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
     throw new Error(`Map source "${id}" triggers must be an array.`);
   }
@@ -269,28 +286,45 @@ export const parseMapSource = (raw: unknown): MapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     walkable: candidate.walkable,
+    encounterTypes: candidate.encounterTypes,
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     npcs: (candidate.npcs ?? []).map((entry) => parseNpcSource(entry, id))
   };
 };
 
-export const expandCollisionRows = (source: CompactMapSource): boolean[] => {
-  if (source.collisionRows.length !== source.height) {
-    throw new Error(`Compact map source "${source.id}" has ${source.collisionRows.length} rows, expected ${source.height}.`);
+const expandRows = <T>(
+  source: CompactMapSource,
+  rows: string[],
+  mapper: (tile: string, y: number) => T,
+  rowLabel: string
+): T[] => {
+  if (rows.length !== source.height) {
+    throw new Error(`Compact map source "${source.id}" has ${rows.length} ${rowLabel} rows, expected ${source.height}.`);
   }
 
-  return source.collisionRows.flatMap((row, y) => {
+  return rows.flatMap((row, y) => {
     if (row.length !== source.width) {
-      throw new Error(`Compact map source "${source.id}" row ${y} has width ${row.length}, expected ${source.width}.`);
+      throw new Error(`Compact map source "${source.id}" ${rowLabel} row ${y} has width ${row.length}, expected ${source.width}.`);
     }
 
-    return [...row].map((tile) => {
-      if (tile === '.') return true;
-      if (tile === '#') return false;
-      throw new Error(`Compact map source "${source.id}" row ${y} has invalid collision marker "${tile}".`);
-    });
+    return [...row].map((tile) => mapper(tile, y));
   });
 };
+
+export const expandCollisionRows = (source: CompactMapSource): boolean[] =>
+  expandRows(source, source.collisionRows, (tile, y) => {
+    if (tile === '.') return true;
+    if (tile === '#') return false;
+    throw new Error(`Compact map source "${source.id}" collision row ${y} has invalid collision marker "${tile}".`);
+  }, 'collision');
+
+export const expandEncounterRows = (source: CompactMapSource): EncounterType[] =>
+  expandRows(source, source.encounterRows ?? [], (tile, y) => {
+    if (tile === '.') return 'none';
+    if (tile === 'L') return 'land';
+    if (tile === 'W') return 'water';
+    throw new Error(`Compact map source "${source.id}" encounter row ${y} has invalid encounter marker "${tile}".`);
+  }, 'encounter');
 
 export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
   mapFromSource(parseMapSource({
@@ -299,6 +333,7 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     height: source.height,
     tileSize: source.tileSize,
     walkable: expandCollisionRows(source),
+    encounterTypes: source.encounterRows ? expandEncounterRows(source) : undefined,
     triggers: source.triggers,
     npcs: source.npcs
   }));

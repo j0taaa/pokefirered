@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   expandCollisionRows,
+  expandEncounterRows,
   loadPrototypeRouteMap,
   loadRoute1Map,
   mapFromCompactSource,
@@ -27,6 +28,7 @@ describe('map source loading', () => {
     expect(map.width).toBe(24);
     expect(map.height).toBe(40);
     expect(map.walkable.length).toBe(960);
+    expect(map.encounterTypes.filter((type) => type === 'land').length).toBeGreaterThan(0);
     expect(map.triggers).toHaveLength(1);
     expect(map.npcs.map((npc) => npc.scriptId)).toEqual([
       'Route1_EventScript_MartClerk',
@@ -69,7 +71,7 @@ describe('map source loading', () => {
       height: 1,
       tileSize: 16,
       collisionRows: ['...']
-    })).toThrow(/row 0 has width/i);
+    })).toThrow(/collision row 0 has width/i);
 
     expect(() => expandCollisionRows({
       id: 'bad-marker',
@@ -78,6 +80,15 @@ describe('map source loading', () => {
       tileSize: 16,
       collisionRows: ['x']
     })).toThrow(/invalid collision marker/i);
+
+    expect(() => expandEncounterRows({
+      id: 'bad-encounter-marker',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      collisionRows: ['.'],
+      encounterRows: ['x']
+    })).toThrow(/invalid encounter marker/i);
   });
 
   test('parses and validates triggers', () => {
@@ -212,20 +223,37 @@ describe('Route 1 decomp parity', () => {
     const layouts = JSON.parse(fs.readFileSync('../data/layouts/layouts.json', 'utf8')).layouts;
     const layout = layouts.find((entry: Record<string, unknown>) => entry.id === route.layout);
     const blockData = fs.readFileSync(`../${layout.blockdata_filepath}`);
+    const primaryAttributes = fs.readFileSync('../data/tilesets/primary/general/metatile_attributes.bin');
+    const secondaryAttributes = fs.readFileSync('../data/tilesets/secondary/pallet_town/metatile_attributes.bin');
 
     expect(route1CompactMapSource.width).toBe(layout.width);
     expect(route1CompactMapSource.height).toBe(layout.height);
 
     const rows: string[] = [];
+    const encounterRows: string[] = [];
+    const readMetatileAttributes = (metatileId: number): number => {
+      const attributes = metatileId < 0x200 ? primaryAttributes : secondaryAttributes;
+      const index = metatileId < 0x200 ? metatileId : metatileId - 0x200;
+      const offset = index * 4;
+
+      return offset + 4 <= attributes.length ? attributes.readUInt32LE(offset) : 0;
+    };
+
     for (let y = 0; y < layout.height; y += 1) {
       let row = '';
+      let encounterRow = '';
       for (let x = 0; x < layout.width; x += 1) {
         const block = blockData.readUInt16LE((y * layout.width + x) * 2);
+        const metatileId = block & 0x03ff;
+        const encounterType = (readMetatileAttributes(metatileId) & 0x07000000) >>> 24;
         row += ((block & 0x0c00) >> 10) === 0 ? '.' : '#';
+        encounterRow += encounterType === 1 ? 'L' : encounterType === 2 ? 'W' : '.';
       }
       rows.push(row);
+      encounterRows.push(encounterRow);
     }
 
     expect(route1CompactMapSource.collisionRows).toEqual(rows);
+    expect(route1CompactMapSource.encounterRows).toEqual(encounterRows);
   });
 });

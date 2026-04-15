@@ -4,6 +4,7 @@ import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadRoute1Map } from './world/mapSource';
+import { isLandEncounterAtPixel } from './world/tileMap';
 import { createPlayer, stepPlayer } from './game/player';
 import { collidesWithNpcs, createNpcsFromSources, stepNpcs } from './game/npc';
 import { createDialogueState, stepInteraction } from './game/interaction';
@@ -117,7 +118,8 @@ const loop = new GameLoop({
           scriptRegistry: prototypeScriptRegistry
         });
 
-        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame)) {
+        const collisionProbe = { x: player.position.x + 8, y: player.position.y + 12 };
+        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame, isLandEncounterAtPixel(map, collisionProbe))) {
           scriptRuntime.lastScriptId = 'battle.wild.start';
         }
       }

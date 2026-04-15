@@ -65,6 +65,17 @@ describe('battle vertical slice', () => {
     expect(battle.turnSummary).toContain('appeared');
   });
 
+  test('does not advance cooldown or start battle on non-encounter tiles', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    const started = tryStartWildBattle(battle, encounter, true, false);
+
+    expect(started).toBe(false);
+    expect(battle.active).toBe(false);
+    expect(encounter.stepsSinceLastEncounter).toBe(0);
+  });
+
   test('advances intro, allows move selection, and resolves faint flow', () => {
     const battle = createBattleState();
     const encounter = createBattleEncounterState();

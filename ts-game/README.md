@@ -22,7 +22,7 @@ The app currently implements a functional runtime slice:
 - Battle vertical slice v4: command selection (`FIGHT`/`BAG`/`POKéMON`/`RUN`), full Gen-3 type-chart effectiveness sampling for preview math, Poké Ball/Great Ball shake-count capture messaging, poison end-turn chip damage, party switching, and improved enemy move-utility heuristics
 - Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
-- Route 1 parity tests compare object events, background events, dimensions, and `MAPGRID_COLLISION_MASK` collision rows with the original decomp data
+- Route 1 parity tests compare object events, background events, dimensions, `MAPGRID_COLLISION_MASK` collision rows, and encounter-terrain bits with the original decomp data
 
 ## Folder layout
 
@@ -51,6 +51,6 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 Near-term next increments:
 
 1. Replace START-menu placeholder panels with fully interactive menu scenes (party/bag/options + deeper save UX parity).
-2. Generate compact map adapter data from decomp exports and expand Route 1 with metatile behavior metadata.
+2. Generate compact map adapter data from decomp exports and expand Route 1 with ledge/directional-blocking metadata.
 3. Replace primitive player visuals with true sprite-sheet frames.
 4. Extend battle scene parity with status conditions, proper Poké Ball shake phases, and richer AI move utility heuristics.

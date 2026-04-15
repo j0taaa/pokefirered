@@ -317,9 +317,10 @@ export const createBattleState = (): BattleState => {
 export const tryStartWildBattle = (
   battle: BattleState,
   encounter: BattleEncounterState,
-  playerMoved: boolean
+  playerMoved: boolean,
+  canEncounterOnTile = true
 ): boolean => {
-  if (!playerMoved || battle.active) {
+  if (!playerMoved || battle.active || !canEncounterOnTile) {
     return false;
   }
 
