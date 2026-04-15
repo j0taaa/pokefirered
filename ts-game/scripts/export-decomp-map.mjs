@@ -70,6 +70,14 @@ const objectEventId = (map, event, index) => {
   return `${map.name}_ObjectEvent_${index + 1}`;
 };
 
+const warpEventToWarp = (event) => ({
+  x: event.x,
+  y: event.y,
+  elevation: event.elevation,
+  destMap: event.dest_map,
+  destWarpId: Number(event.dest_warp_id)
+});
+
 const bgEventToTrigger = (event) => {
   if (event.type === 'hidden_item') {
     return {
@@ -206,6 +214,7 @@ const exportMap = (mapName) => {
       ...map.coord_events.map(coordEventToTrigger),
       ...map.bg_events.map(bgEventToTrigger)
     ],
+    warps: map.warp_events.map(warpEventToWarp),
     npcs: map.object_events.map((event, index) => ({
       id: objectEventId(map, event, index),
       x: event.x,

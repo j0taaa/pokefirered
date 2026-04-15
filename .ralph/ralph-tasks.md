@@ -51,7 +51,7 @@ The browser port is "finished" when the player can complete the main FireRed gam
 
 ## Phase 1 - Data Export Foundation
 
-- [ ] Extend `ts-game/scripts/export-decomp-map.mjs` to export `warp_events` with destination map and warp id.
+- [x] Extend `ts-game/scripts/export-decomp-map.mjs` to export `warp_events` with destination map and warp id.
 - [ ] Add tests for exported warp event shape using Viridian City, Pallet Town, and Pokémon Center maps.
 - [ ] Add a typed `WarpSource` contract to map sources and `TileMap`.
 - [ ] Add runtime warp trigger detection based on player tile and original warp event coordinates.
@@ -285,3 +285,4 @@ The browser port is "finished" when the player can complete the main FireRed gam
 ## Ralph Progress Notes
 
 - 2026-04-15: Seeded backlog for autonomous Ralph/OpenCode loop.
+- 2026-04-15: Phase 1 Task 1 done. Added `warpEventToWarp` converter to `export-decomp-map.mjs` exporting `{x, y, elevation, destMap, destWarpId}` from decomp `warp_events`. Verified with PalletTown (3 warps), ViridianCity (5 warps), ViridianCity_PokemonCenter_1F (4 warps), and Route1 (0 warps). All 82 tests pass, build clean.
