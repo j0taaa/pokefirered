@@ -1,6 +1,7 @@
 import { vec2, type Vec2 } from '../core/vec2';
 import type { TileMap } from '../world/tileMap';
 import { isWalkableAtPixel } from '../world/tileMap';
+import type { NpcSource } from '../world/mapSource';
 
 export interface NpcPathPoint {
   x: number;
@@ -60,6 +61,73 @@ export const createPrototypeNpcs = (): NpcState[] => [
     dialogueIndex: 0
   }
 ];
+
+const stationaryPath = (x: number, y: number): NpcPathPoint[] => [{ x, y }];
+
+const pathFromSource = (source: NpcSource, tileSize: number): NpcPathPoint[] => {
+  const x = source.x * tileSize;
+  const y = source.y * tileSize;
+
+  switch (source.movementType) {
+    case 'MOVEMENT_TYPE_WANDER_UP_AND_DOWN':
+      return [
+        { x, y: (source.y - source.movementRangeY) * tileSize },
+        { x, y },
+        { x, y: (source.y + source.movementRangeY) * tileSize },
+        { x, y }
+      ];
+    case 'MOVEMENT_TYPE_WANDER_LEFT_AND_RIGHT':
+      return [
+        { x: (source.x - source.movementRangeX) * tileSize, y },
+        { x, y },
+        { x: (source.x + source.movementRangeX) * tileSize, y },
+        { x, y }
+      ];
+    case 'MOVEMENT_TYPE_FACE_UP':
+    case 'MOVEMENT_TYPE_FACE_DOWN':
+    case 'MOVEMENT_TYPE_FACE_LEFT':
+    case 'MOVEMENT_TYPE_FACE_RIGHT':
+    default:
+      return stationaryPath(x, y);
+  }
+};
+
+const facingFromMovementType = (movementType: string): NpcState['facing'] => {
+  switch (movementType) {
+    case 'MOVEMENT_TYPE_FACE_UP':
+      return 'up';
+    case 'MOVEMENT_TYPE_FACE_LEFT':
+      return 'left';
+    case 'MOVEMENT_TYPE_FACE_RIGHT':
+    case 'MOVEMENT_TYPE_WANDER_LEFT_AND_RIGHT':
+      return 'right';
+    case 'MOVEMENT_TYPE_FACE_DOWN':
+    case 'MOVEMENT_TYPE_WANDER_UP_AND_DOWN':
+    default:
+      return 'down';
+  }
+};
+
+export const createNpcsFromSources = (
+  sources: NpcSource[],
+  tileSize: number
+): NpcState[] => sources.map((source) => {
+  const path = pathFromSource(source, tileSize);
+
+  return {
+    id: source.id,
+    position: vec2(source.x * tileSize, source.y * tileSize),
+    path,
+    pathIndex: path.length > 1 ? 1 : 0,
+    facing: facingFromMovementType(source.movementType),
+    moving: false,
+    idleDurationSeconds: 0.45,
+    idleTimeRemaining: 0,
+    interactScriptId: source.scriptId,
+    dialogueLines: [],
+    dialogueIndex: 0
+  };
+});
 
 const updateFacing = (npc: NpcState, dx: number, dy: number): void => {
   if (Math.abs(dx) >= Math.abs(dy)) {

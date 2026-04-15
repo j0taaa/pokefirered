@@ -7,7 +7,7 @@ This repository currently contains the Pokémon FireRed / LeafGreen decompilatio
 - ✅ Existing decompilation source remains the primary codebase.
 - ✅ A dedicated destination folder for the TypeScript/browser version has been created at `ts-game/`.
 - ✅ This README and repository guidance have been updated to support incremental migration planning.
-- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, a wild-battle command slice, and runtime tests are in `ts-game/`.
+- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, Route 1 adapter-data loading, a wild-battle command slice, and runtime tests are in `ts-game/`.
 
 ## Original project outputs
 
@@ -46,7 +46,7 @@ npm install
 npm run dev
 ```
 
-This currently renders a prototype route map with blocked terrain, camera-follow viewport, trigger markers, and a movable player with basic animation (WASD/Arrows, Shift to run, Z/Enter to interact), backed by unit-tested movement/collision/camera/NPC/trigger modules.
+This currently renders Route 1 adapter data with blocked terrain, camera-follow viewport, trigger markers, and a movable player with basic animation (WASD/Arrows, Shift to run, Z/Enter to interact), backed by unit-tested movement/collision/camera/NPC/trigger modules.
 
 ## Suggested migration phases
 
@@ -63,6 +63,8 @@ Current completion snapshot:
 7. ✅ Trigger zones + script callback hooks v1 (sign/step/warp prototype events)
 8. ✅ UI menus foundation (START menu open/close + selection + tests)
 9. ✅ Battle slice v1 (wild encounter entry + move select + damage preview prototype)
+10. ✅ Save/load browser persistence
+11. 🟡 Data convergence with decomp exports (Route 1 adapter data and parity tests)
 
 ## Developer setup (decomp side)
 

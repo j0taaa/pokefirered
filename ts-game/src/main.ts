@@ -3,9 +3,9 @@ import { GameLoop } from './core/gameLoop';
 import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
-import { loadPrototypeRouteMap } from './world/mapSource';
+import { loadRoute1Map } from './world/mapSource';
 import { createPlayer, stepPlayer } from './game/player';
-import { collidesWithNpcs, createPrototypeNpcs, stepNpcs } from './game/npc';
+import { collidesWithNpcs, createNpcsFromSources, stepNpcs } from './game/npc';
 import { createDialogueState, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
@@ -42,9 +42,9 @@ shell.append(battleOverlay.root);
 
 app.append(shell);
 
-const map = loadPrototypeRouteMap();
+const map = loadRoute1Map();
 const player = createPlayer();
-const npcs = createPrototypeNpcs();
+const npcs = createNpcsFromSources(map.npcs, map.tileSize);
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();

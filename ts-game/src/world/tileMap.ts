@@ -1,5 +1,5 @@
 import type { Vec2 } from '../core/vec2';
-import { loadPrototypeRouteMap, type TriggerZone } from './mapSource';
+import { loadPrototypeRouteMap, type NpcSource, type TriggerZone } from './mapSource';
 
 export interface TileMap {
   id: string;
@@ -8,6 +8,7 @@ export interface TileMap {
   tileSize: number;
   walkable: boolean[];
   triggers: TriggerZone[];
+  npcs: NpcSource[];
 }
 
 export const createPrototypeRouteMap = (): TileMap => loadPrototypeRouteMap();

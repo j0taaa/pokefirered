@@ -146,6 +146,35 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
         ? 'Talk to me again and I will share more bug-catching tips.'
         : 'Remember: look for moving grass to find wild encounters.'
     ]);
+  },
+  Route1_EventScript_RouteSign: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'sign', [
+      'ROUTE 1',
+      'PALLET TOWN - VIRIDIAN CITY'
+    ]);
+  },
+  Route1_EventScript_Boy: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'Route1_ObjectEvent_Boy', [
+      'See those ledges along the road?',
+      'It is a bit scary, but you can jump from them.',
+      'You can get back to PALLET TOWN quicker that way.'
+    ]);
+  },
+  Route1_EventScript_MartClerk: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_POTION_ON_ROUTE_1')) {
+      openDialogueSequence(dialogue, 'Route1_ObjectEvent_MartClerk', [
+        'Please come see us if you need POKE BALLS for catching POKEMON.'
+      ]);
+      return;
+    }
+
+    setScriptFlag(runtime, 'FLAG_GOT_POTION_ON_ROUTE_1');
+    openDialogueSequence(dialogue, 'Route1_ObjectEvent_MartClerk', [
+      'Hi! I work at a POKEMON MART.',
+      'Please, visit us in VIRIDIAN CITY.',
+      'I know, I will give you a sample. Here you go!',
+      'PLAYER put the POTION away in the BAG ITEMS POCKET.'
+    ]);
   }
 };
 

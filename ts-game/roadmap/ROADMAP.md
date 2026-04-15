@@ -16,7 +16,7 @@ Legend: `✅ Done` · `🟡 In Progress` · `⬜ Planned`
 | 08. UI menus foundation | ✅ Done | 2026-04-14 | Add menu stack and keyboard navigation primitives. | Start menu opens/closes, selection state, test coverage. |
 | 09. Battle vertical slice | ✅ Done | 2026-04-14 | Prototype one wild encounter flow end-to-end. | Enter battle scene, selectable move, damage preview. |
 | 10. Save/load browser persistence | ✅ Done | 2026-04-14 | Persist player/map state to local storage. | Save schema, migration guard, resume flow, tests. |
-| 11. Data convergence with decomp exports | ⬜ Planned | 2026-05-13+ | Incrementally replace placeholder data with extracted assets/metadata. | At least one route fully data-driven from exported adapter format. |
+| 11. Data convergence with decomp exports | 🟡 In Progress | 2026-05-13+ | Incrementally replace placeholder data with extracted assets/metadata. | At least one route fully data-driven from exported adapter format. |
 
 ## Status update rule
 

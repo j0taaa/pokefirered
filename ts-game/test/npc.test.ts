@@ -16,7 +16,8 @@ describe('npc stepping', () => {
       height: 12,
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
-      triggers: []
+      triggers: [],
+      npcs: []
     };
     const npcs: NpcState[] = [
       {
@@ -50,7 +51,8 @@ describe('npc stepping', () => {
       height: 12,
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
-      triggers: []
+      triggers: [],
+      npcs: []
     };
 
     const npc: NpcState = {
