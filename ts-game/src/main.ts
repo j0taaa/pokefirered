@@ -4,10 +4,11 @@ import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadRoute1Map } from './world/mapSource';
+import { findConnectionForInput } from './world/connections';
 import { isLandEncounterAtPixel } from './world/tileMap';
 import { createPlayer, stepPlayer } from './game/player';
 import { collidesWithNpcs, createNpcsFromSources, stepNpcs } from './game/npc';
-import { createDialogueState, stepInteraction } from './game/interaction';
+import { createDialogueState, openDialogueSequence, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
 import { runStepTriggersAtPlayerTile } from './game/triggers';
@@ -51,6 +52,7 @@ const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();
 const battle = createBattleState();
 const battleEncounter = createBattleEncounterState();
+battleEncounter.encounterRate = map.wildEncounters?.land?.encounterRate ?? battleEncounter.encounterRate;
 const input = new BrowserInputAdapter();
 input.attach();
 
@@ -110,7 +112,16 @@ const loop = new GameLoop({
       );
 
       const movedThisFrame = previousX !== player.position.x || previousY !== player.position.y;
-      if (movedThisFrame) {
+      if (!movedThisFrame) {
+        const connection = findConnectionForInput(map, player, snapshot);
+        if (connection) {
+          scriptRuntime.lastScriptId = `connection.${connection.map}`;
+          openDialogueSequence(dialogue, 'system', [
+            `${map.metadata?.name ?? map.id} connects ${connection.direction} to ${connection.map}.`,
+            'Destination map loading is not implemented yet.'
+          ]);
+        }
+      } else {
         runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
           player,
           dialogue,
@@ -119,7 +130,13 @@ const loop = new GameLoop({
         });
 
         const collisionProbe = { x: player.position.x + 8, y: player.position.y + 12 };
-        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame, isLandEncounterAtPixel(map, collisionProbe))) {
+        if (tryStartWildBattle(
+          battle,
+          battleEncounter,
+          movedThisFrame,
+          isLandEncounterAtPixel(map, collisionProbe),
+          map.wildEncounters?.land
+        )) {
           scriptRuntime.lastScriptId = 'battle.wild.start';
         }
       }

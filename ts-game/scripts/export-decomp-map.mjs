@@ -22,6 +22,9 @@ const readJson = (relativePath) =>
 const readBinary = (relativePath) =>
   fs.readFileSync(path.join(repoRoot, relativePath));
 
+const readWildEncounters = () =>
+  readJson('src/data/wild_encounters.json');
+
 const tilesetAttributePath = (tilesetName) => {
   const snakeName = tilesetName
     .replace(/^gTileset_/, '')
@@ -67,7 +70,43 @@ const objectEventId = (map, event, index) => {
   return `${map.name}_ObjectEvent_${index + 1}`;
 };
 
+const findEncounterRates = (type) =>
+  readWildEncounters()
+    .wild_encounter_groups
+    .find((entry) => entry.label === 'gWildMonHeaders')
+    ?.fields
+    .find((field) => field.type === type)
+    ?.encounter_rates ?? [];
+
+const toWildGroup = (group, type) => group
+  ? {
+    encounterRate: group.encounter_rate ?? 0,
+    mons: group.mons.map((mon, index) => ({
+      minLevel: mon.min_level,
+      maxLevel: mon.max_level,
+      species: mon.species,
+      slotRate: findEncounterRates(type)[index] ?? 0
+    }))
+  }
+  : undefined;
+
+const findWildEncounters = (mapId, gameName) => {
+  const wildEncounters = readWildEncounters();
+  const group = wildEncounters.wild_encounter_groups.find((entry) => entry.label === 'gWildMonHeaders');
+  const mapEncounters = group?.encounters.find((entry) =>
+    entry.map === mapId && entry.base_label?.endsWith(`_${gameName}`)
+  );
+  if (!mapEncounters) {
+    return undefined;
+  }
+
+  return {
+    land: toWildGroup(mapEncounters.land_mons, 'land_mons')
+  };
+};
+
 const exportMap = (mapName) => {
+  const gameName = process.argv[3] ?? 'FireRed';
   const map = readJson(`data/maps/${mapName}/map.json`);
   const layouts = readJson('data/layouts/layouts.json').layouts;
   const layout = layouts.find((entry) => entry.id === map.layout);
@@ -119,6 +158,7 @@ const exportMap = (mapName) => {
       battleScene: map.battle_scene,
       connections: map.connections
     },
+    wildEncounters: findWildEncounters(map.id, gameName),
     width: layout.width,
     height: layout.height,
     tileSize: 16,
@@ -150,7 +190,7 @@ const exportMap = (mapName) => {
 
 const mapName = process.argv[2];
 if (!mapName) {
-  console.error('Usage: npm run export:map -- <MapName>');
+  console.error('Usage: npm run export:map -- <MapName> [FireRed|LeafGreen]');
   process.exitCode = 1;
 } else {
   console.log(JSON.stringify(exportMap(mapName), null, 2));

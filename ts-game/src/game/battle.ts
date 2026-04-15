@@ -1,4 +1,5 @@
 import type { InputSnapshot } from '../input/inputState';
+import type { WildEncounterGroupSource } from '../world/mapSource';
 
 export type PokemonType =
   | 'normal'
@@ -246,6 +247,56 @@ const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterSta
   return bestIndex;
 };
 
+const speciesProfile: Record<string, Pick<BattlePokemonSnapshot, 'catchRate' | 'types'>> = {
+  SPECIES_PIDGEY: {
+    catchRate: 255,
+    types: ['normal', 'flying']
+  },
+  SPECIES_RATTATA: {
+    catchRate: 255,
+    types: ['normal']
+  }
+};
+
+const createWildPokemonFromEncounter = (
+  wildTable: WildEncounterGroupSource,
+  encounter: BattleEncounterState
+): BattlePokemonSnapshot | null => {
+  if (wildTable.mons.length === 0) {
+    return null;
+  }
+
+  const totalSlotRate = wildTable.mons.reduce((sum, mon) => sum + (mon.slotRate ?? 0), 0);
+  const roll = totalSlotRate > 0 ? nextBattleRng(encounter) % totalSlotRate : nextBattleRng(encounter) % wildTable.mons.length;
+  let runningRate = 0;
+  const mon = totalSlotRate > 0
+    ? wildTable.mons.find((candidate) => {
+      runningRate += candidate.slotRate ?? 0;
+      return roll < runningRate;
+    }) ?? wildTable.mons[0]
+    : wildTable.mons[roll];
+  const levelRange = mon.maxLevel - mon.minLevel + 1;
+  const level = mon.minLevel + (levelRange > 1 ? nextBattleRng(encounter) % levelRange : 0);
+  const profile = speciesProfile[mon.species] ?? { catchRate: 255, types: ['normal'] };
+  const baseHp = mon.species === 'SPECIES_RATTATA' ? 18 : 19;
+  const baseAttack = mon.species === 'SPECIES_RATTATA' ? 56 : 45;
+  const baseDefense = mon.species === 'SPECIES_RATTATA' ? 35 : 40;
+  const baseSpeed = mon.species === 'SPECIES_RATTATA' ? 72 : 56;
+
+  return {
+    species: mon.species.replace('SPECIES_', ''),
+    level,
+    maxHp: Math.max(10, Math.floor(baseHp + level * 2.1)),
+    hp: Math.max(10, Math.floor(baseHp + level * 2.1)),
+    attack: Math.max(5, Math.floor(baseAttack / 5 + level)),
+    defense: Math.max(5, Math.floor(baseDefense / 5 + level)),
+    speed: Math.max(5, Math.floor(baseSpeed / 5 + level)),
+    catchRate: profile.catchRate,
+    types: [...profile.types],
+    status: 'none'
+  };
+};
+
 export const createBattleEncounterState = (): BattleEncounterState => ({
   stepsSinceLastEncounter: 0,
   encounterRate: 30,
@@ -318,7 +369,8 @@ export const tryStartWildBattle = (
   battle: BattleState,
   encounter: BattleEncounterState,
   playerMoved: boolean,
-  canEncounterOnTile = true
+  canEncounterOnTile = true,
+  wildTable?: WildEncounterGroupSource
 ): boolean => {
   if (!playerMoved || battle.active || !canEncounterOnTile) {
     return false;
@@ -330,6 +382,12 @@ export const tryStartWildBattle = (
 
   battle.active = true;
   battle.phase = 'intro';
+  if (wildTable) {
+    const generatedWildMon = createWildPokemonFromEncounter(wildTable, encounter);
+    if (generatedWildMon) {
+      battle.wildMon = generatedWildMon;
+    }
+  }
   battle.wildMon.hp = battle.wildMon.maxHp;
   battle.wildMon.status = 'none';
   battle.playerMon.hp = battle.playerMon.maxHp;

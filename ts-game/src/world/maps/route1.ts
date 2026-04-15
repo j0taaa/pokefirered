@@ -30,6 +30,25 @@ export const route1CompactMapSource: CompactMapSource = {
       }
     ]
   },
+  wildEncounters: {
+    land: {
+      encounterRate: 21,
+      mons: [
+        { minLevel: 3, maxLevel: 3, species: 'SPECIES_PIDGEY', slotRate: 20 },
+        { minLevel: 3, maxLevel: 3, species: 'SPECIES_RATTATA', slotRate: 20 },
+        { minLevel: 3, maxLevel: 3, species: 'SPECIES_PIDGEY', slotRate: 10 },
+        { minLevel: 3, maxLevel: 3, species: 'SPECIES_RATTATA', slotRate: 10 },
+        { minLevel: 2, maxLevel: 2, species: 'SPECIES_PIDGEY', slotRate: 10 },
+        { minLevel: 2, maxLevel: 2, species: 'SPECIES_RATTATA', slotRate: 10 },
+        { minLevel: 3, maxLevel: 3, species: 'SPECIES_PIDGEY', slotRate: 5 },
+        { minLevel: 3, maxLevel: 3, species: 'SPECIES_RATTATA', slotRate: 5 },
+        { minLevel: 4, maxLevel: 4, species: 'SPECIES_PIDGEY', slotRate: 4 },
+        { minLevel: 4, maxLevel: 4, species: 'SPECIES_RATTATA', slotRate: 4 },
+        { minLevel: 5, maxLevel: 5, species: 'SPECIES_PIDGEY', slotRate: 1 },
+        { minLevel: 4, maxLevel: 4, species: 'SPECIES_RATTATA', slotRate: 1 }
+      ]
+    }
+  },
   width: 24,
   height: 40,
   tileSize: 16,

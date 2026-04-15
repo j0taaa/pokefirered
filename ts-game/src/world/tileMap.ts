@@ -3,6 +3,7 @@ import {
   loadPrototypeRouteMap,
   type EncounterType,
   type MapMetadataSource,
+  type MapWildEncountersSource,
   type NpcSource,
   type TriggerZone
 } from './mapSource';
@@ -10,6 +11,7 @@ import {
 export interface TileMap {
   id: string;
   metadata?: MapMetadataSource;
+  wildEncounters?: MapWildEncountersSource;
   width: number;
   height: number;
   tileSize: number;

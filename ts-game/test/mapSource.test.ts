@@ -33,6 +33,8 @@ describe('map source loading', () => {
       'MAP_VIRIDIAN_CITY',
       'MAP_PALLET_TOWN'
     ]);
+    expect(map.wildEncounters?.land?.encounterRate).toBe(21);
+    expect(map.wildEncounters?.land?.mons).toHaveLength(12);
     expect(map.walkable.length).toBe(960);
     expect(map.encounterTypes.filter((type) => type === 'land').length).toBeGreaterThan(0);
     expect(map.metatileBehaviors).toContain(0x3b);
@@ -212,6 +214,23 @@ describe('Route 1 decomp parity', () => {
       battleScene: raw.battle_scene,
       connections: raw.connections
     });
+    expect(route1CompactMapSource.wildEncounters?.land?.mons.map((mon) => mon.species)).toEqual([
+      'SPECIES_PIDGEY',
+      'SPECIES_RATTATA',
+      'SPECIES_PIDGEY',
+      'SPECIES_RATTATA',
+      'SPECIES_PIDGEY',
+      'SPECIES_RATTATA',
+      'SPECIES_PIDGEY',
+      'SPECIES_RATTATA',
+      'SPECIES_PIDGEY',
+      'SPECIES_RATTATA',
+      'SPECIES_PIDGEY',
+      'SPECIES_RATTATA'
+    ]);
+    expect(route1CompactMapSource.wildEncounters?.land?.mons.map((mon) => mon.slotRate)).toEqual([
+      20, 20, 10, 10, 10, 10, 5, 5, 4, 4, 1, 1
+    ]);
     expect(route1CompactMapSource.npcs?.map((npc) => ({
       x: npc.x,
       y: npc.y,

@@ -16,8 +16,11 @@ Replace prototype-only data with adapter data that can be checked against the or
 - 2026-04-15: Added Route 1 metadata/connections to the compact adapter and exporter output.
 - 2026-04-15: Added south-ledge jumping as a discrete two-tile player movement, matching `GetLedgeJumpDirection` + `GetJump2MovementAction` behavior at prototype scope.
 - 2026-04-15: Updated the canvas renderer and HUD to consume real map metadata/behavior data for grass, ledges, signs, and map identity.
+- 2026-04-15: Added Route 1 FireRed land wild-encounter data from `src/data/wild_encounters.json` to the map adapter/exporter and battle startup.
+- 2026-04-15: Added wild encounter slot rates from the original land encounter rate table and weighted Route 1 wild species selection by those slots.
+- 2026-04-15: Added connection-edge detection for Route 1's north/south decomp connections as a first map-switching hook.
 
 ## Follow-ups
 
-- Expand map switching through Route 1 connections.
+- Load connected destination maps instead of surfacing connection stubs.
 - Convert additional early-game maps and add connection/warp-driven map switching.

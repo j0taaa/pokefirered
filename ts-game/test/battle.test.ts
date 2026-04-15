@@ -65,6 +65,25 @@ describe('battle vertical slice', () => {
     expect(battle.turnSummary).toContain('appeared');
   });
 
+  test('generates wild mon species and level from Route 1 encounter table', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const route1LandMons = {
+      encounterRate: 21,
+      mons: [
+        { minLevel: 5, maxLevel: 5, species: 'SPECIES_PIDGEY', slotRate: 100 }
+      ]
+    };
+    encounter.stepsSinceLastEncounter = 99;
+
+    const started = tryStartWildBattle(battle, encounter, true, true, route1LandMons);
+
+    expect(started).toBe(true);
+    expect(battle.wildMon.species).toBe('PIDGEY');
+    expect(battle.wildMon.level).toBe(5);
+    expect(battle.wildMon.types).toEqual(['normal', 'flying']);
+  });
+
   test('does not advance cooldown or start battle on non-encounter tiles', () => {
     const battle = createBattleState();
     const encounter = createBattleEncounterState();

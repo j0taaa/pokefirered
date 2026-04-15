@@ -60,9 +60,26 @@ export interface MapMetadataSource {
   connections?: MapConnectionSource[];
 }
 
+export interface WildEncounterMonSource {
+  minLevel: number;
+  maxLevel: number;
+  species: string;
+  slotRate?: number;
+}
+
+export interface WildEncounterGroupSource {
+  encounterRate: number;
+  mons: WildEncounterMonSource[];
+}
+
+export interface MapWildEncountersSource {
+  land?: WildEncounterGroupSource;
+}
+
 export interface MapSource {
   id: string;
   metadata?: MapMetadataSource;
+  wildEncounters?: MapWildEncountersSource;
   width: number;
   height: number;
   tileSize: number;
@@ -76,6 +93,7 @@ export interface MapSource {
 export interface CompactMapSource {
   id: string;
   metadata?: MapMetadataSource;
+  wildEncounters?: MapWildEncountersSource;
   width: number;
   height: number;
   tileSize: number;
@@ -266,6 +284,7 @@ export const mapFromSource = (source: MapSource): TileMap => {
   return {
     id: source.id,
     metadata: source.metadata,
+    wildEncounters: source.wildEncounters,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
@@ -323,6 +342,7 @@ export const parseMapSource = (raw: unknown): MapSource => {
   return {
     id,
     metadata: candidate.metadata as MapMetadataSource | undefined,
+    wildEncounters: candidate.wildEncounters as MapWildEncountersSource | undefined,
     width: candidate.width,
     height: candidate.height,
     tileSize: candidate.tileSize,
@@ -389,6 +409,7 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
   mapFromSource(parseMapSource({
     id: source.id,
     metadata: source.metadata,
+    wildEncounters: source.wildEncounters,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
