@@ -2,6 +2,7 @@ import { vec2, type Vec2 } from '../core/vec2';
 import type { TileMap } from '../world/tileMap';
 import { isWalkableAtPixel } from '../world/tileMap';
 import type { NpcSource } from '../world/mapSource';
+import type { ScriptRuntimeState } from './scripts';
 
 export interface NpcPathPoint {
   x: number;
@@ -122,8 +123,11 @@ const facingFromMovementType = (movementType: string): NpcState['facing'] => {
 
 export const createNpcsFromSources = (
   sources: NpcSource[],
-  tileSize: number
-): NpcState[] => sources.map((source) => {
+  tileSize: number,
+  hiddenFlags: ReadonlySet<string> = new Set()
+): NpcState[] => sources.filter((source) =>
+  !source.flag || source.flag === '0' || !hiddenFlags.has(source.flag)
+).map((source) => {
   const path = pathFromSource(source, tileSize);
 
   return {
@@ -140,6 +144,25 @@ export const createNpcsFromSources = (
     dialogueIndex: 0
   };
 });
+
+export const syncNpcsWithSourceVisibility = (
+  npcs: NpcState[],
+  sources: NpcSource[],
+  runtime: ScriptRuntimeState,
+  tileSize: number
+): NpcState[] => {
+  const visibleIds = new Set(
+    sources
+      .filter((source) => !source.flag || source.flag === '0' || !runtime.flags.has(source.flag))
+      .map((source) => source.id)
+  );
+
+  const existing = npcs.filter((npc) => visibleIds.has(npc.id));
+  const existingIds = new Set(existing.map((npc) => npc.id));
+  const missingSources = sources.filter((source) => visibleIds.has(source.id) && !existingIds.has(source.id));
+
+  return existing.concat(createNpcsFromSources(missingSources, tileSize, runtime.flags));
+};
 
 const updateFacing = (npc: NpcState, dx: number, dy: number): void => {
   if (Math.abs(dx) >= Math.abs(dy)) {

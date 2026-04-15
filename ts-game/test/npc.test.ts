@@ -5,8 +5,10 @@ import {
   createPrototypeNpcs,
   createNpcsFromSources,
   stepNpcs,
+  syncNpcsWithSourceVisibility,
   type NpcState
 } from '../src/game/npc';
+import { createScriptRuntimeState, setScriptFlag } from '../src/game/scripts';
 import { createPrototypeRouteMap, type TileMap } from '../src/world/tileMap';
 
 describe('npc stepping', () => {
@@ -140,6 +142,40 @@ describe('npc stepping', () => {
       { x: 3 * 16, y: 6 * 16 }
     ]);
     expect(npc.pathIndex).toBe(1);
+  });
+
+  test('hides object events whose original hide flag is set', () => {
+    const sources = [
+      {
+        id: 'visible',
+        x: 1,
+        y: 1,
+        graphicsId: 'OBJ_EVENT_GFX_BOY',
+        movementType: 'MOVEMENT_TYPE_FACE_DOWN',
+        movementRangeX: 0,
+        movementRangeY: 0,
+        scriptId: 'VisibleScript',
+        flag: '0'
+      },
+      {
+        id: 'item-ball',
+        x: 2,
+        y: 1,
+        graphicsId: 'OBJ_EVENT_GFX_ITEM_BALL',
+        movementType: 'MOVEMENT_TYPE_FACE_DOWN',
+        movementRangeX: 0,
+        movementRangeY: 0,
+        scriptId: 'ItemScript',
+        flag: 'FLAG_HIDE_ITEM'
+      }
+    ];
+    const runtime = createScriptRuntimeState();
+    const npcs = createNpcsFromSources(sources, 16, runtime.flags);
+    expect(npcs.map((npc) => npc.id)).toEqual(['visible', 'item-ball']);
+
+    setScriptFlag(runtime, 'FLAG_HIDE_ITEM');
+    const synced = syncNpcsWithSourceVisibility(npcs, sources, runtime, 16);
+    expect(synced.map((npc) => npc.id)).toEqual(['visible']);
   });
 });
 

@@ -93,6 +93,39 @@ export const palletTownCompactMapSource: CompactMapSource = {
   ],
   triggers: [
     {
+      id: 'PalletTown_EventScript_OakTriggerLeft',
+      x: 12,
+      y: 1,
+      activation: 'step',
+      scriptId: 'PalletTown_EventScript_OakTriggerLeft',
+      facing: 'any',
+      once: false,
+      conditionVar: 'VAR_MAP_SCENE_PALLET_TOWN_OAK',
+      conditionEquals: 0
+    },
+    {
+      id: 'PalletTown_EventScript_OakTriggerRight',
+      x: 13,
+      y: 1,
+      activation: 'step',
+      scriptId: 'PalletTown_EventScript_OakTriggerRight',
+      facing: 'any',
+      once: false,
+      conditionVar: 'VAR_MAP_SCENE_PALLET_TOWN_OAK',
+      conditionEquals: 0
+    },
+    {
+      id: 'PalletTown_EventScript_SignLadyTrigger',
+      x: 13,
+      y: 2,
+      activation: 'step',
+      scriptId: 'PalletTown_EventScript_SignLadyTrigger',
+      facing: 'any',
+      once: false,
+      conditionVar: 'VAR_TEMP_2',
+      conditionEquals: 1
+    },
+    {
       id: 'PalletTown_EventScript_OaksLabSign',
       x: 16,
       y: 16,

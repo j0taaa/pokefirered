@@ -89,17 +89,17 @@ export const getConnectionLandingTile = (
     case 'up':
       return findNearestWalkableEntryTile(
         destinationMap,
-        sourceTileX + connection.offset,
+        sourceTileX - connection.offset,
         destinationMap.height - 2
       );
     case 'down':
-      return findNearestWalkableEntryTile(destinationMap, sourceTileX + connection.offset, 1);
+      return findNearestWalkableEntryTile(destinationMap, sourceTileX - connection.offset, 1);
     case 'left':
-      return findNearestWalkableEntryTile(destinationMap, destinationMap.width - 2, sourceTileY + connection.offset);
+      return findNearestWalkableEntryTile(destinationMap, destinationMap.width - 2, sourceTileY - connection.offset);
     case 'right':
-      return findNearestWalkableEntryTile(destinationMap, 1, sourceTileY + connection.offset);
+      return findNearestWalkableEntryTile(destinationMap, 1, sourceTileY - connection.offset);
     case 'any':
-      return findNearestWalkableEntryTile(destinationMap, sourceTileX + connection.offset, sourceTileY);
+      return findNearestWalkableEntryTile(destinationMap, sourceTileX - connection.offset, sourceTileY);
   }
 };
 

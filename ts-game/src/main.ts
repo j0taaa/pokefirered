@@ -7,7 +7,13 @@ import { loadMapById, loadRoute1Map } from './world/mapSource';
 import { findConnectionForInput, resolveMapConnection } from './world/connections';
 import { isLandEncounterAtPixel } from './world/tileMap';
 import { createPlayer, stepPlayer } from './game/player';
-import { collidesWithNpcs, createNpcsFromSources, stepNpcs, type NpcState } from './game/npc';
+import {
+  collidesWithNpcs,
+  createNpcsFromSources,
+  stepNpcs,
+  syncNpcsWithSourceVisibility,
+  type NpcState
+} from './game/npc';
 import { createDialogueState, openDialogueSequence, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
@@ -46,7 +52,7 @@ app.append(shell);
 
 let map = loadRoute1Map();
 const player = createPlayer();
-let npcs: NpcState[] = createNpcsFromSources(map.npcs, map.tileSize);
+let npcs: NpcState[] = [];
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();
@@ -61,7 +67,7 @@ const syncMapRuntime = (): void => {
 
 const applyMap = (nextMap: typeof map, position?: { x: number; y: number }): void => {
   map = nextMap;
-  npcs = createNpcsFromSources(map.npcs, map.tileSize);
+  npcs = createNpcsFromSources(map.npcs, map.tileSize, scriptRuntime.flags);
   if (position) {
     player.position.x = position.x;
     player.position.y = position.y;
@@ -73,6 +79,7 @@ const applyMap = (nextMap: typeof map, position?: { x: number; y: number }): voi
 };
 
 syncMapRuntime();
+npcs = createNpcsFromSources(map.npcs, map.tileSize, scriptRuntime.flags);
 
 const storage = window.localStorage;
 const loadedSave = loadGameFromStorage(storage, DEFAULT_SAVE_SLOT_KEY);
@@ -83,6 +90,7 @@ if (loadedSave && loadedSave.mapId !== map.id) {
   }
 }
 if (loadedSave && applySaveSnapshot(loadedSave, map.id, player, scriptRuntime)) {
+  npcs = syncNpcsWithSourceVisibility(npcs, map.npcs, scriptRuntime, map.tileSize);
   scriptRuntime.lastScriptId = `save.load.success.${loadedSave.saveIndex}`;
 }
 
@@ -121,6 +129,7 @@ const loop = new GameLoop({
         scriptRuntime,
         prototypeScriptRegistry
       );
+      npcs = syncNpcsWithSourceVisibility(npcs, map.npcs, scriptRuntime, map.tileSize);
     }
 
     const previousX = player.position.x;

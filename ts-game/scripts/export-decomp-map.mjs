@@ -70,6 +70,43 @@ const objectEventId = (map, event, index) => {
   return `${map.name}_ObjectEvent_${index + 1}`;
 };
 
+const bgEventToTrigger = (event) => {
+  if (event.type === 'hidden_item') {
+    return {
+      id: `${event.flag}.hiddenItem`,
+      x: event.x,
+      y: event.y,
+      activation: event.underfoot ? 'step' : 'interact',
+      scriptId: `${event.flag}.hiddenItem`,
+      facing: 'any',
+      once: true,
+      conditions: [{ flag: event.flag, flagState: false }]
+    };
+  }
+
+  return {
+    id: event.script,
+    x: event.x,
+    y: event.y,
+    activation: 'interact',
+    scriptId: event.script,
+    facing: event.player_facing_dir === 'BG_EVENT_PLAYER_FACING_ANY' ? 'any' : event.player_facing_dir,
+    once: false
+  };
+};
+
+const coordEventToTrigger = (event) => ({
+  id: event.script,
+  x: event.x,
+  y: event.y,
+  activation: 'step',
+  scriptId: event.script,
+  facing: 'any',
+  once: false,
+  conditionVar: event.var,
+  conditionEquals: Number(event.var_value)
+});
+
 const findEncounterRates = (type) =>
   readWildEncounters()
     .wild_encounter_groups
@@ -165,15 +202,10 @@ const exportMap = (mapName) => {
     collisionRows,
     encounterRows,
     behaviorRows,
-    triggers: map.bg_events.map((event) => ({
-      id: event.script,
-      x: event.x,
-      y: event.y,
-      activation: 'interact',
-      scriptId: event.script,
-      facing: event.player_facing_dir === 'BG_EVENT_PLAYER_FACING_ANY' ? 'any' : event.player_facing_dir,
-      once: false
-    })),
+    triggers: [
+      ...map.coord_events.map(coordEventToTrigger),
+      ...map.bg_events.map(bgEventToTrigger)
+    ],
     npcs: map.object_events.map((event, index) => ({
       id: objectEventId(map, event, index),
       x: event.x,

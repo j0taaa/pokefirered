@@ -1,6 +1,7 @@
 import prototypeRouteMapJson from './maps/prototypeRoute.json';
 import { palletTownCompactMapSource } from './maps/palletTown';
 import { route1CompactMapSource } from './maps/route1';
+import viridianCityCompactMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
@@ -430,12 +431,17 @@ export const loadRoute1Map = (): TileMap =>
 export const loadPalletTownMap = (): TileMap =>
   mapFromCompactSource(palletTownCompactMapSource);
 
+export const loadViridianCityMap = (): TileMap =>
+  mapFromCompactSource(viridianCityCompactMapJson as CompactMapSource);
+
 export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
     case 'MAP_ROUTE1':
       return loadRoute1Map();
     case 'MAP_PALLET_TOWN':
       return loadPalletTownMap();
+    case 'MAP_VIRIDIAN_CITY':
+      return loadViridianCityMap();
     default:
       return null;
   }

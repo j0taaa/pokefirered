@@ -6,12 +6,14 @@ import {
   loadPalletTownMap,
   loadPrototypeRouteMap,
   loadRoute1Map,
+  loadViridianCityMap,
   mapFromCompactSource,
   mapFromSource,
   parseMapSource
 } from '../src/world/mapSource';
 import { palletTownCompactMapSource } from '../src/world/maps/palletTown';
 import { route1CompactMapSource } from '../src/world/maps/route1';
+import viridianCityCompactMapSource from '../src/world/maps/viridianCity.json';
 
 describe('map source loading', () => {
   test('loads the prototype map from JSON', () => {
@@ -63,7 +65,12 @@ describe('map source loading', () => {
     expect(map.encounterTypes.filter((type) => type === 'water').length).toBe(10);
     expect(map.metatileBehaviors).toContain(0x15);
     expect(map.metatileBehaviors).toContain(0x84);
-    expect(map.triggers.map((trigger) => trigger.scriptId)).toEqual([
+    expect(map.triggers.filter((trigger) => trigger.activation === 'step').map((trigger) => trigger.scriptId)).toEqual([
+      'PalletTown_EventScript_OakTriggerLeft',
+      'PalletTown_EventScript_OakTriggerRight',
+      'PalletTown_EventScript_SignLadyTrigger'
+    ]);
+    expect(map.triggers.filter((trigger) => trigger.activation === 'interact').map((trigger) => trigger.scriptId)).toEqual([
       'PalletTown_EventScript_OaksLabSign',
       'PalletTown_EventScript_PlayersHouseSign',
       'PalletTown_EventScript_RivalsHouseSign',
@@ -75,6 +82,27 @@ describe('map source loading', () => {
       'PalletTown_EventScript_FatMan',
       '0x0'
     ]);
+  });
+
+  test('loads Viridian City from compact decomp adapter data', () => {
+    const map = loadViridianCityMap();
+
+    expect(map.id).toBe('MAP_VIRIDIAN_CITY');
+    expect(map.width).toBe(48);
+    expect(map.height).toBe(40);
+    expect(map.metadata?.music).toBe('MUS_PEWTER');
+    expect(map.metadata?.connections?.map((connection) => connection.map)).toEqual([
+      'MAP_ROUTE2',
+      'MAP_ROUTE1',
+      'MAP_ROUTE22'
+    ]);
+    expect(map.walkable.length).toBe(1920);
+    expect(map.encounterTypes.filter((type) => type === 'water').length).toBe(30);
+    expect(map.metatileBehaviors).toContain(0x3b);
+    expect(map.metatileBehaviors).toContain(0x84);
+    expect(map.triggers.filter((trigger) => trigger.activation === 'step')).toHaveLength(4);
+    expect(map.triggers.filter((trigger) => trigger.activation === 'interact')).toHaveLength(5);
+    expect(map.npcs.map((npc) => npc.scriptId)).toContain('ViridianCity_EventScript_ItemPotion');
   });
 
   test('throws when walkable length does not match map size', () => {
@@ -375,7 +403,21 @@ describe('Pallet Town decomp parity', () => {
       flag: event.flag
     })));
 
-    expect(palletTownCompactMapSource.triggers?.map((trigger) => ({
+    expect(palletTownCompactMapSource.triggers?.filter((trigger) => trigger.activation === 'step').map((trigger) => ({
+      x: trigger.x,
+      y: trigger.y,
+      script: trigger.scriptId,
+      var: trigger.conditionVar,
+      var_value: String(trigger.conditionEquals)
+    }))).toEqual(raw.coord_events.map((event: Record<string, unknown>) => ({
+      x: event.x,
+      y: event.y,
+      script: event.script,
+      var: event.var,
+      var_value: event.var_value
+    })));
+
+    expect(palletTownCompactMapSource.triggers?.filter((trigger) => trigger.activation === 'interact').map((trigger) => ({
       x: trigger.x,
       y: trigger.y,
       script: trigger.scriptId
@@ -430,5 +472,113 @@ describe('Pallet Town decomp parity', () => {
     expect(palletTownCompactMapSource.collisionRows).toEqual(rows);
     expect(palletTownCompactMapSource.encounterRows).toEqual(encounterRows);
     expect(palletTownCompactMapSource.behaviorRows).toEqual(behaviorRows);
+  });
+});
+
+describe('Viridian City decomp parity', () => {
+  test('matches original ViridianCity map event coordinates and scripts', async () => {
+    const fs = await import('node:fs');
+    const raw = JSON.parse(fs.readFileSync('../data/maps/ViridianCity/map.json', 'utf8'));
+    const source = viridianCityCompactMapSource;
+
+    expect(source.id).toBe(raw.id);
+    expect(source.metadata).toMatchObject({
+      name: raw.name,
+      layout: raw.layout,
+      music: raw.music,
+      weather: raw.weather,
+      mapType: raw.map_type,
+      battleScene: raw.battle_scene,
+      connections: raw.connections
+    });
+    expect(source.npcs.map((npc) => ({
+      x: npc.x,
+      y: npc.y,
+      graphics_id: npc.graphicsId,
+      movement_type: npc.movementType,
+      movement_range_x: npc.movementRangeX,
+      movement_range_y: npc.movementRangeY,
+      script: npc.scriptId,
+      flag: npc.flag
+    }))).toEqual(raw.object_events.map((event: Record<string, unknown>) => ({
+      x: event.x,
+      y: event.y,
+      graphics_id: event.graphics_id,
+      movement_type: event.movement_type,
+      movement_range_x: event.movement_range_x,
+      movement_range_y: event.movement_range_y,
+      script: event.script,
+      flag: event.flag
+    })));
+
+    expect(source.triggers.filter((trigger) => trigger.activation === 'step').map((trigger) => ({
+      x: trigger.x,
+      y: trigger.y,
+      script: trigger.scriptId,
+      var: trigger.conditionVar,
+      var_value: String(trigger.conditionEquals)
+    }))).toEqual(raw.coord_events.map((event: Record<string, unknown>) => ({
+      x: event.x,
+      y: event.y,
+      script: event.script,
+      var: event.var,
+      var_value: event.var_value
+    })));
+
+    expect(source.triggers.filter((trigger) => trigger.activation === 'interact').map((trigger) => ({
+      x: trigger.x,
+      y: trigger.y,
+      script: trigger.scriptId
+    }))).toEqual(raw.bg_events.map((event: Record<string, unknown>) => ({
+      x: event.x,
+      y: event.y,
+      script: event.script
+    })));
+  });
+
+  test('matches original ViridianCity layout dimensions and MAPGRID collision bits', async () => {
+    const fs = await import('node:fs');
+    const raw = JSON.parse(fs.readFileSync('../data/maps/ViridianCity/map.json', 'utf8'));
+    const layouts = JSON.parse(fs.readFileSync('../data/layouts/layouts.json', 'utf8')).layouts;
+    const layout = layouts.find((entry: Record<string, unknown>) => entry.id === raw.layout);
+    const blockData = fs.readFileSync(`../${layout.blockdata_filepath}`);
+    const primaryAttributes = fs.readFileSync('../data/tilesets/primary/general/metatile_attributes.bin');
+    const secondaryAttributes = fs.readFileSync('../data/tilesets/secondary/viridian_city/metatile_attributes.bin');
+
+    expect(viridianCityCompactMapSource.width).toBe(layout.width);
+    expect(viridianCityCompactMapSource.height).toBe(layout.height);
+
+    const rows: string[] = [];
+    const encounterRows: string[] = [];
+    const behaviorRows: string[] = [];
+    const readMetatileAttributes = (metatileId: number): number => {
+      const attributes = metatileId < 0x200 ? primaryAttributes : secondaryAttributes;
+      const index = metatileId < 0x200 ? metatileId : metatileId - 0x200;
+      const offset = index * 4;
+
+      return offset + 4 <= attributes.length ? attributes.readUInt32LE(offset) : 0;
+    };
+
+    for (let y = 0; y < layout.height; y += 1) {
+      let row = '';
+      let encounterRow = '';
+      let behaviorRow = '';
+      for (let x = 0; x < layout.width; x += 1) {
+        const block = blockData.readUInt16LE((y * layout.width + x) * 2);
+        const metatileId = block & 0x03ff;
+        const attributes = readMetatileAttributes(metatileId);
+        const encounterType = (attributes & 0x07000000) >>> 24;
+        row += ((block & 0x0c00) >> 10) === 0 ? '.' : '#';
+        encounterRow += encounterType === 1 ? 'L' : encounterType === 2 ? 'W' : '.';
+        behaviorRow += (attributes & 0x000001ff).toString(16).padStart(2, '0');
+      }
+      rows.push(row);
+      encounterRows.push(encounterRow);
+      behaviorRows.push(behaviorRow);
+    }
+
+    expect(viridianCityCompactMapSource.collisionRows).toEqual(rows);
+    expect(viridianCityCompactMapSource.encounterRows).toEqual(encounterRows);
+    expect(viridianCityCompactMapSource.behaviorRows).toEqual(behaviorRows);
   });
 });

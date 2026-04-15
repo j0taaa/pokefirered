@@ -20,8 +20,14 @@ Replace prototype-only data with adapter data that can be checked against the or
 - 2026-04-15: Added wild encounter slot rates from the original land encounter rate table and weighted Route 1 wild species selection by those slots.
 - 2026-04-15: Added connection-edge detection for Route 1's north/south decomp connections as a first map-switching hook.
 - 2026-04-15: Added a small FRLG-style bag item model for Route 1's Mart clerk Potion gift (`checkitemspace`, `additem`, `setflag`) and save persistence.
+- 2026-04-15: Added Pallet Town as a compact decomp-backed map with metadata, connections, NPCs, sign scripts, water encounter terrain, and parity tests.
+- 2026-04-15: Replaced the Route 1 <-> Pallet Town connection stub with runtime map switching that preserves connection offsets and reloads map-scoped NPCs.
+- 2026-04-15: Added Viridian City as a compact decomp-backed map with metadata, connections, NPCs, signs, coord-event step triggers, a Potion item ball, and parity tests.
+- 2026-04-15: Updated the map exporter to emit coord events as step triggers and hidden-item background events as one-shot flag-gated triggers.
+- 2026-04-15: Replaced the Route 1 north connection stub with Route 1 <-> Viridian City switching and corrected connection offset application for inverse map alignment.
+- 2026-04-15: Added runtime object-event hide-flag filtering so collected item balls and other flag-hidden NPC/object events disappear from the browser map.
 
 ## Follow-ups
 
-- Load connected destination maps instead of surfacing connection stubs.
-- Convert additional early-game maps and add connection/warp-driven map switching.
+- Convert Route 2, Route 22, and Route 21 to remove the next outdoor connection stubs.
+- Add warp-event export/runtime support for Pokémon Centers, Marts, houses, gyms, and schools.
