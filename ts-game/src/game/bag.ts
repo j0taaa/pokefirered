@@ -61,6 +61,9 @@ export interface BagMessageState {
 
 export interface BagPanelState {
   kind: 'bag';
+  id: 'BAG';
+  title: string;
+  description: string;
   contextMenu: BagContextMenuState | null;
   quantityPrompt: BagQuantityPromptState | null;
   confirmationPrompt: BagConfirmationPromptState | null;
@@ -360,6 +363,9 @@ export const removeBagItem = (bag: BagState, itemId: string, count: number): boo
 
 export const createBagPanelState = (): BagPanelState => ({
   kind: 'bag',
+  id: 'BAG',
+  title: 'BAG',
+  description: 'Organize items by pocket.',
   contextMenu: null,
   quantityPrompt: null,
   confirmationPrompt: null,
@@ -378,7 +384,7 @@ export interface BagListEntry {
 
 export const getBagListEntries = (bag: BagState, pocket: BagPocketId): BagListEntry[] => {
   const slots = compactPocket(bag.pockets[pocket]);
-  const rows = slots.map((slot) => {
+  const rows: BagListEntry[] = slots.map((slot) => {
     const definition = getItemDefinition(slot.itemId);
     return {
       itemId: slot.itemId,

@@ -1,6 +1,7 @@
 import type { Vec2 } from '../core/vec2';
 import {
   loadPrototypeRouteMap,
+  loadPewterCityMap,
   loadRoute2Map,
   loadRoute2ViridianForestNorthEntranceMap,
   loadRoute2ViridianForestSouthEntranceMap,
@@ -27,10 +28,12 @@ export interface TileMap {
   triggers: TriggerZone[];
   visual?: MapVisualSource;
   npcs: MapNpcSource[];
-  hiddenItems: MapHiddenItemSource[];
+  hiddenItems?: MapHiddenItemSource[];
 }
 
 export const createPrototypeRouteMap = (): TileMap => loadPrototypeRouteMap();
+
+export const createPewterCityMap = (): TileMap => loadPewterCityMap();
 
 export const createRoute2Map = (): TileMap => loadRoute2Map();
 

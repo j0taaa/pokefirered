@@ -83,6 +83,22 @@ const facingFromMovementType = (movementType?: string): NpcState['facing'] => {
   }
 };
 
+const inferItemIdFromScript = (scriptId?: string, graphicsId?: string): string | undefined => {
+  if (graphicsId !== 'OBJ_EVENT_GFX_ITEM_BALL' || !scriptId) {
+    return undefined;
+  }
+
+  const match = scriptId.match(/_EventScript_Item([A-Za-z0-9]+)/u);
+  if (!match) {
+    return undefined;
+  }
+
+  return `ITEM_${match[1]
+    .replace(/([A-Z]+)([A-Z][a-z])/gu, '$1_$2')
+    .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
+    .toUpperCase()}`;
+};
+
 export const createMapNpcs = (map: TileMap): NpcState[] =>
   map.npcs.map((npc) => ({
     id: npc.id,
@@ -97,7 +113,7 @@ export const createMapNpcs = (map: TileMap): NpcState[] =>
     graphicsId: npc.graphicsId,
     interactScriptId: npc.scriptId,
     flag: npc.flag,
-    itemId: npc.itemId,
+    itemId: inferItemIdFromScript(npc.scriptId, npc.graphicsId),
     dialogueLines: [],
     dialogueIndex: 0
   }));

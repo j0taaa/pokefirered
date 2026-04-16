@@ -129,7 +129,7 @@ const executeTrigger = (
     }
 
     const item = getItemDefinition(hiddenItem.item);
-    const ok = addBagItem(context.runtime.bag, hiddenItem.item, 1);
+    const ok = addBagItem(context.runtime.bag, hiddenItem.item, hiddenItem.quantity ?? 1);
     if (!ok) {
       context.dialogue.active = true;
       context.dialogue.speakerId = 'system';

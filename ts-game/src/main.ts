@@ -100,9 +100,9 @@ const loop = new GameLoop({
         visibleNpcs,
         map.tileSize,
         map.triggers,
-        map.hiddenItems,
         scriptRuntime,
-        prototypeScriptRegistry
+        prototypeScriptRegistry,
+        map.hiddenItems ?? []
       );
     }
 
@@ -141,7 +141,8 @@ const loop = new GameLoop({
           player,
           dialogue,
           runtime: scriptRuntime,
-          scriptRegistry: prototypeScriptRegistry
+          scriptRegistry: prototypeScriptRegistry,
+          hiddenItems: map.hiddenItems ?? []
         });
 
         const canEncounter = hasLandEncounterAtPixel(map, player.position);

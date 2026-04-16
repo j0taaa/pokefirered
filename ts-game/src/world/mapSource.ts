@@ -1,4 +1,5 @@
 import palletTownMapJson from './maps/palletTown.json';
+import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
 import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
 import route2ViridianForestSouthEntranceMapJson from './maps/route2ViridianForestSouthEntrance.json';
@@ -104,14 +105,16 @@ export interface MapNpcSource {
   trainerSightOrBerryTreeId: number;
   scriptId: string;
   flag: string;
-  itemId?: string;
 }
 
 export interface MapHiddenItemSource {
   x: number;
   y: number;
+  elevation?: number;
   item: string;
+  quantity?: number;
   flag: string;
+  underfoot?: boolean;
 }
 
 const isPositiveInteger = (value: unknown): value is number =>
@@ -249,10 +252,7 @@ const parseMapNpcSource = (raw: unknown, mapId: string, index: number): MapNpcSo
     trainerType: candidate.trainerType as string,
     trainerSightOrBerryTreeId: candidate.trainerSightOrBerryTreeId as number,
     scriptId: candidate.scriptId as string,
-    flag: candidate.flag as string,
-    itemId: candidate.graphicsId === 'OBJ_EVENT_GFX_ITEM_BALL'
-      ? inferItemIdFromScript(candidate.scriptId as string)
-      : undefined
+    flag: candidate.flag as string
   };
 };
 
@@ -277,8 +277,11 @@ const parseHiddenItemSource = (raw: unknown, mapId: string, index: number): MapH
   return {
     x: candidate.x as number,
     y: candidate.y as number,
+    elevation: Number.isInteger(candidate.elevation) ? candidate.elevation as number : undefined,
     item: candidate.item as string,
-    flag: candidate.flag as string
+    quantity: Number.isInteger(candidate.quantity) ? candidate.quantity as number : undefined,
+    flag: candidate.flag as string,
+    underfoot: typeof candidate.underfoot === 'boolean' ? candidate.underfoot : undefined
   };
 };
 
@@ -632,6 +635,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
 export const loadPalletTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(palletTownMapJson));
 
+export const loadPewterCityMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityMapJson));
+
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
 
@@ -678,14 +684,3 @@ export const loadMapById = (mapId: string): TileMap | null => {
 
 export const loadPrototypeRouteMap = (): TileMap =>
   loadRoute2Map();
-  const inferItemIdFromScript = (scriptId: string): string | undefined => {
-    const match = scriptId.match(/_EventScript_Item([A-Za-z0-9]+)/u);
-    if (!match) {
-      return undefined;
-    }
-
-    return `ITEM_${match[1]
-      .replace(/([A-Z]+)([A-Z][a-z])/gu, '$1_$2')
-      .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
-      .toUpperCase()}`;
-  };

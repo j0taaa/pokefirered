@@ -27,6 +27,7 @@ export interface BagMenuViewBindings {
   root: HTMLElement;
   pocketLabel: HTMLElement;
   bagSprite: HTMLImageElement;
+  selectedIcon: HTMLImageElement;
   listRoot: HTMLElement;
   description: HTMLElement;
   submenuRoot: HTMLElement;
@@ -56,7 +57,11 @@ export const createBagMenuView = (): BagMenuViewBindings => {
   bagSprite.alt = 'Bag';
   bagSprite.src = bagSpriteUrl;
 
-  bagArt.append(pocketLabel, bagSprite);
+  const selectedIcon = document.createElement('img');
+  selectedIcon.className = 'bag-selected-icon hidden';
+  selectedIcon.alt = '';
+
+  bagArt.append(pocketLabel, bagSprite, selectedIcon);
 
   const listPanel = document.createElement('section');
   listPanel.className = 'bag-list-panel bag-window';
@@ -97,6 +102,7 @@ export const createBagMenuView = (): BagMenuViewBindings => {
     root,
     pocketLabel,
     bagSprite,
+    selectedIcon,
     listRoot,
     description,
     submenuRoot,
@@ -124,11 +130,11 @@ export const updateBagMenuView = (
   const selectedEntry = getBagListEntries(bag, bag.selectedPocket)[bag.selectedIndexByPocket[bag.selectedPocket]];
   const iconKey = selectedEntry?.iconKey ?? null;
   const iconUrl = iconKey ? itemIconUrls.get(iconKey) ?? '' : '';
-  bindings.bagSprite.classList.toggle('bag-sprite-has-icon', !!iconUrl);
+  bindings.selectedIcon.classList.toggle('hidden', !iconUrl);
   if (iconUrl) {
-    bindings.bagSprite.style.setProperty('--bag-selected-icon', `url("${iconUrl}")`);
+    bindings.selectedIcon.src = iconUrl;
   } else {
-    bindings.bagSprite.style.removeProperty('--bag-selected-icon');
+    bindings.selectedIcon.removeAttribute('src');
   }
 
   bindings.listRoot.innerHTML = '';

@@ -157,9 +157,9 @@ export const stepInteraction = (
   npcs: NpcState[],
   tileSize: number,
   triggers: TriggerZone[] = [],
-  hiddenItems: MapHiddenItemSource[] = [],
   runtime?: ScriptRuntimeState,
-  scriptRegistry?: Record<string, ScriptHandler>
+  scriptRegistry?: Record<string, ScriptHandler>,
+  hiddenItems: MapHiddenItemSource[] = []
 ): DialogueState => {
   if (!input.interactPressed) {
     return dialogue;

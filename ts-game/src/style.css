@@ -180,6 +180,196 @@ strong {
   font-weight: 700;
 }
 
+.bag-menu {
+  position: absolute;
+  inset: 8px 8px 112px 8px;
+  display: grid;
+  align-items: stretch;
+  pointer-events: none;
+}
+
+.bag-menu-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 132px minmax(180px, 270px);
+  grid-template-rows: minmax(170px, 1fr) auto;
+  gap: 10px 12px;
+  height: 100%;
+  max-width: 430px;
+}
+
+.bag-menu-art {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+}
+
+.bag-pocket-label,
+.bag-window {
+  border: 2px solid #f8f8ff;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, #fefefe 0%, #eef3ff 12%, #dde7fb 100%);
+  box-shadow:
+    inset 0 0 0 2px #6278b8,
+    0 2px 10px rgba(7, 17, 41, 0.35);
+}
+
+.bag-pocket-label {
+  min-width: 112px;
+  padding: 6px 8px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #20305f;
+}
+
+.bag-sprite {
+  width: 118px;
+  margin-top: 8px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 10px rgba(12, 20, 45, 0.35));
+}
+
+.bag-selected-icon {
+  position: absolute;
+  right: 6px;
+  bottom: 14px;
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 rgba(255, 255, 255, 0.65));
+}
+
+.bag-list-panel {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 8px 10px;
+}
+
+.bag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  min-height: 148px;
+  align-content: start;
+}
+
+.bag-row {
+  display: grid;
+  grid-template-columns: 14px 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  color: #1b2550;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.bag-row-selected {
+  color: #0f1540;
+}
+
+.bag-row-cursor {
+  color: #243684;
+}
+
+.bag-row-icon {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+}
+
+.bag-row-icon-empty {
+  visibility: hidden;
+}
+
+.bag-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bag-row-quantity {
+  min-width: 44px;
+  text-align: right;
+  color: #2c3a75;
+}
+
+.bag-row-registered {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.bag-description-panel {
+  grid-column: 1 / span 2;
+  grid-row: 2;
+  min-height: 82px;
+  padding: 10px 12px;
+}
+
+.bag-description,
+.bag-message-text {
+  margin: 0;
+  color: #1a2754;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: pre-line;
+}
+
+.bag-submenu {
+  position: absolute;
+  right: 0;
+  bottom: 92px;
+  min-width: 128px;
+  padding: 8px 10px;
+}
+
+.bag-submenu-title {
+  margin: 0 0 6px;
+  color: #23356d;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.bag-submenu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.bag-submenu-row {
+  color: #1b2550;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.bag-message {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 12px;
+}
+
+.bag-menu[data-pocket='items'] .bag-pocket-label {
+  box-shadow: inset 0 0 0 2px #bf5f2a, 0 2px 10px rgba(7, 17, 41, 0.35);
+}
+
+.bag-menu[data-pocket='keyItems'] .bag-pocket-label {
+  box-shadow: inset 0 0 0 2px #3e8b61, 0 2px 10px rgba(7, 17, 41, 0.35);
+}
+
+.bag-menu[data-pocket='pokeBalls'] .bag-pocket-label {
+  box-shadow: inset 0 0 0 2px #5e59b6, 0 2px 10px rgba(7, 17, 41, 0.35);
+}
+
 @media (min-width: 960px) {
   #app {
     padding: 24px;
@@ -191,5 +381,35 @@ strong {
 
   canvas {
     width: min(88vw, 980px);
+  }
+}
+
+@media (max-width: 720px) {
+  .bag-menu {
+    inset: 8px 8px 132px 8px;
+  }
+
+  .bag-menu-layout {
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .bag-sprite {
+    width: 96px;
+  }
+
+  .bag-selected-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .bag-row {
+    font-size: 0.74rem;
+  }
+
+  .bag-description,
+  .bag-message-text,
+  .bag-submenu-row {
+    font-size: 0.74rem;
   }
 }
