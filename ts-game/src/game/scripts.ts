@@ -1,5 +1,6 @@
 import { openDialogueSequence, type DialogueState } from './interaction';
 import type { PlayerState } from './player';
+import { createBagState, type BagState } from './bag';
 
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
@@ -19,6 +20,7 @@ export interface ScriptRuntimeState {
     battleScene: boolean;
     battleStyle: 'shift' | 'set';
   };
+  bag: BagState;
 }
 
 export interface ScriptContext {
@@ -46,7 +48,8 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => ({
     textSpeed: 'mid',
     battleScene: true,
     battleStyle: 'shift'
-  }
+  },
+  bag: createBagState()
 });
 
 export const getScriptVar = (runtime: ScriptRuntimeState, key: string): number =>

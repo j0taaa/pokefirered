@@ -134,4 +134,11 @@ describe('map connections', () => {
     expect(loadMapById('MAP_ROUTE21_NORTH')?.id).toBe('MAP_ROUTE21_NORTH');
     expect(loadMapById('MAP_ROUTE21_SOUTH')?.id).toBe('MAP_ROUTE21_SOUTH');
   });
+
+  test('loads the Viridian Forest gatehouse maps through the shared map loader', () => {
+    expect(loadMapById('MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE')?.id)
+      .toBe('MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE');
+    expect(loadMapById('MAP_ROUTE2_VIRIDIAN_FOREST_SOUTH_ENTRANCE')?.id)
+      .toBe('MAP_ROUTE2_VIRIDIAN_FOREST_SOUTH_ENTRANCE');
+  });
 });

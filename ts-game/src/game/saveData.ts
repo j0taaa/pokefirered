@@ -1,8 +1,9 @@
 import type { PlayerState } from './player';
 import type { ScriptRuntimeState } from './scripts';
+import { isValidBagState, sanitizeBagState } from './bag';
 
-export const SAVE_SCHEMA_VERSION = 2;
-export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v2';
+export const SAVE_SCHEMA_VERSION = 3;
+export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v3';
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -25,6 +26,7 @@ export interface SaveSnapshot {
     consumedTriggerIds: string[];
     startMenu: ScriptRuntimeState['startMenu'];
     options: ScriptRuntimeState['options'];
+    bag: ScriptRuntimeState['bag'];
   };
 }
 
@@ -74,7 +76,8 @@ export const createSaveSnapshot = (
       flags: [...runtime.flags],
       consumedTriggerIds: [...runtime.consumedTriggerIds],
       startMenu: { ...runtime.startMenu },
-      options: { ...runtime.options }
+      options: { ...runtime.options },
+      bag: JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag']
     }
   };
 };
@@ -138,6 +141,10 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
+  if (!isValidBagState(runtime.bag)) {
+    return null;
+  }
+
   return {
     schemaVersion: SAVE_SCHEMA_VERSION,
     mapId: candidate.mapId,
@@ -163,7 +170,8 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
         textSpeed: options.textSpeed,
         battleScene: options.battleScene,
         battleStyle: options.battleStyle
-      }
+      },
+      bag: sanitizeBagState(JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag'])
     }
   };
 };
@@ -223,6 +231,7 @@ export const applySaveSnapshot = (
   runtime.consumedTriggerIds = new Set<string>(snapshot.runtime.consumedTriggerIds);
   runtime.startMenu = { ...snapshot.runtime.startMenu };
   runtime.options = { ...snapshot.runtime.options };
+  runtime.bag = sanitizeBagState(JSON.parse(JSON.stringify(snapshot.runtime.bag)) as ScriptRuntimeState['bag']);
   runtime.saveCounter = snapshot.saveIndex;
   return true;
 };

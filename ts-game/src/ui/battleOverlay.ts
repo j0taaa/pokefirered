@@ -1,4 +1,5 @@
 import type { BattleState } from '../game/battle';
+import { getBagQuantity, type BagState } from '../game/bag';
 
 export interface BattleOverlayBindings {
   root: HTMLElement;
@@ -34,7 +35,11 @@ export const createBattleOverlay = (): BattleOverlayBindings => {
   return { root, title, status, moveList, preview, hint };
 };
 
-export const updateBattleOverlay = (bindings: BattleOverlayBindings, battle: BattleState): void => {
+export const updateBattleOverlay = (
+  bindings: BattleOverlayBindings,
+  battle: BattleState,
+  bag?: BagState
+): void => {
   if (!battle.active) {
     bindings.root.classList.add('hidden');
     return;
@@ -81,7 +86,9 @@ export const updateBattleOverlay = (bindings: BattleOverlayBindings, battle: Bat
   } else if (battle.phase === 'resolved') {
     bindings.hint.textContent = 'Z/Enter/X/Esc: Return to field';
   } else if (battle.phase === 'command') {
-    bindings.hint.textContent = `Z/Enter: Confirm · ↑/↓: Choose command · Balls ${battle.bag.pokeBalls}`;
+    const pokeBallCount = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
+    const greatBallCount = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
+    bindings.hint.textContent = `Z/Enter: Confirm · ↑/↓: Choose command · Balls ${pokeBallCount}/${greatBallCount}`;
   } else if (battle.phase === 'partySelect') {
     bindings.hint.textContent = 'Z/Enter: Switch · X/Esc: Back';
   } else {

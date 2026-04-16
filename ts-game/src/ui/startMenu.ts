@@ -48,10 +48,11 @@ export const updateStartMenuView = (
   menu: StartMenuState
 ): void => {
   const hasPanel = !!menu.panel;
-  bindings.root.classList.toggle('hidden', !menu.active && !hasPanel);
+  const showGenericPanel = menu.panel?.kind !== 'bag';
+  bindings.root.classList.toggle('hidden', (!menu.active && !hasPanel) || !showGenericPanel);
   bindings.title.classList.toggle('hidden', !menu.active);
   bindings.optionsList.classList.toggle('hidden', !menu.active);
-  bindings.panelRoot.classList.toggle('hidden', !menu.panel);
+  bindings.panelRoot.classList.toggle('hidden', !menu.panel || !showGenericPanel);
 
   bindings.optionsList.innerHTML = '';
   for (let i = 0; i < menu.options.length; i += 1) {

@@ -1,4 +1,5 @@
 import type { InputSnapshot } from '../input/inputState';
+import { getBagQuantity, removeBagItem, type BagState } from './bag';
 import type { WildEncounterGroup } from '../world/mapSource';
 
 export type PokemonType =
@@ -79,6 +80,7 @@ export interface CaptureResult {
   caught: boolean;
   shakes: number;
   ballLabel: string;
+  usedItemId: string | null;
 }
 
 const RAND_MULT = 1103515245;
@@ -425,22 +427,36 @@ const applyEndOfTurnPoison = (pokemon: BattlePokemonSnapshot): string | null => 
 
 export const performCaptureAttempt = (
   battle: BattleState,
-  encounterState: BattleEncounterState
+  encounterState: BattleEncounterState,
+  bag?: BagState
 ): CaptureResult => {
-  const useGreatBall = battle.bag.pokeBalls <= 0 && battle.bag.greatBalls > 0;
+  const pokeBallCount = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
+  const greatBallCount = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
+  const useGreatBall = pokeBallCount <= 0 && greatBallCount > 0;
 
-  if (!useGreatBall && battle.bag.pokeBalls <= 0) {
+  if (!useGreatBall && pokeBallCount <= 0) {
     return {
       caught: false,
       shakes: 0,
-      ballLabel: 'NONE'
+      ballLabel: 'NONE',
+      usedItemId: null
     };
   }
 
   if (useGreatBall) {
-    battle.bag.greatBalls -= 1;
+    if (bag) {
+      removeBagItem(bag, 'ITEM_GREAT_BALL', 1);
+      battle.bag.greatBalls = getBagQuantity(bag, 'ITEM_GREAT_BALL');
+    } else {
+      battle.bag.greatBalls -= 1;
+    }
   } else {
-    battle.bag.pokeBalls -= 1;
+    if (bag) {
+      removeBagItem(bag, 'ITEM_POKE_BALL', 1);
+      battle.bag.pokeBalls = getBagQuantity(bag, 'ITEM_POKE_BALL');
+    } else {
+      battle.bag.pokeBalls -= 1;
+    }
   }
 
   const ballBonus = useGreatBall ? 1.5 : 1;
@@ -455,7 +471,8 @@ export const performCaptureAttempt = (
     return {
       caught: true,
       shakes: 4,
-      ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL'
+      ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL',
+      usedItemId: useGreatBall ? 'ITEM_GREAT_BALL' : 'ITEM_POKE_BALL'
     };
   }
 
@@ -476,15 +493,28 @@ export const performCaptureAttempt = (
   return {
     caught: shakes === 4,
     shakes,
-    ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL'
+    ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL',
+    usedItemId: useGreatBall ? 'ITEM_GREAT_BALL' : 'ITEM_POKE_BALL'
   };
+};
+
+const syncBattleBagSnapshot = (battle: BattleState, bag?: BagState): void => {
+  if (!bag) {
+    return;
+  }
+
+  battle.bag.pokeBalls = getBagQuantity(bag, 'ITEM_POKE_BALL');
+  battle.bag.greatBalls = getBagQuantity(bag, 'ITEM_GREAT_BALL');
 };
 
 export const stepBattle = (
   battle: BattleState,
   input: InputSnapshot,
-  encounterState: BattleEncounterState = createBattleEncounterState()
+  encounterState: BattleEncounterState = createBattleEncounterState(),
+  bag?: BagState
 ): void => {
+  syncBattleBagSnapshot(battle, bag);
+
   if (!battle.active) {
     return;
   }
@@ -535,7 +565,7 @@ export const stepBattle = (
         return;
       }
 
-      const capture = performCaptureAttempt(battle, encounterState);
+      const capture = performCaptureAttempt(battle, encounterState, bag);
       if (capture.ballLabel === 'NONE') {
         battle.turnSummary = 'No balls left!';
         return;

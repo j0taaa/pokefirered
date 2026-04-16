@@ -19,6 +19,8 @@ export interface NpcState {
   idleTimeRemaining: number;
   graphicsId?: string;
   interactScriptId?: string;
+  flag?: string;
+  itemId?: string;
   dialogueLines: string[];
   dialogueIndex: number;
 }
@@ -94,9 +96,14 @@ export const createMapNpcs = (map: TileMap): NpcState[] =>
     idleTimeRemaining: 0,
     graphicsId: npc.graphicsId,
     interactScriptId: npc.scriptId,
+    flag: npc.flag,
+    itemId: npc.itemId,
     dialogueLines: [],
     dialogueIndex: 0
   }));
+
+export const isNpcVisible = (npc: NpcState, flags: ReadonlySet<string>): boolean =>
+  !npc.flag || npc.flag === '0' || !flags.has(npc.flag);
 
 const updateFacing = (npc: NpcState, dx: number, dy: number): void => {
   if (Math.abs(dx) >= Math.abs(dy)) {

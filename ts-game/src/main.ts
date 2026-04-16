@@ -5,7 +5,7 @@ import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadMapById, loadRoute2Map } from './world/mapSource';
 import { createPlayer, getPlayerTilePosition, resolveInputDirection, stepPlayer } from './game/player';
-import { collidesWithNpcs, createMapNpcs, stepNpcs } from './game/npc';
+import { collidesWithNpcs, createMapNpcs, isNpcVisible, stepNpcs } from './game/npc';
 import { createDialogueState, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
@@ -18,6 +18,7 @@ import {
   saveGameToStorage
 } from './game/saveData';
 import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
+import { createBagMenuView, updateBagMenuView } from './ui/bagMenu';
 import { createBattleOverlay, updateBattleOverlay } from './ui/battleOverlay';
 import { createBattleEncounterState, createBattleState, isBattleBlockingWorld, stepBattle, tryStartWildBattle } from './game/battle';
 import { hasLandEncounterAtPixel } from './world/tileMap';
@@ -38,6 +39,9 @@ shell.append(hud.root);
 
 const startMenuView = createStartMenuView();
 shell.append(startMenuView.root);
+
+const bagMenuView = createBagMenuView();
+shell.append(bagMenuView.root);
 
 const battleOverlay = createBattleOverlay();
 shell.append(battleOverlay.root);
@@ -80,8 +84,9 @@ let fpsAccumulator = 0;
 const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
+    const visibleNpcs = npcs.filter((npc) => isNpcVisible(npc, scriptRuntime.flags));
 
-    stepBattle(battle, snapshot, battleEncounter);
+    stepBattle(battle, snapshot, battleEncounter, scriptRuntime.bag);
 
     if (!isBattleBlockingWorld(battle)) {
       stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, { onSaveConfirmed: handleSaveConfirmed });
@@ -92,9 +97,10 @@ const loop = new GameLoop({
         dialogue,
         snapshot,
         player,
-        npcs,
+        visibleNpcs,
         map.tileSize,
         map.triggers,
+        map.hiddenItems,
         scriptRuntime,
         prototypeScriptRegistry
       );
@@ -108,7 +114,7 @@ const loop = new GameLoop({
         snapshot,
         map,
         dt,
-        (nextPosition) => collidesWithNpcs(nextPosition, npcs)
+        (nextPosition) => collidesWithNpcs(nextPosition, visibleNpcs)
       );
 
       const currentTile = getPlayerTilePosition(player.position, map.tileSize);
@@ -176,10 +182,12 @@ const loop = new GameLoop({
     }
   },
   render() {
-    renderer.render(map, player, npcs, camera);
-    updateHud(hud, player, npcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
+    const visibleNpcs = npcs.filter((npc) => isNpcVisible(npc, scriptRuntime.flags));
+    renderer.render(map, player, visibleNpcs, camera);
+    updateHud(hud, player, visibleNpcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
     updateStartMenuView(startMenuView, startMenu);
-    updateBattleOverlay(battleOverlay, battle);
+    updateBagMenuView(bagMenuView, startMenu.panel?.kind === 'bag' ? startMenu.panel : null, scriptRuntime.bag);
+    updateBattleOverlay(battleOverlay, battle, scriptRuntime.bag);
   }
 });
 

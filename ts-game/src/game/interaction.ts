@@ -3,8 +3,10 @@ import { vec2, type Vec2 } from '../core/vec2';
 import type { NpcState } from './npc';
 import type { PlayerState } from './player';
 import type { TriggerZone } from '../world/mapSource';
+import type { MapHiddenItemSource } from '../world/mapSource';
+import { addBagItem, getBagPocketByItemId, getBagPocketLabel, getItemDefinition } from './bag';
 import type { ScriptHandler, ScriptRuntimeState } from './scripts';
-import { runScriptById } from './scripts';
+import { runScriptById, setScriptFlag } from './scripts';
 import { tryRunFacingTrigger } from './triggers';
 
 export interface DialogueState {
@@ -118,6 +120,36 @@ const findNpcInFront = (
   return null;
 };
 
+const tryCollectNpcItem = (
+  npc: NpcState,
+  dialogue: DialogueState,
+  runtime: ScriptRuntimeState
+): boolean => {
+  if (!npc.itemId) {
+    return false;
+  }
+
+  const item = getItemDefinition(npc.itemId);
+  const ok = addBagItem(runtime.bag, npc.itemId, 1);
+  if (!ok) {
+    openDialogueSequence(dialogue, 'system', ['Too bad! The BAG is full...']);
+    runtime.lastScriptId = `item.obtain.failed.${npc.itemId.toLowerCase()}`;
+    return true;
+  }
+
+  if (npc.flag && npc.flag !== '0') {
+    setScriptFlag(runtime, npc.flag);
+  }
+
+  const pocketLabel = getBagPocketLabel(getBagPocketByItemId(npc.itemId) ?? 'items');
+  openDialogueSequence(dialogue, 'system', [
+    `Obtained ${item.name}!`,
+    `${item.name} was put away in the ${pocketLabel}.`
+  ]);
+  runtime.lastScriptId = `item.obtain.${npc.itemId.toLowerCase()}`;
+  return true;
+};
+
 export const stepInteraction = (
   dialogue: DialogueState,
   input: InputSnapshot,
@@ -125,6 +157,7 @@ export const stepInteraction = (
   npcs: NpcState[],
   tileSize: number,
   triggers: TriggerZone[] = [],
+  hiddenItems: MapHiddenItemSource[] = [],
   runtime?: ScriptRuntimeState,
   scriptRegistry?: Record<string, ScriptHandler>
 ): DialogueState => {
@@ -147,6 +180,10 @@ export const stepInteraction = (
     npc.facing = oppositeFacing(player.facing);
     npc.moving = false;
     npc.idleTimeRemaining = Math.max(npc.idleTimeRemaining, 0.2);
+
+    if (runtime && tryCollectNpcItem(npc, dialogue, runtime)) {
+      return dialogue;
+    }
 
     if (runtime && npc.interactScriptId) {
       const ran = runScriptById(
@@ -177,7 +214,8 @@ export const stepInteraction = (
       player,
       dialogue,
       runtime,
-      scriptRegistry
+      scriptRegistry,
+      hiddenItems
     });
   }
 

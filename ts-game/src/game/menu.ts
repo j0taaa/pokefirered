@@ -1,5 +1,6 @@
 import type { InputSnapshot } from '../input/inputState';
 import { closeDialogue, type DialogueState } from './interaction';
+import { createBagPanelState, stepBagPanel, type BagPanelState } from './bag';
 import type { ScriptRuntimeState } from './scripts';
 
 type StartMenuOptionId =
@@ -60,7 +61,7 @@ interface RetirePanelState {
   returnToMenuOnClose: boolean;
 }
 
-type MenuPanelState = TextPanelState | SavePanelState | OptionPanelState | RetirePanelState;
+type MenuPanelState = TextPanelState | SavePanelState | OptionPanelState | RetirePanelState | BagPanelState;
 
 export interface StartMenuCallbacks {
   onSaveConfirmed?: () => {
@@ -294,6 +295,18 @@ export const stepStartMenu = (
   callbacks: StartMenuCallbacks = {}
 ): void => {
   if (menu.panel) {
+    if (menu.panel.kind === 'bag') {
+      const bagStep = stepBagPanel(menu.panel, runtime.bag, input);
+      if (bagStep.scriptId) {
+        runtime.lastScriptId = bagStep.scriptId;
+      }
+
+      if (bagStep.close) {
+        closeMenuPanel(menu);
+      }
+      return;
+    }
+
     if (menu.panel.kind === 'save') {
       if (input.interactPressed) {
         if (menu.panel.stage === 'ask') {
@@ -464,6 +477,12 @@ export const stepStartMenu = (
       returnToMenuOnClose: false
     };
     runtime.lastScriptId = 'menu.open.retire';
+    return;
+  }
+
+  if (selected.id === 'BAG') {
+    menu.panel = createBagPanelState();
+    runtime.lastScriptId = 'menu.open.bag';
     return;
   }
 

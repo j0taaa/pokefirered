@@ -1,5 +1,7 @@
 import palletTownMapJson from './maps/palletTown.json';
 import route2MapJson from './maps/route2.json';
+import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
+import route2ViridianForestSouthEntranceMapJson from './maps/route2ViridianForestSouthEntrance.json';
 import route21NorthMapJson from './maps/route21North.json';
 import route21SouthMapJson from './maps/route21South.json';
 import route22MapJson from './maps/route22.json';
@@ -49,6 +51,7 @@ export interface MapSource {
   triggers?: TriggerZone[];
   visual?: MapVisualSource;
   npcs?: MapNpcSource[];
+  hiddenItems?: MapHiddenItemSource[];
 }
 
 export interface WildEncounterMon {
@@ -79,6 +82,7 @@ export interface CompactMapSource {
   triggers?: TriggerZone[];
   visual?: MapVisualSource;
   npcs?: MapNpcSource[];
+  hiddenItems?: MapHiddenItemSource[];
 }
 
 export interface MapVisualSource {
@@ -99,6 +103,14 @@ export interface MapNpcSource {
   trainerType: string;
   trainerSightOrBerryTreeId: number;
   scriptId: string;
+  flag: string;
+  itemId?: string;
+}
+
+export interface MapHiddenItemSource {
+  x: number;
+  y: number;
+  item: string;
   flag: string;
 }
 
@@ -237,6 +249,35 @@ const parseMapNpcSource = (raw: unknown, mapId: string, index: number): MapNpcSo
     trainerType: candidate.trainerType as string,
     trainerSightOrBerryTreeId: candidate.trainerSightOrBerryTreeId as number,
     scriptId: candidate.scriptId as string,
+    flag: candidate.flag as string,
+    itemId: candidate.graphicsId === 'OBJ_EVENT_GFX_ITEM_BALL'
+      ? inferItemIdFromScript(candidate.scriptId as string)
+      : undefined
+  };
+};
+
+const parseHiddenItemSource = (raw: unknown, mapId: string, index: number): MapHiddenItemSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" hidden item ${index} must be an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if ((!isPositiveInteger(candidate.x) && candidate.x !== 0) || (!isPositiveInteger(candidate.y) && candidate.y !== 0)) {
+    throw new Error(`Map source "${mapId}" hidden item ${index} must define integer x and y.`);
+  }
+
+  if (typeof candidate.item !== 'string' || candidate.item.length === 0) {
+    throw new Error(`Map source "${mapId}" hidden item ${index} must define item.`);
+  }
+
+  if (typeof candidate.flag !== 'string' || candidate.flag.length === 0) {
+    throw new Error(`Map source "${mapId}" hidden item ${index} must define flag.`);
+  }
+
+  return {
+    x: candidate.x as number,
+    y: candidate.y as number,
+    item: candidate.item as string,
     flag: candidate.flag as string
   };
 };
@@ -407,7 +448,8 @@ export const mapFromSource = (source: MapSource): TileMap => {
         layerTypes: [...source.visual.layerTypes]
       }
       : undefined,
-    npcs: source.npcs ? [...source.npcs] : []
+    npcs: source.npcs ? [...source.npcs] : [],
+    hiddenItems: source.hiddenItems ? [...source.hiddenItems] : []
   };
 };
 
@@ -428,7 +470,8 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     wildEncounters: source.wildEncounters,
     triggers: source.triggers,
     visual: source.visual,
-    npcs: source.npcs
+    npcs: source.npcs,
+    hiddenItems: source.hiddenItems
   });
 
 export const parseMapSource = (raw: unknown): MapSource => {
@@ -475,6 +518,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" npcs must be an array.`);
   }
 
+  if (candidate.hiddenItems !== undefined && !Array.isArray(candidate.hiddenItems)) {
+    throw new Error(`Map source "${id}" hiddenItems must be an array.`);
+  }
+
   const expectedTiles = candidate.width * candidate.height;
 
   return {
@@ -488,7 +535,8 @@ export const parseMapSource = (raw: unknown): MapSource => {
     wildEncounters: candidate.wildEncounters as WildEncounters | undefined,
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
-    npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index))
+    npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index)),
+    hiddenItems: (candidate.hiddenItems ?? []).map((entry, index) => parseHiddenItemSource(entry, id, index))
   };
 };
 
@@ -541,7 +589,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     throw new Error(`Compact map source "${id}" metadata must be an object.`);
   }
 
-  if (metadata?.connections !== undefined && !Array.isArray(metadata.connections)) {
+  const metadataConnections = metadata?.connections ?? undefined;
+
+  if (metadataConnections !== undefined && !Array.isArray(metadataConnections)) {
     throw new Error(`Compact map source "${id}" metadata.connections must be an array.`);
   }
 
@@ -557,6 +607,10 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     throw new Error(`Compact map source "${id}" npcs must be an array.`);
   }
 
+  if (candidate.hiddenItems !== undefined && !Array.isArray(candidate.hiddenItems)) {
+    throw new Error(`Compact map source "${id}" hiddenItems must be an array.`);
+  }
+
   const expectedTiles = candidate.width * candidate.height;
 
   return {
@@ -565,12 +619,13 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     collisionRows: [...candidate.collisionRows],
-    connections: (metadata?.connections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
+    connections: (metadataConnections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
     wildEncounters: candidate.wildEncounters as WildEncounters | undefined,
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
-    npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index))
+    npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index)),
+    hiddenItems: (candidate.hiddenItems ?? []).map((entry, index) => parseHiddenItemSource(entry, id, index))
   };
 };
 
@@ -579,6 +634,12 @@ export const loadPalletTownMap = (): TileMap =>
 
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
+
+export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route2ViridianForestNorthEntranceMapJson));
+
+export const loadRoute2ViridianForestSouthEntranceMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route2ViridianForestSouthEntranceMapJson));
 
 export const loadRoute21NorthMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route21NorthMapJson));
@@ -598,6 +659,10 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadPalletTownMap();
     case 'MAP_ROUTE2':
       return loadRoute2Map();
+    case 'MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE':
+      return loadRoute2ViridianForestNorthEntranceMap();
+    case 'MAP_ROUTE2_VIRIDIAN_FOREST_SOUTH_ENTRANCE':
+      return loadRoute2ViridianForestSouthEntranceMap();
     case 'MAP_ROUTE21_NORTH':
       return loadRoute21NorthMap();
     case 'MAP_ROUTE21_SOUTH':
@@ -613,3 +678,14 @@ export const loadMapById = (mapId: string): TileMap | null => {
 
 export const loadPrototypeRouteMap = (): TileMap =>
   loadRoute2Map();
+  const inferItemIdFromScript = (scriptId: string): string | undefined => {
+    const match = scriptId.match(/_EventScript_Item([A-Za-z0-9]+)/u);
+    if (!match) {
+      return undefined;
+    }
+
+    return `ITEM_${match[1]
+      .replace(/([A-Z]+)([A-Z][a-z])/gu, '$1_$2')
+      .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
+      .toUpperCase()}`;
+  };

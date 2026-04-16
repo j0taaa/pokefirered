@@ -1,15 +1,17 @@
 import { vec2 } from '../core/vec2';
+import { addBagItem, getBagPocketByItemId, getBagPocketLabel, getItemDefinition } from './bag';
 import type { DialogueState } from './interaction';
 import type { PlayerState } from './player';
-import { isScriptFlagSet, type ScriptHandler, type ScriptRuntimeState } from './scripts';
+import { isScriptFlagSet, setScriptFlag, type ScriptHandler, type ScriptRuntimeState } from './scripts';
 import { runScriptById } from './scripts';
-import type { TriggerCondition, TriggerZone } from '../world/mapSource';
+import type { MapHiddenItemSource, TriggerCondition, TriggerZone } from '../world/mapSource';
 
 export interface TriggerExecutionContext {
   player: PlayerState;
   dialogue: DialogueState;
   runtime: ScriptRuntimeState;
   scriptRegistry?: Record<string, ScriptHandler>;
+  hiddenItems?: MapHiddenItemSource[];
 }
 
 type Facing = PlayerState['facing'];
@@ -116,6 +118,43 @@ const executeTrigger = (
   trigger: TriggerZone,
   context: TriggerExecutionContext
 ): boolean => {
+  if (trigger.scriptId.endsWith('.hiddenItem')) {
+    const hiddenItem = context.hiddenItems?.find((entry) =>
+      entry.flag === trigger.conditions?.find((condition) => condition.flag)?.flag
+      || (entry.x === trigger.x && entry.y === trigger.y)
+    );
+
+    if (!hiddenItem) {
+      return false;
+    }
+
+    const item = getItemDefinition(hiddenItem.item);
+    const ok = addBagItem(context.runtime.bag, hiddenItem.item, 1);
+    if (!ok) {
+      context.dialogue.active = true;
+      context.dialogue.speakerId = 'system';
+      context.dialogue.queue = ['Too bad! The BAG is full...'];
+      context.dialogue.queueIndex = 0;
+      context.dialogue.text = context.dialogue.queue[0];
+      context.runtime.lastScriptId = `item.hidden.failed.${hiddenItem.item.toLowerCase()}`;
+      return true;
+    }
+
+    setScriptFlag(context.runtime, hiddenItem.flag);
+    const pocketLabel = getBagPocketLabel(getBagPocketByItemId(hiddenItem.item) ?? 'items');
+    context.dialogue.active = true;
+    context.dialogue.speakerId = 'system';
+    context.dialogue.queue = [
+      `Obtained ${item.name}!`,
+      `${item.name} was put away in the ${pocketLabel}.`
+    ];
+    context.dialogue.queueIndex = 0;
+    context.dialogue.text = context.dialogue.queue[0];
+    context.runtime.lastScriptId = `item.hidden.${hiddenItem.item.toLowerCase()}`;
+    markRan(trigger, context.runtime);
+    return true;
+  }
+
   const didRun = runScriptById(trigger.scriptId, {
     player: context.player,
     dialogue: context.dialogue,
