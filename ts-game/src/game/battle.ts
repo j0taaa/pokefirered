@@ -1,5 +1,5 @@
 import type { InputSnapshot } from '../input/inputState';
-import { getBagQuantity, removeBagItem, type BagState } from './bag';
+import { getBagQuantity, type BagState } from './bag';
 import type { WildEncounterGroup } from '../world/mapSource';
 
 export type PokemonType =
@@ -51,7 +51,7 @@ export interface BattleEncounterState {
 }
 
 export type BattleCommand = 'fight' | 'bag' | 'pokemon' | 'run';
-export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'partySelect' | 'resolved';
+export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'partySelect' | 'bagSelect' | 'resolved';
 
 export interface BattleState {
   active: boolean;
@@ -64,6 +64,7 @@ export interface BattleState {
   selectedCommandIndex: number;
   commands: BattleCommand[];
   selectedPartyIndex: number;
+  selectedBagIndex: number;
   turnSummary: string;
   damagePreview: {
     min: number;
@@ -81,6 +82,13 @@ export interface CaptureResult {
   shakes: number;
   ballLabel: string;
   usedItemId: string | null;
+}
+
+export interface BattleBagChoice {
+  itemId: 'ITEM_POKE_BALL' | 'ITEM_GREAT_BALL' | null;
+  label: string;
+  quantity: number | null;
+  isExit: boolean;
 }
 
 const RAND_MULT = 1103515245;
@@ -327,6 +335,7 @@ export const createBattleState = (): BattleState => {
     selectedCommandIndex: 0,
     commands: ['fight', 'bag', 'pokemon', 'run'],
     selectedPartyIndex: 0,
+    selectedBagIndex: 0,
     turnSummary: '',
     damagePreview: null,
     runAttempts: 0,
@@ -405,6 +414,7 @@ export const tryStartWildBattle = (
   battle.selectedMoveIndex = 0;
   battle.selectedCommandIndex = 0;
   battle.selectedPartyIndex = 0;
+  battle.selectedBagIndex = 0;
   battle.commands = ['fight', 'bag', 'pokemon', 'run'];
   battle.runAttempts = 0;
   battle.turnSummary = `Wild ${battle.wildMon.species} appeared!`;
@@ -428,13 +438,17 @@ const applyEndOfTurnPoison = (pokemon: BattlePokemonSnapshot): string | null => 
 export const performCaptureAttempt = (
   battle: BattleState,
   encounterState: BattleEncounterState,
-  bag?: BagState
+  bag?: BagState,
+  preferredItemId?: 'ITEM_POKE_BALL' | 'ITEM_GREAT_BALL'
 ): CaptureResult => {
   const pokeBallCount = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
   const greatBallCount = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
-  const useGreatBall = pokeBallCount <= 0 && greatBallCount > 0;
+  const useGreatBall = preferredItemId
+    ? preferredItemId === 'ITEM_GREAT_BALL'
+    : pokeBallCount <= 0 && greatBallCount > 0;
+  const selectedItemId = useGreatBall ? 'ITEM_GREAT_BALL' : 'ITEM_POKE_BALL';
 
-  if (!useGreatBall && pokeBallCount <= 0) {
+  if ((selectedItemId === 'ITEM_POKE_BALL' && pokeBallCount <= 0) || (selectedItemId === 'ITEM_GREAT_BALL' && greatBallCount <= 0)) {
     return {
       caught: false,
       shakes: 0,
@@ -445,14 +459,22 @@ export const performCaptureAttempt = (
 
   if (useGreatBall) {
     if (bag) {
-      removeBagItem(bag, 'ITEM_GREAT_BALL', 1);
+      bag.pockets.pokeBalls = bag.pockets.pokeBalls.map((slot) =>
+        slot.itemId === 'ITEM_GREAT_BALL'
+          ? { ...slot, quantity: slot.quantity - 1 }
+          : slot
+      ).filter((slot) => slot.quantity > 0);
       battle.bag.greatBalls = getBagQuantity(bag, 'ITEM_GREAT_BALL');
     } else {
       battle.bag.greatBalls -= 1;
     }
   } else {
     if (bag) {
-      removeBagItem(bag, 'ITEM_POKE_BALL', 1);
+      bag.pockets.pokeBalls = bag.pockets.pokeBalls.map((slot) =>
+        slot.itemId === 'ITEM_POKE_BALL'
+          ? { ...slot, quantity: slot.quantity - 1 }
+          : slot
+      ).filter((slot) => slot.quantity > 0);
       battle.bag.pokeBalls = getBagQuantity(bag, 'ITEM_POKE_BALL');
     } else {
       battle.bag.pokeBalls -= 1;
@@ -505,6 +527,23 @@ const syncBattleBagSnapshot = (battle: BattleState, bag?: BagState): void => {
 
   battle.bag.pokeBalls = getBagQuantity(bag, 'ITEM_POKE_BALL');
   battle.bag.greatBalls = getBagQuantity(bag, 'ITEM_GREAT_BALL');
+};
+
+export const getBattleBagChoices = (battle: BattleState, bag?: BagState): BattleBagChoice[] => {
+  const pokeBalls = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
+  const greatBalls = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
+  const choices: BattleBagChoice[] = [];
+
+  if (pokeBalls > 0) {
+    choices.push({ itemId: 'ITEM_POKE_BALL', label: 'POKe BALL', quantity: pokeBalls, isExit: false });
+  }
+
+  if (greatBalls > 0) {
+    choices.push({ itemId: 'ITEM_GREAT_BALL', label: 'GREAT BALL', quantity: greatBalls, isExit: false });
+  }
+
+  choices.push({ itemId: null, label: 'CANCEL', quantity: null, isExit: true });
+  return choices;
 };
 
 export const stepBattle = (
@@ -565,18 +604,9 @@ export const stepBattle = (
         return;
       }
 
-      const capture = performCaptureAttempt(battle, encounterState, bag);
-      if (capture.ballLabel === 'NONE') {
-        battle.turnSummary = 'No balls left!';
-        return;
-      }
-
-      if (capture.caught) {
-        battle.phase = 'resolved';
-        battle.turnSummary = `${capture.ballLabel}... shake x4! Gotcha! ${battle.wildMon.species} was caught!`;
-      } else {
-        battle.turnSummary = `${capture.ballLabel}... shake x${capture.shakes}. Oh no! The Pokémon broke free!`;
-      }
+      battle.phase = 'bagSelect';
+      battle.selectedBagIndex = 0;
+      battle.turnSummary = 'Choose an item.';
       return;
     }
 
@@ -594,6 +624,49 @@ export const stepBattle = (
     } else {
       battle.phase = 'moveSelect';
       battle.turnSummary = `Can't escape!`;
+    }
+    return;
+  }
+
+  if (battle.phase === 'bagSelect') {
+    const choices = getBattleBagChoices(battle, bag);
+
+    if (input.upPressed || input.downPressed) {
+      const direction = input.upPressed ? -1 : 1;
+      battle.selectedBagIndex = (battle.selectedBagIndex + direction + choices.length) % choices.length;
+      return;
+    }
+
+    if (input.cancelPressed) {
+      battle.phase = 'command';
+      battle.turnSummary = 'What will you do?';
+      return;
+    }
+
+    if (!input.interactPressed) {
+      return;
+    }
+
+    const selectedChoice = choices[battle.selectedBagIndex];
+    if (!selectedChoice || selectedChoice.isExit || !selectedChoice.itemId) {
+      battle.phase = 'command';
+      battle.turnSummary = 'What will you do?';
+      return;
+    }
+
+    const capture = performCaptureAttempt(battle, encounterState, bag, selectedChoice.itemId);
+    if (capture.ballLabel === 'NONE') {
+      battle.phase = 'command';
+      battle.turnSummary = 'No balls left!';
+      return;
+    }
+
+    if (capture.caught) {
+      battle.phase = 'resolved';
+      battle.turnSummary = `${capture.ballLabel}... shake x4! Gotcha! ${battle.wildMon.species} was caught!`;
+    } else {
+      battle.phase = 'command';
+      battle.turnSummary = `${capture.ballLabel}... shake x${capture.shakes}. Oh no! The Pokémon broke free!`;
     }
     return;
   }

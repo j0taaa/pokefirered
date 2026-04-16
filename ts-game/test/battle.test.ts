@@ -174,6 +174,10 @@ describe('battle vertical slice', () => {
     encounter.rngState = 0;
 
     stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    expect(battle.phase).toBe('bagSelect');
+    expect(battle.turnSummary).toContain('Choose an item');
+
+    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
     expect(battle.turnSummary).toContain('shake x4');
     expect(battle.phase).toBe('resolved');
   });

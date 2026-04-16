@@ -3,6 +3,7 @@ import { resolveMapConnectionTransition } from '../src/game/mapConnections';
 import {
   loadMapById,
   loadPalletTownMap,
+  loadPewterCityMap,
   loadRoute2Map,
   loadRoute21NorthMap,
   loadRoute21SouthMap,
@@ -62,6 +63,22 @@ describe('map connections', () => {
     expect(transition?.playerPosition).toEqual({ x: 20 * 16, y: 0 });
   });
 
+  test('transitions from Route 2 north edge into Pewter City using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute2Map(), 8, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_PEWTER_CITY');
+    expect(transition?.playerPosition).toEqual({ x: 20 * 16, y: 39 * 16 });
+  });
+
+  test('transitions from Pewter City south edge into Route 2 using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadPewterCityMap(), 20, 39, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE2');
+    expect(transition?.playerPosition).toEqual({ x: 8 * 16, y: 0 });
+  });
+
   test('transitions from Viridian City west edge into Route 22 using the decomp offset', () => {
     const transition = resolveMapConnectionTransition(loadViridianCityMap(), 0, 16, 'left', loadMapById);
 
@@ -113,7 +130,9 @@ describe('map connections', () => {
   test('rejects coordinates outside the connected overlap', () => {
     expect(resolveMapConnectionTransition(loadPalletTownMap(), 5, 19, 'down', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadViridianCityMap(), 10, 0, 'up', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute2Map(), 7, 0, 'up', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute2Map(), 3, 79, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadPewterCityMap(), 19, 39, 'down', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute21NorthMap(), 0, 0, 'up', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute21NorthMap(), 0, 49, 'down', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute21SouthMap(), 0, 0, 'up', loadMapById)).toBeNull();
@@ -122,7 +141,7 @@ describe('map connections', () => {
   });
 
   test('returns null for unloaded destination maps', () => {
-    expect(resolveMapConnectionTransition(loadRoute2Map(), 8, 0, 'up', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadPewterCityMap(), 47, 20, 'right', loadMapById)).toBeNull();
   });
 
   test('loads Route 22 through the shared map loader', () => {
@@ -133,6 +152,10 @@ describe('map connections', () => {
     expect(loadMapById('MAP_PALLET_TOWN')?.id).toBe('MAP_PALLET_TOWN');
     expect(loadMapById('MAP_ROUTE21_NORTH')?.id).toBe('MAP_ROUTE21_NORTH');
     expect(loadMapById('MAP_ROUTE21_SOUTH')?.id).toBe('MAP_ROUTE21_SOUTH');
+  });
+
+  test('loads Pewter City through the shared map loader', () => {
+    expect(loadMapById('MAP_PEWTER_CITY')?.id).toBe('MAP_PEWTER_CITY');
   });
 
   test('loads the Viridian Forest gatehouse maps through the shared map loader', () => {

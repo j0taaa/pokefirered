@@ -18,6 +18,7 @@ The app currently implements a functional runtime slice:
 - HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
 - START menu flow with FireRed-like dynamic option composition and submenu callbacks
 - START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
+- START > BAG now uses a decomp-derived shared inventory state with `ITEMS` / `KEY ITEMS` / `POKé BALLS` pockets, per-pocket cursor memory, item pickup persistence, and a dedicated FireRed-style bag overlay
 - Battle vertical slice v4: command selection (`FIGHT`/`BAG`/`POKéMON`/`RUN`), full Gen-3 type-chart effectiveness sampling for preview math, Poké Ball/Great Ball shake-count capture messaging, poison end-turn chip damage, party switching, and improved enemy move-utility heuristics
 - Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
@@ -119,7 +120,7 @@ Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
 
 Near-term next increments:
 
-1. Replace START-menu placeholder panels with fully interactive menu scenes (party/bag/options + deeper save UX parity).
-2. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
-3. Expand decomp-backed overworld parity beyond Route 2 with richer object movement patterns and more map fixtures.
-4. Extend battle scene parity with status conditions, proper Poké Ball shake phases, and richer AI move utility heuristics.
+1. Extend bag parity with TM Case / Berry Pouch submenus, registered-item use flows, and battle bag selection UI.
+2. Replace remaining START-menu placeholder panels with fully interactive menu scenes (party/player + deeper save UX parity).
+3. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
+4. Expand decomp-backed overworld parity beyond Route 2 with richer object movement patterns and more map fixtures.

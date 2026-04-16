@@ -88,4 +88,39 @@ describe('trigger execution', () => {
     runStepTriggersAtPlayerTile([trigger], player, 16, { player, dialogue, runtime, scriptRegistry: registry });
     expect(runtime.vars.didRun).toBe(0);
   });
+
+  test('collects hidden items through decomp-style hidden-item triggers', () => {
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    const trigger = {
+      id: 'FLAG_HIDDEN_ITEM_TEST_PEARL.hiddenItem',
+      x: 4,
+      y: 3,
+      activation: 'interact' as const,
+      scriptId: 'FLAG_HIDDEN_ITEM_TEST_PEARL.hiddenItem',
+      facing: 'any' as const,
+      once: true,
+      conditions: [{ flag: 'FLAG_HIDDEN_ITEM_TEST_PEARL', flagState: false }]
+    };
+
+    const didRun = tryRunFacingTrigger([trigger], player, 16, {
+      player,
+      dialogue,
+      runtime,
+      hiddenItems: [{
+        x: 4,
+        y: 3,
+        item: 'ITEM_PEARL',
+        flag: 'FLAG_HIDDEN_ITEM_TEST_PEARL',
+        quantity: 1,
+        elevation: 0,
+        underfoot: false
+      }]
+    });
+
+    expect(didRun).toBe(true);
+    expect(dialogue.text).toContain('Obtained PEARL');
+    expect(runtime.flags.has('FLAG_HIDDEN_ITEM_TEST_PEARL')).toBe(true);
+    expect(runtime.bag.pockets.items).toEqual([{ itemId: 'ITEM_PEARL', quantity: 1 }]);
+  });
 });

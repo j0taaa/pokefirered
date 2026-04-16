@@ -1,4 +1,4 @@
-import type { BattleState } from '../game/battle';
+import { getBattleBagChoices, type BattleState } from '../game/battle';
 import { getBagQuantity, type BagState } from '../game/bag';
 
 export interface BattleOverlayBindings {
@@ -66,6 +66,14 @@ export const updateBattleOverlay = (
       entry.className = index === battle.selectedPartyIndex ? 'battle-move-selected' : '';
       bindings.moveList.append(entry);
     });
+  } else if (battle.phase === 'bagSelect') {
+    getBattleBagChoices(battle, bag).forEach((choice, index) => {
+      const suffix = choice.quantity === null ? '' : ` x${choice.quantity}`;
+      const entry = document.createElement('li');
+      entry.textContent = `${index === battle.selectedBagIndex ? '▶' : ' '} ${choice.label}${suffix}`;
+      entry.className = index === battle.selectedBagIndex ? 'battle-move-selected' : '';
+      bindings.moveList.append(entry);
+    });
   } else {
     battle.moves.forEach((move, index) => {
       const entry = document.createElement('li');
@@ -91,6 +99,8 @@ export const updateBattleOverlay = (
     bindings.hint.textContent = `Z/Enter: Confirm · ↑/↓: Choose command · Balls ${pokeBallCount}/${greatBallCount}`;
   } else if (battle.phase === 'partySelect') {
     bindings.hint.textContent = 'Z/Enter: Switch · X/Esc: Back';
+  } else if (battle.phase === 'bagSelect') {
+    bindings.hint.textContent = 'Z/Enter: Throw ball · X/Esc: Back';
   } else {
     bindings.hint.textContent = 'Z/Enter: Use move · X/Esc: Back';
   }

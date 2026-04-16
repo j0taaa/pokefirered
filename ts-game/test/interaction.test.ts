@@ -164,4 +164,32 @@ describe('interaction stepping', () => {
     expect(dialogue.text).toBe('Sign text');
     expect(runtime.lastScriptId).toBe('sign.test');
   });
+
+  test('collects an item-ball npc into the shared bag and sets its hide flag', () => {
+    const dialogue = createDialogueState();
+    const player = createTestPlayer();
+    const runtime = createScriptRuntimeState();
+    const npc = {
+      ...createTestNpc(),
+      graphicsId: 'OBJ_EVENT_GFX_ITEM_BALL',
+      itemId: 'ITEM_POTION',
+      flag: 'FLAG_HIDE_TEST_POTION',
+      dialogueLines: []
+    };
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+
+    expect(dialogue.active).toBe(true);
+    expect(dialogue.text).toContain('Obtained POTION');
+    expect(runtime.flags.has('FLAG_HIDE_TEST_POTION')).toBe(true);
+    expect(runtime.bag.pockets.items).toEqual([{ itemId: 'ITEM_POTION', quantity: 1 }]);
+  });
 });

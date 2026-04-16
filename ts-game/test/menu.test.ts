@@ -157,6 +157,20 @@ describe('start menu stepping', () => {
     expect(runtime.options.battleScene).toBe(false);
   });
 
+  test('opens BAG as the dedicated inventory panel instead of a text stub', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'BAG');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    expect(menu.panel?.kind).toBe('bag');
+    expect(menu.panel?.id).toBe('BAG');
+    expect(runtime.lastScriptId).toBe('menu.open.bag');
+  });
+
   test('supports safari retire prompt with YES/NO choices', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();

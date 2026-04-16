@@ -663,6 +663,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
     case 'MAP_PALLET_TOWN':
       return loadPalletTownMap();
+    case 'MAP_PEWTER_CITY':
+      return loadPewterCityMap();
     case 'MAP_ROUTE2':
       return loadRoute2Map();
     case 'MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE':
