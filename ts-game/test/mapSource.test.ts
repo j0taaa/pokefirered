@@ -1,16 +1,22 @@
 import { describe, expect, test } from 'vitest';
-import { loadPrototypeRouteMap, mapFromSource, parseMapSource } from '../src/world/mapSource';
+import { loadRoute2Map, mapFromSource, parseMapSource } from '../src/world/mapSource';
 
 describe('map source loading', () => {
-  test('loads the prototype map from JSON', () => {
-    const map = loadPrototypeRouteMap();
+  test('loads the Route 2 compact map into runtime shape', () => {
+    const map = loadRoute2Map();
 
-    expect(map.width).toBe(20);
-    expect(map.height).toBe(15);
+    expect(map.id).toBe('MAP_ROUTE2');
+    expect(map.width).toBe(24);
+    expect(map.height).toBe(80);
     expect(map.tileSize).toBe(16);
-    expect(map.walkable.length).toBe(300);
-    expect(map.encounterTiles).toBeUndefined();
+    expect(map.walkable.length).toBe(1920);
+    expect(map.encounterTiles?.length).toBe(1920);
+    expect(map.wildEncounters?.land?.encounterRate).toBe(21);
     expect(map.triggers.length).toBeGreaterThan(0);
+    expect(map.visual?.metatileIds).toHaveLength(1920);
+    expect(map.visual?.layerTypes).toHaveLength(1920);
+    expect(map.visual?.primaryTileset).toBe('general');
+    expect(map.npcs.length).toBeGreaterThan(0);
   });
 
   test('throws when walkable length does not match map size', () => {
@@ -63,6 +69,46 @@ describe('map source loading', () => {
         encounterTiles: ['X']
       })
     ).toThrow(/encounterTiles/i);
+
+    expect(() =>
+      parseMapSource({
+        id: 'bad-wild-encounters',
+        width: 1,
+        height: 1,
+        tileSize: 16,
+        walkable: [true],
+        wildEncounters: { land: { encounterRate: 21, mons: [{ species: 'SPECIES_RATTATA' }] } }
+      })
+    ).toThrow(/wildEncounters/i);
+  });
+
+  test('validates optional visual and npc payloads', () => {
+    expect(() =>
+      parseMapSource({
+        id: 'bad-visual',
+        width: 1,
+        height: 1,
+        tileSize: 16,
+        walkable: [true],
+        visual: {
+          primaryTileset: 'general',
+          secondaryTileset: 'viridian_city',
+          metatileIds: [],
+          layerTypes: []
+        }
+      })
+    ).toThrow(/metatileIds/i);
+
+    expect(() =>
+      parseMapSource({
+        id: 'bad-npc',
+        width: 1,
+        height: 1,
+        tileSize: 16,
+        walkable: [true],
+        npcs: [{ id: 'npc', x: 0, y: 0 }]
+      })
+    ).toThrow(/graphicsId/i);
   });
 
 

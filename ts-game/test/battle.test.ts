@@ -6,9 +6,11 @@ import {
   createBattleEncounterState,
   createBattleState,
   performCaptureAttempt,
+  shouldStartWildEncounter,
   stepBattle,
   tryStartWildBattle
 } from '../src/game/battle';
+import type { WildEncounterGroup } from '../src/world/mapSource';
 
 const neutralInput = {
   up: false,
@@ -29,6 +31,15 @@ const neutralInput = {
 };
 
 describe('battle vertical slice', () => {
+  const routeLikeLandEncounters: WildEncounterGroup = {
+    encounterRate: 21,
+    mons: [
+      { minLevel: 3, maxLevel: 3, species: 'SPECIES_RATTATA', slotRate: 20 },
+      { minLevel: 3, maxLevel: 3, species: 'SPECIES_PIDGEY', slotRate: 20 },
+      { minLevel: 4, maxLevel: 4, species: 'SPECIES_CATERPIE', slotRate: 10 }
+    ]
+  };
+
   test('uses FRLG-like base damage formula floor behavior and STAB/type math', () => {
     const battle = createBattleState();
     const move = { ...battle.moves[1], type: 'fire' as const };
@@ -50,10 +61,11 @@ describe('battle vertical slice', () => {
   test('starts a wild battle once cooldown threshold is reached', () => {
     const battle = createBattleState();
     const encounter = createBattleEncounterState();
+    encounter.rngState = 0;
 
     let started = false;
-    for (let i = 0; i < 6; i += 1) {
-      started = tryStartWildBattle(battle, encounter, true, true);
+    for (let i = 0; i < 40; i += 1) {
+      started = tryStartWildBattle(battle, encounter, true, true, routeLikeLandEncounters);
       if (started) {
         break;
       }
@@ -63,6 +75,19 @@ describe('battle vertical slice', () => {
     expect(battle.active).toBe(true);
     expect(battle.phase).toBe('intro');
     expect(battle.turnSummary).toContain('appeared');
+    expect(battle.wildMon.species).toMatch(/RATTATA|PIDGEY|CATERPIE/);
+  });
+
+  test('cooldown alone does not guarantee an encounter every step', () => {
+    const encounter = createBattleEncounterState();
+    encounter.encounterRate = 21;
+    encounter.stepsSinceLastEncounter = 6;
+    encounter.rngState = 0;
+
+    const outcomes = Array.from({ length: 6 }, () => shouldStartWildEncounter(encounter));
+
+    expect(outcomes).toContain(true);
+    expect(outcomes).toContain(false);
   });
 
   test('does not start a wild battle outside encounter tiles', () => {
@@ -70,7 +95,7 @@ describe('battle vertical slice', () => {
     const encounter = createBattleEncounterState();
 
     for (let i = 0; i < 10; i += 1) {
-      expect(tryStartWildBattle(battle, encounter, true, false)).toBe(false);
+      expect(tryStartWildBattle(battle, encounter, true, false, routeLikeLandEncounters)).toBe(false);
     }
 
     expect(battle.active).toBe(false);

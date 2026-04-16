@@ -14,8 +14,10 @@ export interface NpcState {
   pathIndex: number;
   facing: 'up' | 'down' | 'left' | 'right';
   moving: boolean;
+  animationTime?: number;
   idleDurationSeconds: number;
   idleTimeRemaining: number;
+  graphicsId?: string;
   interactScriptId?: string;
   dialogueLines: string[];
   dialogueIndex: number;
@@ -37,8 +39,10 @@ export const createPrototypeNpcs = (): NpcState[] => [
     pathIndex: 1,
     facing: 'right',
     moving: false,
+    animationTime: 0,
     idleDurationSeconds: 0.35,
     idleTimeRemaining: 0,
+    graphicsId: 'OBJ_EVENT_GFX_LASS',
     interactScriptId: 'object.npc-lass-01.interact',
     dialogueLines: [],
     dialogueIndex: 0
@@ -53,13 +57,46 @@ export const createPrototypeNpcs = (): NpcState[] => [
     pathIndex: 1,
     facing: 'right',
     moving: false,
+    animationTime: 0,
     idleDurationSeconds: 0.5,
     idleTimeRemaining: 0,
+    graphicsId: 'OBJ_EVENT_GFX_BUG_CATCHER',
     interactScriptId: 'object.npc-bugcatcher-01.interact',
     dialogueLines: [],
     dialogueIndex: 0
   }
 ];
+
+const facingFromMovementType = (movementType?: string): NpcState['facing'] => {
+  switch (movementType) {
+    case 'MOVEMENT_TYPE_FACE_UP':
+      return 'up';
+    case 'MOVEMENT_TYPE_FACE_LEFT':
+      return 'left';
+    case 'MOVEMENT_TYPE_FACE_RIGHT':
+      return 'right';
+    case 'MOVEMENT_TYPE_FACE_DOWN':
+    default:
+      return 'down';
+  }
+};
+
+export const createMapNpcs = (map: TileMap): NpcState[] =>
+  map.npcs.map((npc) => ({
+    id: npc.id,
+    position: vec2(npc.x * map.tileSize, npc.y * map.tileSize),
+    path: [],
+    pathIndex: 0,
+    facing: facingFromMovementType(npc.movementType),
+    moving: false,
+    animationTime: 0,
+    idleDurationSeconds: 0.3,
+    idleTimeRemaining: 0,
+    graphicsId: npc.graphicsId,
+    interactScriptId: npc.scriptId,
+    dialogueLines: [],
+    dialogueIndex: 0
+  }));
 
 const updateFacing = (npc: NpcState, dx: number, dy: number): void => {
   if (Math.abs(dx) >= Math.abs(dy)) {
@@ -79,17 +116,20 @@ export const stepNpcs = (
   for (const npc of npcs) {
     if (frozenNpcIds.has(npc.id)) {
       npc.moving = false;
+      npc.animationTime = 0;
       continue;
     }
 
     if (npc.path.length === 0) {
       npc.moving = false;
+      npc.animationTime = 0;
       continue;
     }
 
     if (npc.idleTimeRemaining > 0) {
       npc.idleTimeRemaining = Math.max(0, npc.idleTimeRemaining - dtSeconds);
       npc.moving = false;
+      npc.animationTime = 0;
       continue;
     }
 
@@ -103,6 +143,7 @@ export const stepNpcs = (
       npc.pathIndex = (npc.pathIndex + 1) % npc.path.length;
       npc.idleTimeRemaining = npc.idleDurationSeconds;
       npc.moving = false;
+      npc.animationTime = 0;
       continue;
     }
 
@@ -120,12 +161,14 @@ export const stepNpcs = (
     const probe = vec2(nextPosition.x + 8, nextPosition.y + 12);
     if (!isWalkableAtPixel(map, probe)) {
       npc.moving = false;
+      npc.animationTime = 0;
       npc.idleTimeRemaining = Math.max(npc.idleTimeRemaining, 0.2);
       continue;
     }
 
     npc.position = nextPosition;
     npc.moving = true;
+    npc.animationTime = (npc.animationTime ?? 0) + dtSeconds;
   }
 
   return npcs;

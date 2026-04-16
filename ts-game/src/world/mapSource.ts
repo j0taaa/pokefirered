@@ -1,9 +1,16 @@
-import prototypeRouteMapJson from './maps/prototypeRoute.json';
 import route2MapJson from './maps/route2.json';
+import viridianCityMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
 export type TriggerConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte';
+export type MapConnectionDirection = 'up' | 'down' | 'left' | 'right';
+
+export interface MapConnectionSource {
+  map: string;
+  offset: number;
+  direction: MapConnectionDirection;
+}
 
 export interface TriggerCondition {
   var?: string;
@@ -32,8 +39,28 @@ export interface MapSource {
   height: number;
   tileSize: number;
   walkable: boolean[];
+  connections?: MapConnectionSource[];
   encounterTiles?: string[];
+  wildEncounters?: WildEncounters;
   triggers?: TriggerZone[];
+  visual?: MapVisualSource;
+  npcs?: MapNpcSource[];
+}
+
+export interface WildEncounterMon {
+  minLevel: number;
+  maxLevel: number;
+  species: string;
+  slotRate: number;
+}
+
+export interface WildEncounterGroup {
+  encounterRate: number;
+  mons: WildEncounterMon[];
+}
+
+export interface WildEncounters {
+  land?: WildEncounterGroup;
 }
 
 export interface CompactMapSource {
@@ -42,8 +69,33 @@ export interface CompactMapSource {
   height: number;
   tileSize: number;
   collisionRows: string[];
+  connections?: MapConnectionSource[];
   encounterRows?: string[];
+  wildEncounters?: WildEncounters;
   triggers?: TriggerZone[];
+  visual?: MapVisualSource;
+  npcs?: MapNpcSource[];
+}
+
+export interface MapVisualSource {
+  primaryTileset: string;
+  secondaryTileset: string;
+  metatileIds: number[];
+  layerTypes: number[];
+}
+
+export interface MapNpcSource {
+  id: string;
+  x: number;
+  y: number;
+  graphicsId: string;
+  movementType: string;
+  movementRangeX: number;
+  movementRangeY: number;
+  trainerType: string;
+  trainerSightOrBerryTreeId: number;
+  scriptId: string;
+  flag: string;
 }
 
 const isPositiveInteger = (value: unknown): value is number =>
@@ -58,6 +110,157 @@ const isEncounterTileArray = (value: unknown): value is string[] =>
 const isTileRows = (value: unknown, width: number, allowedPattern: RegExp): value is string[] =>
   Array.isArray(value)
   && value.every((row) => typeof row === 'string' && row.length === width && allowedPattern.test(row));
+
+const isIntegerArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((entry) => Number.isInteger(entry));
+
+const isMapConnectionDirection = (value: unknown): value is MapConnectionDirection =>
+  value === 'up' || value === 'down' || value === 'left' || value === 'right';
+
+const isWildEncounterMon = (value: unknown): value is WildEncounterMon => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.minLevel)
+    && Number.isInteger(candidate.maxLevel)
+    && typeof candidate.species === 'string'
+    && candidate.species.length > 0
+    && Number.isInteger(candidate.slotRate);
+};
+
+const isWildEncounterGroup = (value: unknown): value is WildEncounterGroup => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.encounterRate)
+    && Array.isArray(candidate.mons)
+    && candidate.mons.every((entry) => isWildEncounterMon(entry));
+};
+
+const isWildEncounters = (value: unknown): value is WildEncounters => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return candidate.land === undefined || isWildEncounterGroup(candidate.land);
+};
+
+const parseVisualSource = (raw: unknown, mapId: string, expectedTiles: number): MapVisualSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" visual payload must be an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if (typeof candidate.primaryTileset !== 'string' || candidate.primaryTileset.length === 0) {
+    throw new Error(`Map source "${mapId}" visual.primaryTileset must be a non-empty string.`);
+  }
+
+  if (typeof candidate.secondaryTileset !== 'string' || candidate.secondaryTileset.length === 0) {
+    throw new Error(`Map source "${mapId}" visual.secondaryTileset must be a non-empty string.`);
+  }
+
+  if (!isIntegerArray(candidate.metatileIds) || candidate.metatileIds.length !== expectedTiles) {
+    throw new Error(`Map source "${mapId}" visual.metatileIds must contain ${expectedTiles} integers.`);
+  }
+
+  if (!isIntegerArray(candidate.layerTypes) || candidate.layerTypes.length !== expectedTiles) {
+    throw new Error(`Map source "${mapId}" visual.layerTypes must contain ${expectedTiles} integers.`);
+  }
+
+  return {
+    primaryTileset: candidate.primaryTileset,
+    secondaryTileset: candidate.secondaryTileset,
+    metatileIds: [...candidate.metatileIds],
+    layerTypes: [...candidate.layerTypes]
+  };
+};
+
+const parseMapNpcSource = (raw: unknown, mapId: string, index: number): MapNpcSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" npc ${index} must be an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if (typeof candidate.id !== 'string' || candidate.id.length === 0) {
+    throw new Error(`Map source "${mapId}" npc ${index} must define a non-empty id.`);
+  }
+
+  if (!Number.isInteger(candidate.x) || !Number.isInteger(candidate.y)) {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define integer x and y.`);
+  }
+
+  if (typeof candidate.graphicsId !== 'string' || candidate.graphicsId.length === 0) {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define graphicsId.`);
+  }
+
+  if (typeof candidate.movementType !== 'string' || candidate.movementType.length === 0) {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define movementType.`);
+  }
+
+  if (!Number.isInteger(candidate.movementRangeX) || !Number.isInteger(candidate.movementRangeY)) {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define integer movement ranges.`);
+  }
+
+  if (typeof candidate.trainerType !== 'string' || candidate.trainerType.length === 0) {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define trainerType.`);
+  }
+
+  if (!Number.isInteger(candidate.trainerSightOrBerryTreeId)) {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define trainerSightOrBerryTreeId.`);
+  }
+
+  if (typeof candidate.scriptId !== 'string') {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define scriptId.`);
+  }
+
+  if (typeof candidate.flag !== 'string') {
+    throw new Error(`Map source "${mapId}" npc "${candidate.id}" must define flag.`);
+  }
+
+  return {
+    id: candidate.id as string,
+    x: candidate.x as number,
+    y: candidate.y as number,
+    graphicsId: candidate.graphicsId as string,
+    movementType: candidate.movementType as string,
+    movementRangeX: candidate.movementRangeX as number,
+    movementRangeY: candidate.movementRangeY as number,
+    trainerType: candidate.trainerType as string,
+    trainerSightOrBerryTreeId: candidate.trainerSightOrBerryTreeId as number,
+    scriptId: candidate.scriptId as string,
+    flag: candidate.flag as string
+  };
+};
+
+const parseMapConnectionSource = (raw: unknown, mapId: string, index: number): MapConnectionSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" connection ${index} must be an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if (typeof candidate.map !== 'string' || candidate.map.length === 0) {
+    throw new Error(`Map source "${mapId}" connection ${index} must define map.`);
+  }
+
+  if (!Number.isInteger(candidate.offset)) {
+    throw new Error(`Map source "${mapId}" connection "${candidate.map}" must define integer offset.`);
+  }
+
+  if (!isMapConnectionDirection(candidate.direction)) {
+    throw new Error(`Map source "${mapId}" connection "${candidate.map}" has invalid direction.`);
+  }
+
+  return {
+    map: candidate.map as string,
+    offset: candidate.offset as number,
+    direction: candidate.direction
+  };
+};
 
 const isFacing = (value: unknown): value is TriggerFacing =>
   value === 'any' || value === 'up' || value === 'down' || value === 'left' || value === 'right';
@@ -188,8 +391,19 @@ export const mapFromSource = (source: MapSource): TileMap => {
     height: source.height,
     tileSize: source.tileSize,
     walkable: [...source.walkable],
+    connections: source.connections ? [...source.connections] : [],
     encounterTiles: source.encounterTiles ? [...source.encounterTiles] : undefined,
-    triggers: source.triggers ? [...source.triggers] : []
+    wildEncounters: source.wildEncounters,
+    triggers: source.triggers ? [...source.triggers] : [],
+    visual: source.visual
+      ? {
+        primaryTileset: source.visual.primaryTileset,
+        secondaryTileset: source.visual.secondaryTileset,
+        metatileIds: [...source.visual.metatileIds],
+        layerTypes: [...source.visual.layerTypes]
+      }
+      : undefined,
+    npcs: source.npcs ? [...source.npcs] : []
   };
 };
 
@@ -205,8 +419,12 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     height: source.height,
     tileSize: source.tileSize,
     walkable: walkableFromCollisionRows(source.collisionRows),
+    connections: source.connections,
     encounterTiles: source.encounterRows ? flattenRows(source.encounterRows) : undefined,
-    triggers: source.triggers
+    wildEncounters: source.wildEncounters,
+    triggers: source.triggers,
+    visual: source.visual,
+    npcs: source.npcs
   });
 
 export const parseMapSource = (raw: unknown): MapSource => {
@@ -237,9 +455,23 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include encounterTiles using ., L, or W markers.`);
   }
 
+  if (candidate.connections !== undefined && !Array.isArray(candidate.connections)) {
+    throw new Error(`Map source "${id}" connections must be an array.`);
+  }
+
+  if (candidate.wildEncounters !== undefined && !isWildEncounters(candidate.wildEncounters)) {
+    throw new Error(`Map source "${id}" must include valid wildEncounters data.`);
+  }
+
   if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
     throw new Error(`Map source "${id}" triggers must be an array.`);
   }
+
+  if (candidate.npcs !== undefined && !Array.isArray(candidate.npcs)) {
+    throw new Error(`Map source "${id}" npcs must be an array.`);
+  }
+
+  const expectedTiles = candidate.width * candidate.height;
 
   return {
     id,
@@ -247,8 +479,12 @@ export const parseMapSource = (raw: unknown): MapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     walkable: candidate.walkable,
+    connections: (candidate.connections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterTiles: candidate.encounterTiles as string[] | undefined,
-    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id))
+    wildEncounters: candidate.wildEncounters as WildEncounters | undefined,
+    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
+    visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
+    npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index))
   };
 };
 
@@ -296,9 +532,28 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     );
   }
 
+  const metadata = candidate.metadata as Record<string, unknown> | undefined;
+  if (metadata !== undefined && typeof metadata !== 'object') {
+    throw new Error(`Compact map source "${id}" metadata must be an object.`);
+  }
+
+  if (metadata?.connections !== undefined && !Array.isArray(metadata.connections)) {
+    throw new Error(`Compact map source "${id}" metadata.connections must be an array.`);
+  }
+
+  if (candidate.wildEncounters !== undefined && !isWildEncounters(candidate.wildEncounters)) {
+    throw new Error(`Compact map source "${id}" must include valid wildEncounters data.`);
+  }
+
   if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
     throw new Error(`Compact map source "${id}" triggers must be an array.`);
   }
+
+  if (candidate.npcs !== undefined && !Array.isArray(candidate.npcs)) {
+    throw new Error(`Compact map source "${id}" npcs must be an array.`);
+  }
+
+  const expectedTiles = candidate.width * candidate.height;
 
   return {
     id,
@@ -306,13 +561,31 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     collisionRows: [...candidate.collisionRows],
+    connections: (metadata?.connections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
-    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id))
+    wildEncounters: candidate.wildEncounters as WildEncounters | undefined,
+    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
+    visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
+    npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index))
   };
 };
 
-export const loadPrototypeRouteMap = (): TileMap =>
-  mapFromSource(parseMapSource(prototypeRouteMapJson));
-
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
+
+export const loadViridianCityMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(viridianCityMapJson));
+
+export const loadMapById = (mapId: string): TileMap | null => {
+  switch (mapId) {
+    case 'MAP_ROUTE2':
+      return loadRoute2Map();
+    case 'MAP_VIRIDIAN_CITY':
+      return loadViridianCityMap();
+    default:
+      return null;
+  }
+};
+
+export const loadPrototypeRouteMap = (): TileMap =>
+  loadRoute2Map();

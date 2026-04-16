@@ -8,6 +8,7 @@ import {
 } from '../src/game/saveData';
 import type { PlayerState } from '../src/game/player';
 import { createScriptRuntimeState, setScriptFlag } from '../src/game/scripts';
+import { loadRoute2Map } from '../src/world/mapSource';
 
 class MemoryStorage implements StorageLike {
   private readonly values = new Map<string, string>();
@@ -22,6 +23,8 @@ class MemoryStorage implements StorageLike {
 }
 
 describe('save persistence', () => {
+  const mapId = loadRoute2Map().id;
+
   test('saves and loads runtime state + player state', () => {
     const storage = new MemoryStorage();
     const player: PlayerState = {
@@ -37,7 +40,7 @@ describe('save persistence', () => {
     runtime.consumedTriggerIds.add('route-warning');
     setScriptFlag(runtime, 'story.route-warning');
 
-    const result = saveGameToStorage(storage, 'prototype-route', player, runtime, 'slot');
+    const result = saveGameToStorage(storage, mapId, player, runtime, 'slot');
     expect(result.ok).toBe(true);
     expect(result.saveIndex).toBe(1);
     expect(runtime.saveCounter).toBe(1);
@@ -52,7 +55,7 @@ describe('save persistence', () => {
       animationTime: 2
     };
     const newRuntime = createScriptRuntimeState();
-    const applied = applySaveSnapshot(loaded!, 'prototype-route', newPlayer, newRuntime);
+    const applied = applySaveSnapshot(loaded!, mapId, newPlayer, newRuntime);
 
     expect(applied).toBe(true);
     expect(newPlayer.position.x).toBe(88);
@@ -85,7 +88,7 @@ describe('save persistence', () => {
       animationTime: 0
     };
     const runtime = createScriptRuntimeState();
-    saveGameToStorage(storage, 'prototype-route', player, runtime, 'slot');
+    saveGameToStorage(storage, mapId, player, runtime, 'slot');
     const loaded = loadGameFromStorage(storage, 'slot');
 
     const targetPlayer: PlayerState = {

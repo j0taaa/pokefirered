@@ -16,7 +16,9 @@ describe('npc stepping', () => {
       height: 12,
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
-      triggers: []
+      connections: [],
+      triggers: [],
+      npcs: []
     };
     const npcs: NpcState[] = [
       {
@@ -50,7 +52,9 @@ describe('npc stepping', () => {
       height: 12,
       tileSize: 16,
       walkable: Array.from({ length: 12 * 12 }, () => true),
-      triggers: []
+      connections: [],
+      triggers: [],
+      npcs: []
     };
 
     const npc: NpcState = {
@@ -80,7 +84,16 @@ describe('npc stepping', () => {
   });
 
   test('stops npc when next probe is blocked by map', () => {
-    const map = createPrototypeRouteMap();
+    const map: TileMap = {
+      id: 'blocked-row',
+      width: 12,
+      height: 12,
+      tileSize: 16,
+      walkable: Array.from({ length: 12 * 12 }, (_, index) => Math.floor(index / 12) !== 5),
+      connections: [],
+      triggers: [],
+      npcs: []
+    };
     const npc: NpcState = {
       id: 'blocked',
       position: vec2(9 * 16, 4.1 * 16),

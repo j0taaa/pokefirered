@@ -9,12 +9,12 @@ The app currently implements a functional runtime slice:
 - Vite + TypeScript app shell (`index.html`, `src/main.ts`)
 - Fixed-step game loop
 - Browser keyboard input adapter (WASD/Arrows + Shift run + Z/Enter interact)
-- Map loading adapter boundary (`MapSource`) with JSON-backed prototype fixture
+- Map loading adapter boundary (`MapSource`) with decomp-exported compact map fixtures
 - Player movement + facing + movement animation state
 - NPC entity starter with patrol paths, idle pauses, and map-aware collision probes
 - Object-event-style NPC interaction scripts (`interactScriptId`) with face-player behavior
 - Camera-follow viewport with map-bound clamping
-- Canvas renderer with visible-tile culling and sprite-like player rendering
+- Canvas renderer with visible-tile culling, decomp-backed metatile textures, and object-event sprite rendering
 - HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
 - START menu flow with FireRed-like dynamic option composition and submenu callbacks
 - START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
@@ -111,7 +111,7 @@ The exporter is intentionally decomp-backed rather than hand-authored. Current a
 
 - The exporter currently emits only `land` wild encounters.
 - It is a read-only extraction tool; it does not write generated files into the repo by itself.
-- The runtime map interfaces in `src/world/` are still narrower than the full exporter payload, so parity tests are the main consumer of the complete export object today.
+- The runtime currently consumes collision rows, encounter rows, trigger data, and land wild encounters from the exporter payload.
 
 ## Migration note / next steps
 
@@ -121,5 +121,5 @@ Near-term next increments:
 
 1. Replace START-menu placeholder panels with fully interactive menu scenes (party/bag/options + deeper save UX parity).
 2. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
-3. Replace primitive player visuals with true sprite-sheet frames.
+3. Expand decomp-backed overworld parity beyond Route 2 with richer object movement patterns and more map fixtures.
 4. Extend battle scene parity with status conditions, proper Poké Ball shake phases, and richer AI move utility heuristics.

@@ -28,8 +28,12 @@ describe('Route 2 compact map source', () => {
     expect(map.height).toBe(exportedRoute2.height);
     expect(map.tileSize).toBe(exportedRoute2.tileSize);
     expect(map.walkable).toEqual(toWalkable(exportedRoute2.collisionRows));
+    expect(map.connections).toEqual(exportedRoute2.metadata.connections);
     expect(map.encounterTiles).toEqual(toEncounterTiles(exportedRoute2.encounterRows));
+    expect(map.wildEncounters).toEqual(exportedRoute2.wildEncounters);
     expect(map.triggers).toEqual(exportedRoute2.triggers);
+    expect(map.visual).toEqual(exportedRoute2.visual);
+    expect(map.npcs).toEqual(exportedRoute2.npcs);
   });
 
   test('validates compact row dimensions and tile markers', () => {
@@ -50,6 +54,7 @@ describe('Route 2 compact map source', () => {
     const compactSource = parseCompactMapSource(route2MapJson);
     const map = mapFromCompactSource(compactSource);
 
+    expect(map.connections).toEqual(route2MapJson.metadata.connections);
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(84);

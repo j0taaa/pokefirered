@@ -9,6 +9,8 @@ const NUM_METATILES_IN_PRIMARY = 0x200;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_MASK = 0x07000000;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_SHIFT = 24;
 const METATILE_ATTRIBUTE_BEHAVIOR_MASK = 0x000001ff;
+const METATILE_ATTRIBUTE_LAYER_TYPE_MASK = 0x60000000;
+const METATILE_ATTRIBUTE_LAYER_TYPE_SHIFT = 29;
 
 const TILE_ENCOUNTER_LAND = 1;
 const TILE_ENCOUNTER_WATER = 2;
@@ -27,13 +29,16 @@ const readWildEncounters = () =>
 
 let mapFolderIndex;
 
-const tilesetAttributePath = (tilesetName) => {
-  const snakeName = tilesetName
+const tilesetFolderName = (tilesetName) =>
+  tilesetName
     .replace(/^gTileset_/, '')
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
     .replace(/([a-zA-Z])(\d)/g, '$1_$2')
     .toLowerCase();
+
+const tilesetAttributePath = (tilesetName) => {
+  const snakeName = tilesetFolderName(tilesetName);
 
   const primaryPath = `data/tilesets/primary/${snakeName}/metatile_attributes.bin`;
   if (fs.existsSync(path.join(repoRoot, primaryPath))) {
@@ -242,6 +247,8 @@ const exportMap = (mapName, gameName = 'FireRed') => {
   const collisionRows = [];
   const encounterRows = [];
   const behaviorRows = [];
+  const metatileIds = [];
+  const layerTypes = [];
 
   for (let y = 0; y < layout.height; y += 1) {
     let collisionRow = '';
@@ -257,6 +264,10 @@ const exportMap = (mapName, gameName = 'FireRed') => {
       collisionRow += collision === 0 ? '.' : '#';
       encounterRow += toEncounterMarker(attributes);
       behaviorRow += (attributes & METATILE_ATTRIBUTE_BEHAVIOR_MASK).toString(16).padStart(2, '0');
+      metatileIds.push(metatileId);
+      layerTypes.push(
+        (attributes & METATILE_ATTRIBUTE_LAYER_TYPE_MASK) >>> METATILE_ATTRIBUTE_LAYER_TYPE_SHIFT
+      );
     }
 
     collisionRows.push(collisionRow);
@@ -284,6 +295,12 @@ const exportMap = (mapName, gameName = 'FireRed') => {
     width: layout.width,
     height: layout.height,
     tileSize: 16,
+    visual: {
+      primaryTileset: tilesetFolderName(layout.primary_tileset),
+      secondaryTileset: tilesetFolderName(layout.secondary_tileset),
+      metatileIds,
+      layerTypes
+    },
     collisionRows,
     encounterRows,
     behaviorRows,

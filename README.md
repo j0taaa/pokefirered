@@ -46,7 +46,7 @@ npm install
 npm run dev
 ```
 
-This currently renders a prototype route map with blocked terrain, camera-follow viewport, trigger markers, and a movable player with basic animation (WASD/Arrows, Shift to run, Z/Enter to interact), backed by unit-tested movement/collision/camera/NPC/trigger modules.
+This currently renders a decomp-exported Route 2 map with blocked terrain, camera-follow viewport, trigger markers, and a movable player with basic animation (WASD/Arrows, Shift to run, Z/Enter to interact), backed by unit-tested movement/collision/camera/NPC/trigger modules.
 
 ## Suggested migration phases
 

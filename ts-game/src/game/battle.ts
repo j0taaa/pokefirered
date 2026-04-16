@@ -1,4 +1,5 @@
 import type { InputSnapshot } from '../input/inputState';
+import type { WildEncounterGroup } from '../world/mapSource';
 
 export type PokemonType =
   | 'normal'
@@ -132,6 +133,14 @@ const nextBattleRng = (state: BattleEncounterState): number => {
   return state.rngState >>> 16;
 };
 
+const nextEncounterRoll = (state: BattleEncounterState, maxExclusive: number): number => {
+  if (maxExclusive <= 1) {
+    return 0;
+  }
+
+  return nextBattleRng(state) % maxExclusive;
+};
+
 // Mirrors the core Gen 3 base formula in src/pokemon.c::CalculateBaseDamage,
 // with intentionally scoped simplifications (single-hit, no weather/items/abilities).
 export const calculateBaseDamage = (
@@ -188,7 +197,7 @@ const getMapBaseEncounterCooldown = (encounterRate: number): number => {
 };
 
 // Approximation of wild_encounter.c::HandleWildEncounterCooldown without item/ability modifiers.
-export const shouldStartWildEncounter = (state: BattleEncounterState): boolean => {
+const shouldPassEncounterCooldown = (state: BattleEncounterState): boolean => {
   const minSteps = getMapBaseEncounterCooldown(state.encounterRate);
   if (state.stepsSinceLastEncounter >= minSteps) {
     return true;
@@ -196,6 +205,18 @@ export const shouldStartWildEncounter = (state: BattleEncounterState): boolean =
 
   state.stepsSinceLastEncounter += 1;
   return (nextBattleRng(state) % 100) < 5;
+};
+
+// Mirrors the decomp's second encounter-rate gate after cooldown has passed.
+const shouldPassEncounterRateTest = (state: BattleEncounterState): boolean =>
+  (nextBattleRng(state) % 100) < state.encounterRate;
+
+export const shouldStartWildEncounter = (state: BattleEncounterState): boolean => {
+  if (!shouldPassEncounterCooldown(state)) {
+    return false;
+  }
+
+  return shouldPassEncounterRateTest(state);
 };
 
 const tryRunFromBattle = (
@@ -314,20 +335,61 @@ export const createBattleState = (): BattleState => {
   };
 };
 
+const chooseWildEncounterMon = (
+  encounterGroup: WildEncounterGroup,
+  encounterState: BattleEncounterState
+): BattlePokemonSnapshot => {
+  const totalWeight = encounterGroup.mons.reduce((sum, mon) => sum + mon.slotRate, 0);
+  let roll = nextEncounterRoll(encounterState, Math.max(1, totalWeight));
+  let selectedMon = encounterGroup.mons[0];
+
+  for (const mon of encounterGroup.mons) {
+    if (roll < mon.slotRate) {
+      selectedMon = mon;
+      break;
+    }
+
+    roll -= mon.slotRate;
+  }
+
+  const minLevel = Math.min(selectedMon.minLevel, selectedMon.maxLevel);
+  const maxLevel = Math.max(selectedMon.minLevel, selectedMon.maxLevel);
+  const level = minLevel + nextEncounterRoll(encounterState, maxLevel - minLevel + 1);
+  const species = selectedMon.species.replace(/^SPECIES_/, '');
+  const baseHp = 10 + level * 2;
+
+  return {
+    species,
+    level,
+    maxHp: baseHp,
+    hp: baseHp,
+    attack: 5 + level,
+    defense: 5 + level,
+    speed: 5 + level,
+    catchRate: 255,
+    types: ['normal'],
+    status: 'none'
+  };
+};
+
 export const tryStartWildBattle = (
   battle: BattleState,
   encounter: BattleEncounterState,
   playerMoved: boolean,
-  canEncounter: boolean
+  canEncounter: boolean,
+  encounterGroup?: WildEncounterGroup
 ): boolean => {
-  if (!playerMoved || battle.active || !canEncounter) {
+  if (!playerMoved || battle.active || !canEncounter || !encounterGroup) {
     return false;
   }
+
+  encounter.encounterRate = encounterGroup.encounterRate;
 
   if (!shouldStartWildEncounter(encounter)) {
     return false;
   }
 
+  battle.wildMon = chooseWildEncounterMon(encounterGroup, encounter);
   battle.active = true;
   battle.phase = 'intro';
   battle.wildMon.hp = battle.wildMon.maxHp;

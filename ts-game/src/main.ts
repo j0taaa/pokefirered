@@ -3,9 +3,9 @@ import { GameLoop } from './core/gameLoop';
 import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
 import { CanvasRenderer } from './rendering/canvasRenderer';
-import { loadPrototypeRouteMap } from './world/mapSource';
-import { createPlayer, stepPlayer } from './game/player';
-import { collidesWithNpcs, createPrototypeNpcs, stepNpcs } from './game/npc';
+import { loadMapById, loadRoute2Map } from './world/mapSource';
+import { createPlayer, getPlayerTilePosition, resolveInputDirection, stepPlayer } from './game/player';
+import { collidesWithNpcs, createMapNpcs, stepNpcs } from './game/npc';
 import { createDialogueState, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
@@ -21,6 +21,7 @@ import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
 import { createBattleOverlay, updateBattleOverlay } from './ui/battleOverlay';
 import { createBattleEncounterState, createBattleState, isBattleBlockingWorld, stepBattle, tryStartWildBattle } from './game/battle';
 import { hasLandEncounterAtPixel } from './world/tileMap';
+import { resolveMapConnectionTransition } from './game/mapConnections';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -43,9 +44,8 @@ shell.append(battleOverlay.root);
 
 app.append(shell);
 
-const map = loadPrototypeRouteMap();
+const defaultMap = loadRoute2Map();
 const player = createPlayer();
-const npcs = createPrototypeNpcs();
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
 const startMenu = createStartMenuState();
@@ -56,6 +56,9 @@ input.attach();
 
 const storage = window.localStorage;
 const loadedSave = loadGameFromStorage(storage, DEFAULT_SAVE_SLOT_KEY);
+let map = loadedSave ? (loadMapById(loadedSave.mapId) ?? defaultMap) : defaultMap;
+let npcs = createMapNpcs(map);
+
 if (loadedSave && applySaveSnapshot(loadedSave, map.id, player, scriptRuntime)) {
   scriptRuntime.lastScriptId = `save.load.success.${loadedSave.saveIndex}`;
 }
@@ -97,8 +100,7 @@ const loop = new GameLoop({
       );
     }
 
-    const previousX = player.position.x;
-    const previousY = player.position.y;
+    const previousTile = getPlayerTilePosition(player.position, map.tileSize);
 
     if (!dialogue.active && !isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle)) {
       stepPlayer(
@@ -109,8 +111,26 @@ const loop = new GameLoop({
         (nextPosition) => collidesWithNpcs(nextPosition, npcs)
       );
 
-      const movedThisFrame = previousX !== player.position.x || previousY !== player.position.y;
-      if (movedThisFrame) {
+      const currentTile = getPlayerTilePosition(player.position, map.tileSize);
+      const enteredNewTile = previousTile.x !== currentTile.x || previousTile.y !== currentTile.y;
+      const connectionTransition = !enteredNewTile
+        ? resolveMapConnectionTransition(
+          map,
+          currentTile.x,
+          currentTile.y,
+          resolveInputDirection(snapshot),
+          loadMapById
+        )
+        : null;
+
+      if (connectionTransition) {
+        map = connectionTransition.map;
+        npcs = createMapNpcs(map);
+        player.position.x = connectionTransition.playerPosition.x;
+        player.position.y = connectionTransition.playerPosition.y;
+        player.moving = false;
+        player.animationTime = 0;
+      } else if (enteredNewTile) {
         runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
           player,
           dialogue,
@@ -119,7 +139,13 @@ const loop = new GameLoop({
         });
 
         const canEncounter = hasLandEncounterAtPixel(map, player.position);
-        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame, canEncounter)) {
+        if (tryStartWildBattle(
+          battle,
+          battleEncounter,
+          enteredNewTile,
+          canEncounter,
+          map.wildEncounters?.land
+        )) {
           scriptRuntime.lastScriptId = 'battle.wild.start';
         }
       }
