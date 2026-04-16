@@ -115,7 +115,7 @@ This phase exists only to support the core mechanics phases below. Do not treat 
 - [x] Add Route 3 compact/decomp-backed map data and parity tests.
 - [x] Add Route 4 compact/decomp-backed map data and parity tests.
 - [x] Add Cerulean City compact/decomp-backed map data and parity tests.
-- [ ] Add Route 24 and Route 25 compact/decomp-backed map data and parity tests.
+- [/] Add Route 24 and Route 25 compact/decomp-backed map data and parity tests.
 - [ ] Add Route 5/6/7/8/9/10 maps and connection tests.
 - [ ] Add Vermilion City map and connection tests.
 - [ ] Add Rock Tunnel outdoor entrances.

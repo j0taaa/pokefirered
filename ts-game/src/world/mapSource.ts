@@ -2,6 +2,8 @@ import ceruleanCityMapJson from './maps/ceruleanCity.json';
 import palletTownMapJson from './maps/palletTown.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
+import route24MapJson from './maps/route24.json';
+import route25MapJson from './maps/route25.json';
 import route3MapJson from './maps/route3.json';
 import route4MapJson from './maps/route4.json';
 import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
@@ -646,6 +648,12 @@ export const loadPewterCityMap = (): TileMap =>
 
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
+
+export const loadRoute24Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route24MapJson));
+
+export const loadRoute25Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route25MapJson));
 
 export const loadRoute3Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route3MapJson));

@@ -4,6 +4,8 @@ import {
   loadCeruleanCityMap,
   loadPewterCityMap,
   loadRoute2Map,
+  loadRoute24Map,
+  loadRoute25Map,
   loadRoute3Map,
   loadRoute4Map,
   loadRoute2ViridianForestNorthEntranceMap,
@@ -41,6 +43,10 @@ export const createCeruleanCityMap = (): TileMap => loadCeruleanCityMap();
 export const createPewterCityMap = (): TileMap => loadPewterCityMap();
 
 export const createRoute2Map = (): TileMap => loadRoute2Map();
+
+export const createRoute24Map = (): TileMap => loadRoute24Map();
+
+export const createRoute25Map = (): TileMap => loadRoute25Map();
 
 export const createRoute3Map = (): TileMap => loadRoute3Map();
 
