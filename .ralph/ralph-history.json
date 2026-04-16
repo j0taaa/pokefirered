@@ -2,48 +2,49 @@
   "iterations": [
     {
       "iteration": 1,
-      "startedAt": "2026-04-16T02:38:18.120Z",
-      "endedAt": "2026-04-16T02:43:25.909Z",
-      "durationMs": 235750,
+      "startedAt": "2026-04-16T10:13:35.154Z",
+      "endedAt": "2026-04-16T10:20:39.644Z",
+      "durationMs": 347078,
       "agent": "opencode",
       "model": "",
       "toolsUsed": {},
       "filesModified": [
         ".ralph/ralph-tasks.md",
-        "ts-game/scripts/export-decomp-map.mjs",
-        "ts-game/test/exportDecompMap.test.ts"
+        "ts-game/src/game/battle.ts",
+        "ts-game/src/main.ts",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/test/battle.test.ts",
+        "ts-game/test/mapSource.test.ts",
+        "ts-game/test/tileMap.test.ts",
+        "ts-game/src/world/maps/route2.json",
+        "ts-game/test/route2Map.test.ts"
       ],
       "exitCode": 0,
       "completionDetected": false,
       "errors": [
-        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/test/batchExport.test.ts"
-      ]
-    },
-    {
-      "iteration": 2,
-      "startedAt": "2026-04-16T02:44:39.745Z",
-      "endedAt": "2026-04-16T02:47:28.062Z",
-      "durationMs": 95918,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/README.md"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": [
-        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/test/batchExport.test.ts",
-        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/scripts/manifests/early-game.json"
+        "The only failure was a bad expectation in the new encounter-row test, not a code issue. I corrected that and am rerunning the full checks plus `git diff --check` before I update the Ralph task file.",
+        "\u001b[91m\u001b[1mError: \u001b[0mapply_patch verification failed: Error: Failed to find expected lines in /Users/jota/Documents/codigos/pokefirered/ts-game/src/world/mapSource.ts:",
+        "❯ test/route2Map.test.ts (4 tests | 1 failed) 55ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/route2Map.test.ts > Route 2 compact map source > derives encounter tiles from compact rows",
+        "AssertionError: expected [ 'L', 'L', 'L', 'L', 'L', 'L', …(78) ] to have a length of 63 but got 84",
+        "Test Files  1 failed | 12 passed (13)",
+        "Tests  1 failed | 58 passed (59)"
       ]
     }
   ],
-  "totalDurationMs": 331668,
+  "totalDurationMs": 347078,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/test/batchExpo": 2,
-      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/scripts/manife": 1
+      "The only failure was a bad expectation in the new encounter-row test, not a code issue. I corrected ": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mapply_patch verification failed: Error: Failed to find expected lines in /Users/": 1,
+      "❯ test/route2Map.test.ts (4 tests | 1 failed) 55ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/route2Map.test.ts > Route 2 compact map source > derives encounter tiles from compact row": 1,
+      "AssertionError: expected [ 'L', 'L', 'L', 'L', 'L', 'L', …(78) ] to have a length of 63 but got 84": 1,
+      "Test Files  1 failed | 12 passed (13)": 1,
+      "Tests  1 failed | 58 passed (59)": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

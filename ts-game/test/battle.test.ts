@@ -53,7 +53,7 @@ describe('battle vertical slice', () => {
 
     let started = false;
     for (let i = 0; i < 6; i += 1) {
-      started = tryStartWildBattle(battle, encounter, true);
+      started = tryStartWildBattle(battle, encounter, true, true);
       if (started) {
         break;
       }
@@ -63,6 +63,17 @@ describe('battle vertical slice', () => {
     expect(battle.active).toBe(true);
     expect(battle.phase).toBe('intro');
     expect(battle.turnSummary).toContain('appeared');
+  });
+
+  test('does not start a wild battle outside encounter tiles', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    for (let i = 0; i < 10; i += 1) {
+      expect(tryStartWildBattle(battle, encounter, true, false)).toBe(false);
+    }
+
+    expect(battle.active).toBe(false);
   });
 
   test('advances intro, allows move selection, and resolves faint flow', () => {

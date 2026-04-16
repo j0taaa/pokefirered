@@ -1,4 +1,5 @@
 import prototypeRouteMapJson from './maps/prototypeRoute.json';
+import route2MapJson from './maps/route2.json';
 import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
@@ -31,6 +32,17 @@ export interface MapSource {
   height: number;
   tileSize: number;
   walkable: boolean[];
+  encounterTiles?: string[];
+  triggers?: TriggerZone[];
+}
+
+export interface CompactMapSource {
+  id: string;
+  width: number;
+  height: number;
+  tileSize: number;
+  collisionRows: string[];
+  encounterRows?: string[];
   triggers?: TriggerZone[];
 }
 
@@ -39,6 +51,13 @@ const isPositiveInteger = (value: unknown): value is number =>
 
 const isBooleanArray = (value: unknown): value is boolean[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'boolean');
+
+const isEncounterTileArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => entry === '.' || entry === 'L' || entry === 'W');
+
+const isTileRows = (value: unknown, width: number, allowedPattern: RegExp): value is string[] =>
+  Array.isArray(value)
+  && value.every((row) => typeof row === 'string' && row.length === width && allowedPattern.test(row));
 
 const isFacing = (value: unknown): value is TriggerFacing =>
   value === 'any' || value === 'up' || value === 'down' || value === 'left' || value === 'right';
@@ -157,15 +176,38 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.encounterTiles && source.encounterTiles.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has encounterTiles length ${source.encounterTiles.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
     walkable: [...source.walkable],
+    encounterTiles: source.encounterTiles ? [...source.encounterTiles] : undefined,
     triggers: source.triggers ? [...source.triggers] : []
   };
 };
+
+const flattenRows = (rows: string[]): string[] => rows.flatMap((row) => [...row]);
+
+const walkableFromCollisionRows = (collisionRows: string[]): boolean[] =>
+  flattenRows(collisionRows).map((tile) => tile === '.');
+
+export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
+  mapFromSource({
+    id: source.id,
+    width: source.width,
+    height: source.height,
+    tileSize: source.tileSize,
+    walkable: walkableFromCollisionRows(source.collisionRows),
+    encounterTiles: source.encounterRows ? flattenRows(source.encounterRows) : undefined,
+    triggers: source.triggers
+  });
 
 export const parseMapSource = (raw: unknown): MapSource => {
   if (!raw || typeof raw !== 'object') {
@@ -191,6 +233,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include a boolean walkable array.`);
   }
 
+  if (candidate.encounterTiles !== undefined && !isEncounterTileArray(candidate.encounterTiles)) {
+    throw new Error(`Map source "${id}" must include encounterTiles using ., L, or W markers.`);
+  }
+
   if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
     throw new Error(`Map source "${id}" triggers must be an array.`);
   }
@@ -201,9 +247,72 @@ export const parseMapSource = (raw: unknown): MapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     walkable: candidate.walkable,
+    encounterTiles: candidate.encounterTiles as string[] | undefined,
+    triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id))
+  };
+};
+
+export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Compact map source payload must be an object.');
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  const id = candidate.id;
+
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error('Compact map source id must be a non-empty string.');
+  }
+
+  if (!isPositiveInteger(candidate.width) || !isPositiveInteger(candidate.height)) {
+    throw new Error(`Compact map source "${id}" must define positive integer width and height.`);
+  }
+
+  if (!isPositiveInteger(candidate.tileSize)) {
+    throw new Error(`Compact map source "${id}" must define a positive integer tileSize.`);
+  }
+
+  if (!isTileRows(candidate.collisionRows, candidate.width, /^[.#]+$/u)) {
+    throw new Error(
+      `Compact map source "${id}" must include collisionRows made of ${candidate.width} '.'/'#' tiles.`
+    );
+  }
+
+  if (candidate.collisionRows.length !== candidate.height) {
+    throw new Error(
+      `Compact map source "${id}" has ${candidate.collisionRows.length} collision rows, expected ${candidate.height}.`
+    );
+  }
+
+  if (candidate.encounterRows !== undefined && !isTileRows(candidate.encounterRows, candidate.width, /^[.LW]+$/u)) {
+    throw new Error(
+      `Compact map source "${id}" must include encounterRows made of ${candidate.width} '.', 'L', or 'W' tiles.`
+    );
+  }
+
+  if (candidate.encounterRows !== undefined && candidate.encounterRows.length !== candidate.height) {
+    throw new Error(
+      `Compact map source "${id}" has ${candidate.encounterRows.length} encounter rows, expected ${candidate.height}.`
+    );
+  }
+
+  if (candidate.triggers !== undefined && !Array.isArray(candidate.triggers)) {
+    throw new Error(`Compact map source "${id}" triggers must be an array.`);
+  }
+
+  return {
+    id,
+    width: candidate.width,
+    height: candidate.height,
+    tileSize: candidate.tileSize,
+    collisionRows: [...candidate.collisionRows],
+    encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id))
   };
 };
 
 export const loadPrototypeRouteMap = (): TileMap =>
   mapFromSource(parseMapSource(prototypeRouteMapJson));
+
+export const loadRoute2Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route2MapJson));

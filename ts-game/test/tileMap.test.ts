@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { createPrototypeRouteMap, isWalkableAtPixel } from '../src/world/tileMap';
+import { createPrototypeRouteMap, hasLandEncounterAtPixel, isWalkableAtPixel } from '../src/world/tileMap';
 
 describe('tile map collision probes', () => {
   test('blocks the outer border tiles', () => {
@@ -13,5 +13,11 @@ describe('tile map collision probes', () => {
     const map = createPrototypeRouteMap();
 
     expect(isWalkableAtPixel(map, { x: 10 * 16 + 8, y: 5 * 16 + 8 })).toBe(true);
+  });
+
+  test('does not report land encounters on maps without encounter markers', () => {
+    const map = createPrototypeRouteMap();
+
+    expect(hasLandEncounterAtPixel(map, { x: 10 * 16 + 8, y: 5 * 16 + 8 })).toBe(false);
   });
 });

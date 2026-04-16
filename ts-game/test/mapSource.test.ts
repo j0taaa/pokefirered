@@ -9,6 +9,7 @@ describe('map source loading', () => {
     expect(map.height).toBe(15);
     expect(map.tileSize).toBe(16);
     expect(map.walkable.length).toBe(300);
+    expect(map.encounterTiles).toBeUndefined();
     expect(map.triggers.length).toBeGreaterThan(0);
   });
 
@@ -22,6 +23,19 @@ describe('map source loading', () => {
         walkable: [true, false, true]
       })
     ).toThrow(/walkable length/i);
+  });
+
+  test('throws when encounter tile length does not match map size', () => {
+    expect(() =>
+      mapFromSource({
+        id: 'broken-encounters',
+        width: 2,
+        height: 2,
+        tileSize: 16,
+        walkable: [true, false, true, false],
+        encounterTiles: ['L', '.', 'L']
+      })
+    ).toThrow(/encounterTiles length/i);
   });
 
   test('validates raw map source payloads', () => {
@@ -38,6 +52,17 @@ describe('map source loading', () => {
         walkable: [1, 2]
       })
     ).toThrow(/boolean walkable array/i);
+
+    expect(() =>
+      parseMapSource({
+        id: 'bad-encounters',
+        width: 1,
+        height: 1,
+        tileSize: 16,
+        walkable: [true],
+        encounterTiles: ['X']
+      })
+    ).toThrow(/encounterTiles/i);
   });
 
 

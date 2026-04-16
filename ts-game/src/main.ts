@@ -20,6 +20,7 @@ import {
 import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
 import { createBattleOverlay, updateBattleOverlay } from './ui/battleOverlay';
 import { createBattleEncounterState, createBattleState, isBattleBlockingWorld, stepBattle, tryStartWildBattle } from './game/battle';
+import { hasLandEncounterAtPixel } from './world/tileMap';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -117,7 +118,8 @@ const loop = new GameLoop({
           scriptRegistry: prototypeScriptRegistry
         });
 
-        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame)) {
+        const canEncounter = hasLandEncounterAtPixel(map, player.position);
+        if (tryStartWildBattle(battle, battleEncounter, movedThisFrame, canEncounter)) {
           scriptRuntime.lastScriptId = 'battle.wild.start';
         }
       }
