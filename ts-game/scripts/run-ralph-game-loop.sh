@@ -96,6 +96,7 @@ Hard rules:
 - Keep browser-port work under ts-game/ except repo-root documentation updates.
 - Always compare behavior and data against the original decomp C/ASM/data in this repository before implementing.
 - Prefer exporter/data-driven adapters over hand-authored placeholders.
+- Prioritize core mechanics before map breadth. Do not spend long runs adding new routes/cities while warps, scripts, party/items, battle rules, trainers, menus, saves, and story progression are still incomplete.
 - Add/update tests for non-trivial logic.
 - Run relevant checks before marking tasks complete.
 - Update .ralph/ralph-tasks.md by checking off completed items and adding a short dated progress note.
@@ -110,6 +111,8 @@ cd .. && git diff --check
 
 If you add or change exported map data, also run relevant:
 cd ts-game && npm run export:map -- <MapName>
+
+When choosing between "add another route" and "make the current playable slice behave more like real FireRed," choose the mechanic/system task first.
 
 When blocked, write the blocker and exact file paths into the Ralph progress notes, then continue with the next independent task.
 PROMPT

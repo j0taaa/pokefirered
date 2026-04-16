@@ -7,6 +7,7 @@ This file is the task source for the Ralph/OpenCode loop. Work from top to botto
 - Stay scoped to the browser-port track under `ts-game/` unless a docs-only repo-root update is required.
 - Always compare behavior against the original decomp C/ASM/data files before implementing.
 - Prefer generated/exported data from the original decomp tree over hand-authored placeholder data.
+- Prioritize core mechanics over map breadth. Do not add more routes/cities just because they are adjacent if scripts, warps, party/items, battle rules, menus, saves, trainer flow, and story progression are still incomplete.
 - Keep the app runnable after every task.
 - Add or update tests for non-trivial logic.
 - Run the relevant checks before marking a task complete.
@@ -39,6 +40,36 @@ npm run export:map -- ViridianCity
 
 Add newly supported maps to the exporter sanity list as they land.
 
+## Priority Order
+
+Ralph must follow this order:
+
+1. Finish core runtime/export foundations needed for the real game loop.
+2. Finish core mechanics so the game actually works: warps, scripts, player field movement, party/items/growth, battle rules, trainers, saves, menus, and story-state progression.
+3. Only after the core mechanics phases are effectively complete should Ralph spend long runs adding more route/city coverage beyond the minimal set needed to exercise those systems.
+
+When choosing between "add another map" and "make the existing playable slice behave more like real FireRed," choose the mechanic/system task first.
+
+## Route Expansion Gate
+
+Do not prioritize broad map expansion until these areas are in strong shape:
+
+- Warp/event export and runtime support
+- Indoor map flow for core early-game buildings
+- Script engine parity for common field scripts
+- Tile-based player movement and field interactions
+- Party, item, and progression state
+- Battle rules beyond the current prototype
+- Trainer battles and story gating
+- Save compatibility for the expanded state
+- Menus needed to actually play the game
+
+Allowed map work before that gate:
+
+- The smallest number of maps required to unblock one of the core mechanics above
+- Parity fixes for already-added maps
+- Interior maps required for starter, healing, shopping, gym locks, or immediate story flow
+
 ## Completion Definition
 
 The browser port is "finished" when the player can complete the main FireRed game flow in-browser with original maps/scripts/trainers/items/battles/save behavior at practical parity:
@@ -67,10 +98,12 @@ The browser port is "finished" when the player can complete the main FireRed gam
 - [x] Add exporter support for map labels that differ from folder names.
 - [x] Document exporter inputs, outputs, and decomp parity assumptions in `ts-game/README.md`.
 
-## Phase 2 - Outdoor Map Coverage
+## Phase 2 - Minimal Core Map Set Only
+
+This phase exists only to support the core mechanics phases below. Do not treat it as a license to keep expanding map coverage indefinitely before the actual game works well.
 
 - [x] Add Route 2 compact/decomp-backed map data and parity tests.
-- [ ] Wire Viridian City north connection to Route 2.
+- [/] Wire Viridian City north connection to Route 2.
 - [ ] Add Route 22 compact/decomp-backed map data and parity tests.
 - [ ] Wire Viridian City west connection to Route 22.
 - [ ] Add Route 21 North compact/decomp-backed map data and parity tests.
@@ -161,42 +194,9 @@ The browser port is "finished" when the player can complete the main FireRed gam
 - [ ] Add map transition animation/fade state.
 - [ ] Add collision tests for water, surf, cut trees, strength boulders, and ledges.
 
-## Phase 6 - Rendering And Assets
+## Phase 6 - Party, Pokémon Data, Items, And Growth
 
-- [ ] Build an asset extraction pipeline for tileset graphics suitable for browser rendering.
-- [ ] Render maps from original metatile graphics rather than debug colors.
-- [ ] Render primary and secondary tilesets with palettes.
-- [ ] Render animated tiles for water, flowers, doors, and special tiles.
-- [ ] Replace player marker with original overworld sprites.
-- [ ] Add NPC sprite rendering from object graphics ids.
-- [ ] Add movement animations for player and NPCs.
-- [ ] Add object event sprites for item balls, cut trees, boulders, and water NPCs.
-- [ ] Add battle transition visual.
-- [ ] Add dialogue box visual close to FireRed.
-- [ ] Add menu window rendering close to FireRed.
-- [ ] Add map name popup rendering.
-- [ ] Add fade transitions for map loads and warps.
-- [ ] Add asset loading tests/smoke checks.
-
-## Phase 7 - Menus And UI Systems
-
-- [ ] Finish START menu option parity with original dynamic entries.
-- [ ] Implement party menu with six Pokémon slots.
-- [ ] Implement Pokémon summary screens.
-- [ ] Implement bag pockets and item use.
-- [ ] Implement trainer card.
-- [ ] Implement Pokédex list/detail shell.
-- [ ] Implement save confirmation and overwrite flow at closer parity.
-- [ ] Implement options screen with persisted settings.
-- [ ] Implement map/town map view.
-- [ ] Implement PC storage UI enough for story completion.
-- [ ] Implement shop buy/sell UI.
-- [ ] Implement move selection UI outside battle for HMs/TMs.
-- [ ] Implement naming screen for player/rival/Pokémon.
-- [ ] Add keyboard/gamepad remapping support.
-- [ ] Add responsive/mobile touch controls after desktop parity is stable.
-
-## Phase 8 - Party, Pokémon Data, Items, And Growth
+These systems take priority over adding more routes once the minimal core map set exists.
 
 - [ ] Export Pokémon species base stats/types/abilities from decomp data.
 - [ ] Export move data with power/type/accuracy/category/effects.
@@ -212,7 +212,9 @@ The browser port is "finished" when the player can complete the main FireRed gam
 - [ ] Implement money and prize payouts.
 - [ ] Add save/load migration for party, bag, Pokédex, money, badges, and playtime.
 
-## Phase 9 - Battle System
+## Phase 7 - Battle System
+
+These battle tasks should be finished before broad route expansion.
 
 - [ ] Replace prototype damage with Gen 3 damage formula.
 - [ ] Add physical/special split by type for Gen 3.
@@ -233,7 +235,9 @@ The browser port is "finished" when the player can complete the main FireRed gam
 - [ ] Add battle tests using known Gen 3 formula examples.
 - [ ] Add trainer rematch/defeated flags.
 
-## Phase 10 - Trainers, Encounters, Gyms, And Story Progression
+## Phase 8 - Trainers, Encounters, Gyms, And Story Progression
+
+These progression systems should be in place before mass map expansion.
 
 - [ ] Export trainer parties and trainer metadata.
 - [ ] Add trainer sight-line detection.
@@ -251,7 +255,27 @@ The browser port is "finished" when the player can complete the main FireRed gam
 - [ ] Add Safari Zone encounter and step rules.
 - [ ] Add story gate tests for badge/HM progression.
 
-## Phase 11 - Save, Persistence, And Compatibility
+## Phase 9 - Menus And UI Systems
+
+These menu tasks should also be treated as core game functionality, not polish.
+
+- [ ] Finish START menu option parity with original dynamic entries.
+- [ ] Implement party menu with six Pokémon slots.
+- [ ] Implement Pokémon summary screens.
+- [ ] Implement bag pockets and item use.
+- [ ] Implement trainer card.
+- [ ] Implement Pokédex list/detail shell.
+- [ ] Implement save confirmation and overwrite flow at closer parity.
+- [ ] Implement options screen with persisted settings.
+- [ ] Implement map/town map view.
+- [ ] Implement PC storage UI enough for story completion.
+- [ ] Implement shop buy/sell UI.
+- [ ] Implement move selection UI outside battle for HMs/TMs.
+- [ ] Implement naming screen for player/rival/Pokémon.
+- [ ] Add keyboard/gamepad remapping support.
+- [ ] Add responsive/mobile touch controls after desktop parity is stable.
+
+## Phase 10 - Save, Persistence, And Compatibility
 
 - [ ] Expand save schema for all game state.
 - [ ] Add schema migration tests.
@@ -260,6 +284,25 @@ The browser port is "finished" when the player can complete the main FireRed gam
 - [ ] Add autosave/dev save utilities gated behind dev mode.
 - [ ] Add import/export save JSON for debugging.
 - [ ] Add deterministic RNG seed persistence for tests where useful.
+
+## Phase 11 - Rendering And Assets
+
+Rendering still matters, but it should not outrank missing core game systems.
+
+- [ ] Build an asset extraction pipeline for tileset graphics suitable for browser rendering.
+- [ ] Render maps from original metatile graphics rather than debug colors.
+- [ ] Render primary and secondary tilesets with palettes.
+- [ ] Render animated tiles for water, flowers, doors, and special tiles.
+- [ ] Replace player marker with original overworld sprites.
+- [ ] Add NPC sprite rendering from object graphics ids.
+- [ ] Add movement animations for player and NPCs.
+- [ ] Add object event sprites for item balls, cut trees, boulders, and water NPCs.
+- [ ] Add battle transition visual.
+- [ ] Add dialogue box visual close to FireRed.
+- [ ] Add menu window rendering close to FireRed.
+- [ ] Add map name popup rendering.
+- [ ] Add fade transitions for map loads and warps.
+- [ ] Add asset loading tests/smoke checks.
 
 ## Phase 12 - Audio
 
