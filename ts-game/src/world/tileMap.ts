@@ -1,6 +1,7 @@
 import type { Vec2 } from '../core/vec2';
 import {
   loadPrototypeRouteMap,
+  loadCeruleanCityMap,
   loadPewterCityMap,
   loadRoute2Map,
   loadRoute3Map,
@@ -34,6 +35,8 @@ export interface TileMap {
 }
 
 export const createPrototypeRouteMap = (): TileMap => loadPrototypeRouteMap();
+
+export const createCeruleanCityMap = (): TileMap => loadCeruleanCityMap();
 
 export const createPewterCityMap = (): TileMap => loadPewterCityMap();
 
