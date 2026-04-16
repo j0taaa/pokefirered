@@ -2,6 +2,7 @@ import palletTownMapJson from './maps/palletTown.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
 import route3MapJson from './maps/route3.json';
+import route4MapJson from './maps/route4.json';
 import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
 import route2ViridianForestSouthEntranceMapJson from './maps/route2ViridianForestSouthEntrance.json';
 import route21NorthMapJson from './maps/route21North.json';
@@ -644,6 +645,9 @@ export const loadRoute2Map = (): TileMap =>
 
 export const loadRoute3Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route3MapJson));
+
+export const loadRoute4Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route4MapJson));
 
 export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2ViridianForestNorthEntranceMapJson));
