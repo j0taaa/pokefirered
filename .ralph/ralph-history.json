@@ -30,14 +30,30 @@
         "The file generation command failed on shell interpolation; retrying with a quoted Node one-liner, then I’ll patch the runtime and tests around it.",
         "TypeError [ERR_INVALID_ARG_TYPE]: The \"data\" argument must be of type string or an instance of Buffer, TypedArray, or DataView. Received undefined"
       ]
+    },
+    {
+      "iteration": 2,
+      "startedAt": "2026-04-16T10:54:39.037Z",
+      "endedAt": "2026-04-16T10:58:41.529Z",
+      "durationMs": 163819,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/src/world/maps/route22.json",
+        "ts-game/test/route22Map.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": []
     }
   ],
-  "totalDurationMs": 483672,
+  "totalDurationMs": 647491,
   "struggleIndicators": {
-    "repeatedErrors": {
-      "The file generation command failed on shell interpolation; retrying with a quoted Node one-liner, th": 1,
-      "TypeError [ERR_INVALID_ARG_TYPE]: The \"data\" argument must be of type string or an instance of Buffe": 1
-    },
+    "repeatedErrors": {},
     "noProgressIterations": 0,
     "shortIterations": 0
   }

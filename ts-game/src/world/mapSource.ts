@@ -1,4 +1,5 @@
 import route2MapJson from './maps/route2.json';
+import route22MapJson from './maps/route22.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
 
@@ -572,6 +573,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
 
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
+
+export const loadRoute22Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route22MapJson));
 
 export const loadViridianCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityMapJson));
