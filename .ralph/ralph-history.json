@@ -1,0 +1,398 @@
+{
+  "iterations": [
+    {
+      "iteration": 1,
+      "startedAt": "2026-04-15T23:12:06.975Z",
+      "endedAt": "2026-04-15T23:16:47.422Z",
+      "durationMs": 203637,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/export-decomp-map.mjs",
+        ".ralph/ralph-opencode.config.json"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": []
+    },
+    {
+      "iteration": 2,
+      "startedAt": "2026-04-15T23:18:08.766Z",
+      "endedAt": "2026-04-15T23:21:41.382Z",
+      "durationMs": 138734,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/test/warpExport.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": []
+    },
+    {
+      "iteration": 3,
+      "startedAt": "2026-04-15T23:22:57.197Z",
+      "endedAt": "2026-04-15T23:29:20.690Z",
+      "durationMs": 311155,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/maps/palletTown.ts",
+        "ts-game/src/world/maps/route1.ts",
+        "ts-game/src/world/maps/viridianCity.json",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/test/mapSource.test.ts",
+        "ts-game/test/npc.test.ts",
+        "ts-game/test/tileMap.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": []
+    },
+    {
+      "iteration": 4,
+      "startedAt": "2026-04-15T23:30:35.618Z",
+      "endedAt": "2026-04-15T23:39:43.199Z",
+      "durationMs": 475273,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/main.ts",
+        "ts-game/src/game/warps.ts",
+        "ts-game/test/warps.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "❯ test/warps.test.ts (36 tests | 2 failed) 32ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/warps.test.ts > detectWarpAtPlayerPosition > detects arrow warp when metatile behavior is directional arrow",
+        "AssertionError: expected false to be true // Object.is equality",
+        "FAIL  test/warps.test.ts > warp detection with real map data > detects warp when player steps onto Viridian Pokemon Center door",
+        "AssertionError: expected 105 to be +0 // Object.is equality",
+        "Test Files  1 failed | 13 passed (14)",
+        "Tests  2 failed | 134 passed (136)"
+      ]
+    },
+    {
+      "iteration": 5,
+      "startedAt": "2026-04-15T23:40:57.685Z",
+      "endedAt": "2026-04-15T23:50:51.137Z",
+      "durationMs": 520898,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/game/scripts.ts",
+        "ts-game/src/game/warps.ts",
+        "ts-game/src/main.ts",
+        "ts-game/test/warps.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "❯ test/warps.test.ts (56 tests | 1 failed) 24ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/warps.test.ts > recordUnloadedWarpAttempt / clearUnloadedWarpAttempt > unloaded warp attempt is not persisted in save snapshot",
+        "Error: Cannot find module '../src/game/saveData'",
+        "Test Files  1 failed | 13 passed (14)",
+        "Tests  1 failed | 155 passed (156)"
+      ]
+    },
+    {
+      "iteration": 6,
+      "startedAt": "2026-04-15T23:52:06.260Z",
+      "endedAt": "2026-04-15T23:57:27.802Z",
+      "durationMs": 248937,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/export-decomp-map.mjs",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/maps/palletTown.ts",
+        "ts-game/src/world/maps/route1.ts",
+        "ts-game/src/world/maps/viridianCity.json",
+        "ts-game/test/mapSource.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/data"
+      ]
+    },
+    {
+      "iteration": 7,
+      "startedAt": "2026-04-15T23:58:42.379Z",
+      "endedAt": "2026-04-16T00:04:18.839Z",
+      "durationMs": 263389,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/test/mapSource.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/data/mapSource.ts"
+      ]
+    },
+    {
+      "iteration": 8,
+      "startedAt": "2026-04-16T00:05:33.701Z",
+      "endedAt": "2026-04-16T00:23:21.120Z",
+      "durationMs": 976612,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/export-decomp-map.mjs",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/maps/palletTown.ts",
+        "ts-game/src/world/maps/route1.ts",
+        "ts-game/src/world/maps/viridianCity.json",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/test/mapSource.test.ts",
+        "ts-game/test/npc.test.ts",
+        "ts-game/test/tileMap.test.ts",
+        "ts-game/test/warps.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/game/mapSource.ts",
+        "\u001b[91m\u001b[1mError: \u001b[0mFound multiple matches for oldString. Provide more surrounding context to make the match unique.",
+        "json.decoder.JSONDecodeError: Expecting value: line 2 column 1 (char 1)"
+      ]
+    },
+    {
+      "iteration": 9,
+      "startedAt": "2026-04-16T00:24:35.234Z",
+      "endedAt": "2026-04-16T00:37:15.639Z",
+      "durationMs": 687318,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/export-decomp-map.mjs",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/maps/palletTown.ts",
+        "ts-game/src/world/maps/route1.ts",
+        "ts-game/src/world/maps/viridianCity.json",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/test/mapSource.test.ts",
+        "ts-game/test/npc.test.ts",
+        "ts-game/test/tileMap.test.ts",
+        "ts-game/test/warps.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/data/mapSource.ts",
+        "json.decoder.JSONDecodeError: Expecting value: line 2 column 1 (char 1)"
+      ]
+    },
+    {
+      "iteration": 10,
+      "startedAt": "2026-04-16T00:38:29.772Z",
+      "endedAt": "2026-04-16T00:54:50.177Z",
+      "durationMs": 908005,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/export-decomp-map.mjs",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/maps/palletTown.ts",
+        "ts-game/src/world/maps/route1.ts",
+        "ts-game/src/world/maps/viridianCity.json",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/test/mapSource.test.ts",
+        "ts-game/test/npc.test.ts",
+        "ts-game/test/tileMap.test.ts",
+        "ts-game/test/warps.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/game/mapSource.ts",
+        "json.decoder.JSONDecodeError: Expecting value: line 2 column 1 (char 1)",
+        "SyntaxError: Unexpected token ':'",
+        "SyntaxError: /private/tmp/export_FiveIsland.json: Unexpected end of JSON input",
+        "SyntaxError: /private/tmp/export_SevenIsland_SevaultCanyon_Entrance.json: Unexpected end of JSON input",
+        "FAIL  test/mapSource.test.ts [ test/mapSource.test.ts ]",
+        "Error: Transform failed with 1 error:",
+        "/Users/jota/Documents/codigos/pokefirered/ts-game/test/mapSource.test.ts:1068:2: ERROR: Unexpected \"}\"",
+        "Test Files  1 failed | 13 passed (14)"
+      ]
+    },
+    {
+      "iteration": 11,
+      "startedAt": "2026-04-16T00:56:04.083Z",
+      "endedAt": "2026-04-16T01:02:39.138Z",
+      "durationMs": 322944,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/export-decomp-map.mjs",
+        "ts-game/test/mapSource.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "FAIL  test/mapSource.test.ts > Secondary tileset attribute path resolution > gTileset_SSAnne metatile_attributes.bin has valid uint32LE entries",
+        "Error: ENOENT: no such file or directory, open '/Users/jota/Documents/codigos/pokefirered/data/tilesets/secondary/ssanne/metatile_attributes.bin'",
+        "FAIL  test/mapSource.test.ts > Secondary tileset attribute path resolution > tilesetToDirName conversion matches exporter logic for all secondary tilesets",
+        "AssertionError: gTileset_GenericBuilding1 -> generic_building1: expected metatile_attributes.bin in primary or secondary: expected false to be true // Object.is equality",
+        "Test Files  1 failed | 13 passed (14)",
+        "Tests  10 failed | 298 passed (308)"
+      ]
+    },
+    {
+      "iteration": 12,
+      "startedAt": "2026-04-16T01:03:53.439Z",
+      "endedAt": "2026-04-16T01:09:48.584Z",
+      "durationMs": 282254,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/package.json",
+        "ts-game/scripts/export-decomp-map.mjs",
+        "ts-game/scripts/export-batch-maps.mjs",
+        "ts-game/scripts/manifests/",
+        "ts-game/test/batchExport.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "❯ test/batchExport.test.ts (16 tests | 2 failed) 1035ms",
+        "→ Command failed: node scripts/export-batch-maps.mjs /var/folders/73/2wzs9b317k1gzf5n66qrjp2r0000gn/T/batch-export-test-b4GV7F/manifest.json",
+        "→ Command failed: node scripts/export-batch-maps.mjs /var/folders/73/2wzs9b317k1gzf5n66qrjp2r0000gn/T/batch-export-test-GtBFOA/manifest.json",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/batchExport.test.ts > batch export error handling > invalid map in manifest produces error entry and null result",
+        "Error: Command failed: node scripts/export-batch-maps.mjs /var/folders/73/2wzs9b317k1gzf5n66qrjp2r0000gn/T/batch-export-test-b4GV7F/manifest.json",
+        "FAIL  test/batchExport.test.ts > batch export error handling > valid maps succeed even when some maps fail",
+        "Error: Command failed: node scripts/export-batch-maps.mjs /var/folders/73/2wzs9b317k1gzf5n66qrjp2r0000gn/T/batch-export-test-GtBFOA/manifest.json",
+        "Test Files  1 failed | 14 passed (15)",
+        "Tests  2 failed | 322 passed (324)"
+      ]
+    },
+    {
+      "iteration": 13,
+      "startedAt": "2026-04-16T01:11:03.285Z",
+      "endedAt": "2026-04-16T01:14:29.345Z",
+      "durationMs": 132887,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/scripts/manifests/early-game.json",
+        "ts-game/test/batchExport.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "298:- 2026-04-15: Phase 1 Task 11 done. Added batch map export command. Refactored `export-decomp-map.mjs` to export `exportMap` and `tilesetAttributePath` as named ESM exports (gameName now a paramet",
+        "- 2026-04-15: Phase 1 Task 11 done. Added batch map export command. Refactored `export-decomp-map.mjs` to export `exportMap` and `tilesetAttributePath` as named ESM exports (gameName now a parameter i"
+      ]
+    },
+    {
+      "iteration": 14,
+      "startedAt": "2026-04-16T01:15:44.747Z",
+      "endedAt": "2026-04-16T01:31:08.666Z",
+      "durationMs": 759034,
+      "agent": "opencode",
+      "model": "zai-coding-plan/glm-5.1",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/test/manifestSnapshot.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "FAIL  test/manifestSnapshot.test.ts > manifest snapshot - wild encounters > wild encounter species are POKEMON_ constants",
+        "AssertionError: Route1 species SPECIES_PIDGEY: expected 'SPECIES_PIDGEY' to match /^POKEMON_[A-Z0-9_]+$/",
+        "Test Files  1 failed | 15 passed (16)",
+        "Tests  16 failed | 442 passed (458)",
+        "❯ test/manifestSnapshot.test.ts (130 tests | 16 failed) 290ms",
+        "Tests  14 failed | 447 passed (461)",
+        "Tests  7 failed | 454 passed (461)",
+        "- 2026-04-15: Phase 1 Task 11 done. Added batch map export command. Refactored `export-decomp-map.mjs` to export `exportMap` and `tilesetAttributePath` as named ESM exports (gameName now a parameter i"
+      ]
+    }
+  ],
+  "totalDurationMs": 6231077,
+  "struggleIndicators": {
+    "repeatedErrors": {
+      "❯ test/warps.test.ts (36 tests | 2 failed) 32ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯": 2,
+      "FAIL  test/warps.test.ts > detectWarpAtPlayerPosition > detects arrow warp when metatile behavior is": 1,
+      "AssertionError: expected false to be true // Object.is equality": 1,
+      "FAIL  test/warps.test.ts > warp detection with real map data > detects warp when player steps onto V": 1,
+      "AssertionError: expected 105 to be +0 // Object.is equality": 1,
+      "Test Files  1 failed | 13 passed (14)": 4,
+      "Tests  2 failed | 134 passed (136)": 1,
+      "❯ test/warps.test.ts (56 tests | 1 failed) 24ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/warps.test.ts > recordUnloadedWarpAttempt / clearUnloadedWarpAttempt > unloaded warp atte": 1,
+      "Error: Cannot find module '../src/game/saveData'": 1,
+      "Tests  1 failed | 155 passed (156)": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/data": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/data/mapSo": 2,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/game/mapSo": 2,
+      "\u001b[91m\u001b[1mError: \u001b[0mFound multiple matches for oldString. Provide more surrounding context to make t": 1,
+      "json.decoder.JSONDecodeError: Expecting value: line 2 column 1 (char 1)": 3,
+      "SyntaxError: Unexpected token ':'": 1,
+      "SyntaxError: /private/tmp/export_FiveIsland.json: Unexpected end of JSON input": 1,
+      "SyntaxError: /private/tmp/export_SevenIsland_SevaultCanyon_Entrance.json: Unexpected end of JSON inp": 1,
+      "FAIL  test/mapSource.test.ts [ test/mapSource.test.ts ]": 1,
+      "Error: Transform failed with 1 error:": 1,
+      "/Users/jota/Documents/codigos/pokefirered/ts-game/test/mapSource.test.ts:1068:2: ERROR: Unexpected \"": 1,
+      "FAIL  test/mapSource.test.ts > Secondary tileset attribute path resolution > gTileset_SSAnne metatil": 1,
+      "Error: ENOENT: no such file or directory, open '/Users/jota/Documents/codigos/pokefirered/data/tiles": 1,
+      "FAIL  test/mapSource.test.ts > Secondary tileset attribute path resolution > tilesetToDirName conver": 1,
+      "AssertionError: gTileset_GenericBuilding1 -> generic_building1: expected metatile_attributes.bin in ": 1,
+      "Tests  10 failed | 298 passed (308)": 1,
+      "❯ test/batchExport.test.ts (16 tests | 2 failed) 1035ms": 1,
+      "→ Command failed: node scripts/export-batch-maps.mjs /var/folders/73/2wzs9b317k1gzf5n66qrjp2r0000gn/": 2,
+      "FAIL  test/batchExport.test.ts > batch export error handling > invalid map in manifest produces erro": 1,
+      "Error: Command failed: node scripts/export-batch-maps.mjs /var/folders/73/2wzs9b317k1gzf5n66qrjp2r00": 2,
+      "FAIL  test/batchExport.test.ts > batch export error handling > valid maps succeed even when some map": 1,
+      "Test Files  1 failed | 14 passed (15)": 1,
+      "Tests  2 failed | 322 passed (324)": 1,
+      "298:- 2026-04-15: Phase 1 Task 11 done. Added batch map export command. Refactored `export-decomp-ma": 1,
+      "- 2026-04-15: Phase 1 Task 11 done. Added batch map export command. Refactored `export-decomp-map.mj": 2,
+      "FAIL  test/manifestSnapshot.test.ts > manifest snapshot - wild encounters > wild encounter species a": 1,
+      "AssertionError: Route1 species SPECIES_PIDGEY: expected 'SPECIES_PIDGEY' to match /^POKEMON_[A-Z0-9_": 1,
+      "Test Files  1 failed | 15 passed (16)": 1,
+      "Tests  16 failed | 442 passed (458)": 1,
+      "❯ test/manifestSnapshot.test.ts (130 tests | 16 failed) 290ms": 1,
+      "Tests  14 failed | 447 passed (461)": 1,
+      "Tests  7 failed | 454 passed (461)": 1
+    },
+    "noProgressIterations": 0,
+    "shortIterations": 0
+  }
+}
