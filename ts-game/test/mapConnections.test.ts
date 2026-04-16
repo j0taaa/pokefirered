@@ -1,16 +1,33 @@
 import { describe, expect, test } from 'vitest';
 import { resolveMapConnectionTransition } from '../src/game/mapConnections';
-import { loadMapById, loadRoute2Map, loadRoute22Map, loadViridianCityMap } from '../src/world/mapSource';
+import {
+  loadMapById,
+  loadPalletTownMap,
+  loadRoute2Map,
+  loadRoute21NorthMap,
+  loadRoute22Map,
+  loadViridianCityMap
+} from '../src/world/mapSource';
 
 describe('map connections', () => {
   test('matches Route 2 and Viridian City decomp connection offsets', () => {
+    const palletTown = loadPalletTownMap();
     const route2 = loadRoute2Map();
+    const route21North = loadRoute21NorthMap();
     const route22 = loadRoute22Map();
     const viridianCity = loadViridianCityMap();
 
+    expect(palletTown.connections).toEqual([
+      { map: 'MAP_ROUTE1', offset: 0, direction: 'up' },
+      { map: 'MAP_ROUTE21_NORTH', offset: 0, direction: 'down' }
+    ]);
     expect(route2.connections).toEqual([
       { map: 'MAP_PEWTER_CITY', offset: -12, direction: 'up' },
       { map: 'MAP_VIRIDIAN_CITY', offset: -12, direction: 'down' }
+    ]);
+    expect(route21North.connections).toEqual([
+      { map: 'MAP_PALLET_TOWN', offset: 0, direction: 'up' },
+      { map: 'MAP_ROUTE21_SOUTH', offset: 0, direction: 'down' }
     ]);
     expect(route22.connections).toEqual([
       { map: 'MAP_ROUTE23', offset: 0, direction: 'up' },
@@ -55,9 +72,27 @@ describe('map connections', () => {
     expect(transition?.playerPosition).toEqual({ x: 0, y: 16 * 16 });
   });
 
+  test('transitions from Pallet Town south edge into Route 21 North using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadPalletTownMap(), 8, 19, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE21_NORTH');
+    expect(transition?.playerPosition).toEqual({ x: 8 * 16, y: 0 });
+  });
+
+  test('transitions from Route 21 North north edge into Pallet Town using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute21NorthMap(), 8, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_PALLET_TOWN');
+    expect(transition?.playerPosition).toEqual({ x: 8 * 16, y: 19 * 16 });
+  });
+
   test('rejects coordinates outside the connected overlap', () => {
+    expect(resolveMapConnectionTransition(loadPalletTownMap(), 5, 19, 'down', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadViridianCityMap(), 10, 0, 'up', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute2Map(), 3, 79, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute21NorthMap(), 0, 0, 'up', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadViridianCityMap(), 0, 15, 'left', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute22Map(), 47, 5, 'right', loadMapById)).toBeNull();
   });
@@ -68,5 +103,10 @@ describe('map connections', () => {
 
   test('loads Route 22 through the shared map loader', () => {
     expect(loadMapById('MAP_ROUTE22')?.id).toBe('MAP_ROUTE22');
+  });
+
+  test('loads Pallet Town and Route 21 North through the shared map loader', () => {
+    expect(loadMapById('MAP_PALLET_TOWN')?.id).toBe('MAP_PALLET_TOWN');
+    expect(loadMapById('MAP_ROUTE21_NORTH')?.id).toBe('MAP_ROUTE21_NORTH');
   });
 });

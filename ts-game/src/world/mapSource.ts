@@ -1,3 +1,4 @@
+import palletTownMapJson from './maps/palletTown.json';
 import route2MapJson from './maps/route2.json';
 import route21NorthMapJson from './maps/route21North.json';
 import route22MapJson from './maps/route22.json';
@@ -572,6 +573,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
   };
 };
 
+export const loadPalletTownMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(palletTownMapJson));
+
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
 
@@ -586,8 +590,12 @@ export const loadViridianCityMap = (): TileMap =>
 
 export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
+    case 'MAP_PALLET_TOWN':
+      return loadPalletTownMap();
     case 'MAP_ROUTE2':
       return loadRoute2Map();
+    case 'MAP_ROUTE21_NORTH':
+      return loadRoute21NorthMap();
     case 'MAP_ROUTE22':
       return loadRoute22Map();
     case 'MAP_VIRIDIAN_CITY':
