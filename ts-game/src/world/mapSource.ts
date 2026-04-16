@@ -584,6 +584,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
     case 'MAP_ROUTE2':
       return loadRoute2Map();
+    case 'MAP_ROUTE22':
+      return loadRoute22Map();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
     default:
