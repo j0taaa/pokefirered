@@ -186,10 +186,10 @@ strong {
   }
 
   .game-shell {
-    width: min(94vw, 1280px);
+    width: min(90vw, 1180px);
   }
 
   canvas {
-    width: min(94vw, 1100px);
+    width: min(88vw, 980px);
   }
 }
