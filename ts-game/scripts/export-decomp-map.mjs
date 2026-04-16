@@ -25,6 +25,8 @@ const readBinary = (relativePath) =>
 const readWildEncounters = () =>
   readJson('src/data/wild_encounters.json');
 
+let mapFolderIndex;
+
 const tilesetAttributePath = (tilesetName) => {
   const snakeName = tilesetName
     .replace(/^gTileset_/, '')
@@ -180,8 +182,54 @@ const findWildEncounters = (mapId, gameName) => {
   };
 };
 
+const indexMapFolder = (index, label, folderName) => {
+  if (typeof label !== 'string' || label.length === 0) {
+    return;
+  }
+
+  if (!index.has(label)) {
+    index.set(label, folderName);
+  }
+};
+
+const getMapFolderIndex = () => {
+  if (mapFolderIndex) {
+    return mapFolderIndex;
+  }
+
+  const mapsDir = path.join(repoRoot, 'data/maps');
+  const index = new Map();
+
+  for (const folderName of fs.readdirSync(mapsDir)) {
+    const mapJsonPath = path.join(mapsDir, folderName, 'map.json');
+    if (!fs.existsSync(mapJsonPath)) {
+      continue;
+    }
+
+    const map = JSON.parse(fs.readFileSync(mapJsonPath, 'utf8'));
+    indexMapFolder(index, folderName, folderName);
+    indexMapFolder(index, map.name, folderName);
+    indexMapFolder(index, map.id, folderName);
+  }
+
+  mapFolderIndex = index;
+  return index;
+};
+
+const resolveMapFolderName = (mapLabel) => {
+  const folderName = getMapFolderIndex().get(mapLabel);
+  if (!folderName) {
+    throw new Error(
+      `Unable to find map "${mapLabel}". Expected a folder name, map name, or MAP_* label from data/maps.`
+    );
+  }
+
+  return folderName;
+};
+
 const exportMap = (mapName, gameName = 'FireRed') => {
-  const map = readJson(`data/maps/${mapName}/map.json`);
+  const resolvedMapName = resolveMapFolderName(mapName);
+  const map = readJson(`data/maps/${resolvedMapName}/map.json`);
   const layouts = readJson('data/layouts/layouts.json').layouts;
   const layout = layouts.find((entry) => entry.id === map.layout);
   if (!layout) {

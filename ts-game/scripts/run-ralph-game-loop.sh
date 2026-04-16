@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TS_GAME_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd -- "${TS_GAME_DIR}/.." && pwd)"
 TASKS_FILE="${REPO_ROOT}/.ralph/ralph-tasks.md"
-MODEL="${RALPH_MODEL:-zai-coding-plan/glm-5.1}"
+MODEL="${RALPH_MODEL:-}"
 AGENT="${RALPH_AGENT:-opencode}"
 MAX_ITERATIONS="${RALPH_MAX_ITERATIONS:-200}"
 RALPH_BIN="${RALPH_BIN:-ralph}"
@@ -22,13 +22,13 @@ Usage:
 Environment overrides:
   RALPH_BIN             Ralph executable name/path. Default: ralph
   RALPH_AGENT           Ralph agent adapter. Default: opencode
-  RALPH_MODEL           OpenCode model. Default: zai-coding-plan/glm-5.1
+  RALPH_MODEL           OpenCode model override. Default: unset (let opencode choose)
   RALPH_MAX_ITERATIONS  Max Ralph loop iterations. Default: 200
   RALPH_TARGET_BRANCH   Branch to checkout, commit to, and push. Default: master
   RALPH_AUTO_PUSH       Push the target branch when Ralph exits if HEAD changed. Default: 1
 Expected prerequisites:
   npm install -g @th0rgal/ralph-wiggum
-  opencode configured with access to the Z.ai Coding Plan / GLM 5.1 model
+  opencode configured with at least one usable model
 
 By default this script pushes the current branch to GitHub once after Ralph exits, if Ralph created commits.
 USAGE
@@ -82,8 +82,7 @@ if [[ "${DRY_RUN}" != "1" ]] && ! command -v opencode >/dev/null 2>&1; then
   cat >&2 <<ERR
 Could not find 'opencode'.
 
-Install/configure OpenCode first and make sure it can use:
-  ${MODEL}
+Install/configure OpenCode first and make sure it can use your intended model.
 ERR
   exit 1
 fi
@@ -131,15 +130,22 @@ CMD=(
   "${RALPH_BIN}"
   "${PROMPT}"
   --agent "${AGENT}"
-  --model "${MODEL}"
   --tasks
   --max-iterations "${MAX_ITERATIONS}"
 )
 
+if [[ -n "${MODEL}" ]]; then
+  CMD+=(--model "${MODEL}")
+fi
+
 echo "Repository: ${REPO_ROOT}"
 echo "Task file:  ${TASKS_FILE}"
 echo "Agent:      ${AGENT}"
-echo "Model:      ${MODEL}"
+if [[ -n "${MODEL}" ]]; then
+  echo "Model:      ${MODEL}"
+else
+  echo "Model:      opencode default"
+fi
 echo "Max loops:  ${MAX_ITERATIONS}"
 echo "Auto-push:  ${AUTO_PUSH}"
 printf 'Command:'
