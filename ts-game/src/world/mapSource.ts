@@ -2,6 +2,8 @@ import cinnabarIslandMapJson from './maps/cinnabarIsland.json';
 import fuchsiaCityMapJson from './maps/fuchsiaCity.json';
 import celadonCityMapJson from './maps/celadonCity.json';
 import ceruleanCityMapJson from './maps/ceruleanCity.json';
+import indigoPlateauExteriorMapJson from './maps/indigoPlateauExterior.json';
+import indigoPlateauPokemonCenter1FMapJson from './maps/indigoPlateauPokemonCenter1F.json';
 import lavenderTownMapJson from './maps/lavenderTown.json';
 import palletTownMapJson from './maps/palletTown.json';
 import pewterCityMapJson from './maps/pewterCity.json';
@@ -725,6 +727,12 @@ export const loadCeruleanCityMap = (): TileMap =>
 export const loadFuchsiaCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(fuchsiaCityMapJson));
 
+export const loadIndigoPlateauExteriorMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(indigoPlateauExteriorMapJson));
+
+export const loadIndigoPlateauPokemonCenter1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(indigoPlateauPokemonCenter1FMapJson));
+
 export const loadLavenderTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(lavenderTownMapJson));
 
@@ -804,6 +812,10 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadCeruleanCityMap();
     case 'MAP_FUCHSIA_CITY':
       return loadFuchsiaCityMap();
+    case 'MAP_INDIGO_PLATEAU_EXTERIOR':
+      return loadIndigoPlateauExteriorMap();
+    case 'MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F':
+      return loadIndigoPlateauPokemonCenter1FMap();
     case 'MAP_LAVENDER_TOWN':
       return loadLavenderTownMap();
     case 'MAP_PALLET_TOWN':

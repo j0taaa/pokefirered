@@ -6,6 +6,8 @@ import {
   loadCinnabarIslandMap,
   loadCeruleanCityMap,
   loadFuchsiaCityMap,
+  loadIndigoPlateauExteriorMap,
+  loadIndigoPlateauPokemonCenter1FMap,
   loadLavenderTownMap,
   loadPalletTownMap,
   loadPewterCityMap,
@@ -568,6 +570,25 @@ describe('map connections', () => {
 
   test('loads Cinnabar Island through the shared map loader', () => {
     expect(loadMapById('MAP_CINNABAR_ISLAND')?.id).toBe('MAP_CINNABAR_ISLAND');
+  });
+
+  test('matches Indigo Plateau exterior decomp connection offsets', () => {
+    const indigoPlateauExterior = loadIndigoPlateauExteriorMap();
+
+    expect(indigoPlateauExterior.connections).toEqual([
+      { map: 'MAP_ROUTE23', offset: 0, direction: 'down' }
+    ]);
+  });
+
+  test('returns null for Indigo Plateau exterior south edge because Route 23 is still unloaded', () => {
+    expect(resolveMapConnectionTransition(loadIndigoPlateauExteriorMap(), 11, 19, 'down', loadMapById)).toBeNull();
+  });
+
+  test('loads Indigo Plateau exterior and center through the shared map loader', () => {
+    expect(loadIndigoPlateauExteriorMap().id).toBe('MAP_INDIGO_PLATEAU_EXTERIOR');
+    expect(loadIndigoPlateauPokemonCenter1FMap().id).toBe('MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F');
+    expect(loadMapById('MAP_INDIGO_PLATEAU_EXTERIOR')?.id).toBe('MAP_INDIGO_PLATEAU_EXTERIOR');
+    expect(loadMapById('MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F')?.id).toBe('MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F');
   });
 
   test('returns null for Celadon City left edge because Route 16 is still unloaded', () => {

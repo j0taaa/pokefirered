@@ -166,9 +166,32 @@
         "Tests  1 failed | 67 passed (68)",
         "Error: Cannot find module './dist/game/mapConnections.js'"
       ]
+    },
+    {
+      "iteration": 7,
+      "startedAt": "2026-04-17T04:11:58.905Z",
+      "endedAt": "2026-04-17T04:16:38.945Z",
+      "durationMs": 203196,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/test/mapConnections.test.ts",
+        "ts-game/src/world/maps/indigoPlateauExterior.json",
+        "ts-game/src/world/maps/indigoPlateauPokemonCenter1F.json",
+        "ts-game/test/indigoPlateauExteriorMap.test.ts",
+        "ts-game/test/indigoPlateauPokemonCenter1FMap.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "Error: Unable to find map \"IndigoPlateau\". Expected a folder name, map name, or MAP_* label from data/maps."
+      ]
     }
   ],
-  "totalDurationMs": 1311345,
+  "totalDurationMs": 1514541,
   "struggleIndicators": {
     "repeatedErrors": {
       "❯ test/mapConnections.test.ts (64 tests | 1 failed) 23ms": 1,
@@ -177,7 +200,8 @@
       "AssertionError: expected null not to be null": 1,
       "Test Files  1 failed | 1 passed (2)": 1,
       "Tests  1 failed | 67 passed (68)": 1,
-      "Error: Cannot find module './dist/game/mapConnections.js'": 1
+      "Error: Cannot find module './dist/game/mapConnections.js'": 1,
+      "Error: Unable to find map \"IndigoPlateau\". Expected a folder name, map name, or MAP_* label from dat": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0
