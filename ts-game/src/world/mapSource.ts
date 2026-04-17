@@ -5,6 +5,10 @@ import ceruleanCityMapJson from './maps/ceruleanCity.json';
 import indigoPlateauExteriorMapJson from './maps/indigoPlateauExterior.json';
 import indigoPlateauPokemonCenter1FMapJson from './maps/indigoPlateauPokemonCenter1F.json';
 import lavenderTownMapJson from './maps/lavenderTown.json';
+import mtEmberExteriorMapJson from './maps/mtEmberExterior.json';
+import oneIslandMapJson from './maps/oneIsland.json';
+import oneIslandKindleRoadMapJson from './maps/oneIslandKindleRoad.json';
+import oneIslandTreasureBeachMapJson from './maps/oneIslandTreasureBeach.json';
 import palletTownMapJson from './maps/palletTown.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
@@ -26,6 +30,12 @@ import saffronCityMapJson from './maps/saffronCity.json';
 import route10MapJson from './maps/route10.json';
 import rockTunnel1FMapJson from './maps/rockTunnel1F.json';
 import rockTunnelB1FMapJson from './maps/rockTunnelB1F.json';
+import threeIslandMapJson from './maps/threeIsland.json';
+import threeIslandBerryForestMapJson from './maps/threeIslandBerryForest.json';
+import threeIslandBondBridgeMapJson from './maps/threeIslandBondBridge.json';
+import threeIslandPortMapJson from './maps/threeIslandPort.json';
+import twoIslandMapJson from './maps/twoIsland.json';
+import twoIslandCapeBrinkMapJson from './maps/twoIslandCapeBrink.json';
 import vermilionCityMapJson from './maps/vermilionCity.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
@@ -736,6 +746,18 @@ export const loadIndigoPlateauPokemonCenter1FMap = (): TileMap =>
 export const loadLavenderTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(lavenderTownMapJson));
 
+export const loadMtEmberExteriorMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(mtEmberExteriorMapJson));
+
+export const loadOneIslandMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(oneIslandMapJson));
+
+export const loadOneIslandKindleRoadMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(oneIslandKindleRoadMapJson));
+
+export const loadOneIslandTreasureBeachMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(oneIslandTreasureBeachMapJson));
+
 export const loadPewterCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(pewterCityMapJson));
 
@@ -781,6 +803,24 @@ export const loadRockTunnel1FMap = (): TileMap =>
 export const loadRockTunnelB1FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(rockTunnelB1FMapJson));
 
+export const loadThreeIslandMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(threeIslandMapJson));
+
+export const loadThreeIslandBerryForestMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(threeIslandBerryForestMapJson));
+
+export const loadThreeIslandBondBridgeMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(threeIslandBondBridgeMapJson));
+
+export const loadThreeIslandPortMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(threeIslandPortMapJson));
+
+export const loadTwoIslandMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(twoIslandMapJson));
+
+export const loadTwoIslandCapeBrinkMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(twoIslandCapeBrinkMapJson));
+
 export const loadVermilionCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(vermilionCityMapJson));
 
@@ -818,6 +858,14 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadIndigoPlateauPokemonCenter1FMap();
     case 'MAP_LAVENDER_TOWN':
       return loadLavenderTownMap();
+    case 'MAP_MT_EMBER_EXTERIOR':
+      return loadMtEmberExteriorMap();
+    case 'MAP_ONE_ISLAND':
+      return loadOneIslandMap();
+    case 'MAP_ONE_ISLAND_KINDLE_ROAD':
+      return loadOneIslandKindleRoadMap();
+    case 'MAP_ONE_ISLAND_TREASURE_BEACH':
+      return loadOneIslandTreasureBeachMap();
     case 'MAP_PALLET_TOWN':
       return loadPalletTownMap();
     case 'MAP_PEWTER_CITY':
@@ -860,6 +908,18 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRockTunnel1FMap();
     case 'MAP_ROCK_TUNNEL_B1F':
       return loadRockTunnelB1FMap();
+    case 'MAP_THREE_ISLAND':
+      return loadThreeIslandMap();
+    case 'MAP_THREE_ISLAND_BERRY_FOREST':
+      return loadThreeIslandBerryForestMap();
+    case 'MAP_THREE_ISLAND_BOND_BRIDGE':
+      return loadThreeIslandBondBridgeMap();
+    case 'MAP_THREE_ISLAND_PORT':
+      return loadThreeIslandPortMap();
+    case 'MAP_TWO_ISLAND':
+      return loadTwoIslandMap();
+    case 'MAP_TWO_ISLAND_CAPE_BRINK':
+      return loadTwoIslandCapeBrinkMap();
     case 'MAP_VERMILION_CITY':
       return loadVermilionCityMap();
     case 'MAP_VIRIDIAN_CITY':

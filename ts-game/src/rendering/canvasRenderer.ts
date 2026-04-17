@@ -215,14 +215,18 @@ import {
   BATTLE_GBA_WIDTH,
   BATTLE_HEALTHBOX_OAM_ANCHOR,
   BATTLE_HEALTHBOX_OVERLAY,
+  BATTLE_HEALTHBOX_TEXT,
   BATTLE_LIST_WINDOW,
+  BATTLE_MESSAGE_TEXT,
   BATTLE_MESSAGE_WINDOW,
   BATTLE_MOVE_MENU_WINDOW,
   BATTLE_MOVE_SLOTS,
+  BATTLE_PAL5_TEXT,
   BATTLE_PP_BOX,
   BATTLE_SINGLE_BATTLER_COORDS,
   BATTLE_SINGLE_HEALTHBOX_DIM,
-  BATTLE_TYPE_BOX
+  BATTLE_TYPE_BOX,
+  getBattlePpLineColors
 } from './battleScreenLayout';
 import { blitSinglesOpponentHealthbox, blitSinglesPlayerHealthbox } from './battleHealthboxBlit';
 import {
@@ -765,42 +769,52 @@ export class CanvasRenderer {
       const ov = BATTLE_HEALTHBOX_OVERLAY.player;
       const speciesX = box.x + ov.species.dx;
       const speciesY = box.y + ov.species.dy;
-      this.drawSmallText(pokemon.species, speciesX, speciesY);
+      this.drawHealthboxSmallText(pokemon.species, speciesX, speciesY);
       const lvStr = `Lv${pokemon.level}`;
-      this.drawSmallText(
+      this.drawHealthboxSmallText(
         lvStr,
         box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
         speciesY
       );
-      this.drawSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + ov.hpText.dx, box.y + ov.hpText.dy);
+      this.drawHealthboxSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + ov.hpText.dx, box.y + ov.hpText.dy);
       if (pokemon.status !== 'none') {
-        this.drawSmallText(
+        this.drawHealthboxSmallText(
           pokemon.status.toUpperCase(),
           box.x + ov.species.dx,
-          box.y + box.h - ov.statusFromBottom,
-          '#7a2432'
+          box.y + box.h - ov.statusFromBottom
         );
       }
     } else {
       const ov = BATTLE_HEALTHBOX_OVERLAY.opponent;
       const speciesX = box.x + ov.species.dx;
       const speciesY = box.y + ov.species.dy;
-      this.drawSmallText(`FOE ${pokemon.species}`, speciesX, speciesY);
+      this.drawHealthboxSmallText(`FOE ${pokemon.species}`, speciesX, speciesY);
       const lvStr = `Lv${pokemon.level}`;
-      this.drawSmallText(
+      this.drawHealthboxSmallText(
         lvStr,
         box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
         speciesY
       );
       if (pokemon.status !== 'none') {
-        this.drawSmallText(
+        this.drawHealthboxSmallText(
           pokemon.status.toUpperCase(),
           box.x + ov.species.dx,
-          box.y + box.h - ov.statusFromBottom,
-          '#7a2432'
+          box.y + box.h - ov.statusFromBottom
         );
       }
     }
+  }
+
+  /** `FONT_SMALL` + `{2,1,3}` colors from `AddTextPrinterAndCreateWindowOnHealthbox` + `healthbox.pal`. */
+  private drawHealthboxSmallText(text: string, x: number, y: number): void {
+    this.ctx.save();
+    this.ctx.font = 'bold 8px "Trebuchet MS", sans-serif';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillStyle = BATTLE_HEALTHBOX_TEXT.shadow;
+    this.ctx.fillText(text, x + 1, y + 1);
+    this.ctx.fillStyle = BATTLE_HEALTHBOX_TEXT.fg;
+    this.ctx.fillText(text, x, y);
+    this.ctx.restore();
   }
 
   private battleTextboxLayerReady(): boolean {
@@ -808,17 +822,62 @@ export class CanvasRenderer {
     return !!(c && c.width > 0);
   }
 
-  private drawBattleMonoCommandLabel(text: string, x: number, y: number, fillStyle = '#20305f'): void {
+  /** `FONT_NORMAL_COPY_1` + palette 5 fg/shadow (`LoadBattleMenuWindowGfx` + `gText_BattleMenu` escape codes). */
+  private drawBattleMonoCommandLabel(text: string, x: number, y: number): void {
+    const { fg, shadow } = BATTLE_PAL5_TEXT;
     this.ctx.save();
     this.ctx.font = 'bold 10px "Trebuchet MS", sans-serif';
-    this.ctx.fillStyle = fillStyle;
     this.ctx.textBaseline = 'top';
     let cx = x;
     for (let i = 0; i < text.length; i += 1) {
       const ch = text[i]!;
+      this.ctx.fillStyle = shadow;
+      this.ctx.fillText(ch, cx + 1, y + 1);
+      this.ctx.fillStyle = fg;
       this.ctx.fillText(ch, cx, y);
       cx += BATTLE_COMMAND_CHAR_ADVANCE;
     }
+    this.ctx.restore();
+  }
+
+  private drawBattleShadowMenuText(text: string, x: number, y: number): void {
+    const { fg, shadow } = BATTLE_MESSAGE_TEXT;
+    this.ctx.save();
+    this.ctx.font = 'bold 10px "Trebuchet MS", sans-serif';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillStyle = shadow;
+    this.ctx.fillText(text, x + 1, y + 1);
+    this.ctx.fillStyle = fg;
+    this.ctx.fillText(text, x, y);
+    this.ctx.restore();
+  }
+
+  private drawBattleMessageTextLines(lines: string[], x: number, y: number, lineHeight: number): void {
+    lines.forEach((line, index) => {
+      this.drawBattleShadowMenuText(line, x, y + index * lineHeight);
+    });
+  }
+
+  private drawBattlePal5SmallText(text: string, x: number, y: number): void {
+    const { fg, shadow } = BATTLE_PAL5_TEXT;
+    this.ctx.save();
+    this.ctx.font = 'bold 8px "Trebuchet MS", sans-serif';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillStyle = shadow;
+    this.ctx.fillText(text, x + 1, y + 1);
+    this.ctx.fillStyle = fg;
+    this.ctx.fillText(text, x, y);
+    this.ctx.restore();
+  }
+
+  private drawBattlePal5SmallTextCustom(text: string, x: number, y: number, fg: string, shadow: string): void {
+    this.ctx.save();
+    this.ctx.font = 'bold 8px "Trebuchet MS", sans-serif';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillStyle = shadow;
+    this.ctx.fillText(text, x + 1, y + 1);
+    this.ctx.fillStyle = fg;
+    this.ctx.fillText(text, x, y);
     this.ctx.restore();
   }
 
@@ -834,7 +893,12 @@ export class CanvasRenderer {
       );
     }
     const promptLines = this.wrapMenuText(battle.turnSummary, BATTLE_ACTION_PROMPT_WINDOW.w - 12);
-    this.drawTextLines(promptLines.slice(0, 2), BATTLE_ACTION_PROMPT_WINDOW.x + 6, BATTLE_ACTION_PROMPT_WINDOW.y + 6, 12);
+    this.drawBattleMessageTextLines(
+      promptLines.slice(0, 2),
+      BATTLE_ACTION_PROMPT_WINDOW.x + 6,
+      BATTLE_ACTION_PROMPT_WINDOW.y + 6,
+      12
+    );
 
     if (!tiled) {
       this.drawWindowFrame(
@@ -876,7 +940,7 @@ export class CanvasRenderer {
       if (slot.index === battle.selectedMoveIndex) {
         this.drawCursor(slot.x - 10, slot.y - 2);
       }
-      this.drawSmallText(move.name, slot.x, slot.y);
+      this.drawBattlePal5SmallText(move.name, slot.x, slot.y);
     });
 
     const move = battle.moves[battle.selectedMoveIndex];
@@ -887,11 +951,18 @@ export class CanvasRenderer {
     if (!this.battleTextboxLayerReady()) {
       this.drawWindowFrame(BATTLE_PP_BOX.x, BATTLE_PP_BOX.y, BATTLE_PP_BOX.w, BATTLE_PP_BOX.h, 'std');
     }
-    this.drawSmallText(`PP ${move.ppRemaining}/${move.pp}`, BATTLE_PP_BOX.x + 4, BATTLE_PP_BOX.y + 3);
+    const ppColors = getBattlePpLineColors(move.ppRemaining, move.pp);
+    this.drawBattlePal5SmallTextCustom(
+      `PP ${move.ppRemaining}/${move.pp}`,
+      BATTLE_PP_BOX.x + 4,
+      BATTLE_PP_BOX.y + 3,
+      ppColors.fg,
+      ppColors.shadow
+    );
     if (!this.battleTextboxLayerReady()) {
       this.drawWindowFrame(BATTLE_TYPE_BOX.x, BATTLE_TYPE_BOX.y, BATTLE_TYPE_BOX.w, BATTLE_TYPE_BOX.h, 'std');
     }
-    this.drawSmallText(move.type.toUpperCase(), BATTLE_TYPE_BOX.x + 4, BATTLE_TYPE_BOX.y + 1);
+    this.drawBattlePal5SmallText(move.type.toUpperCase(), BATTLE_TYPE_BOX.x + 4, BATTLE_TYPE_BOX.y + 1);
   }
 
   private drawBattleListWindow(battle: BattleState, bag?: BagState): void {
@@ -911,7 +982,7 @@ export class CanvasRenderer {
       if (row.selected) {
         this.drawCursor(BATTLE_LIST_WINDOW.x + 4, y - 2);
       }
-      this.drawSmallText(row.label, BATTLE_LIST_WINDOW.x + 16, y);
+      this.drawBattlePal5SmallText(row.label, BATTLE_LIST_WINDOW.x + 16, y);
     });
   }
 
@@ -920,7 +991,7 @@ export class CanvasRenderer {
       this.drawWindowFrame(BATTLE_MESSAGE_WINDOW.x, BATTLE_MESSAGE_WINDOW.y, BATTLE_MESSAGE_WINDOW.w, BATTLE_MESSAGE_WINDOW.h, 'std');
     }
     const lines = this.wrapMenuText(battle.turnSummary, BATTLE_MESSAGE_WINDOW.w - 12);
-    this.drawTextLines(lines.slice(0, 2), BATTLE_MESSAGE_WINDOW.x + 6, BATTLE_MESSAGE_WINDOW.y + 6, 12);
+    this.drawBattleMessageTextLines(lines.slice(0, 2), BATTLE_MESSAGE_WINDOW.x + 6, BATTLE_MESSAGE_WINDOW.y + 6, 12);
   }
 
   private drawBattleScreen(battle: BattleState, runtime: ScriptRuntimeState, bag?: BagState): void {

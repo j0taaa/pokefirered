@@ -2,60 +2,9 @@
   "iterations": [
     {
       "iteration": 1,
-      "startedAt": "2026-04-17T02:44:40.175Z",
-      "endedAt": "2026-04-17T02:50:18.443Z",
-      "durationMs": 257342,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/src/game/bag.ts",
-        "ts-game/src/rendering/canvasRenderer.ts",
-        "ts-game/src/world/mapSource.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/rendering/bagScreenLayout.ts",
-        "ts-game/src/rendering/partyMenuBackground.ts",
-        "ts-game/src/rendering/trainerCardScreenLayout.ts",
-        "ts-game/src/rendering/trainerCardTilemap.ts",
-        "ts-game/src/world/maps/rockTunnel1F.json",
-        "ts-game/src/world/maps/rockTunnelB1F.json",
-        "ts-game/test/rockTunnel1FMap.test.ts",
-        "ts-game/test/rockTunnelB1FMap.test.ts"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": [
-        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/test/warps.test.ts",
-        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/src/game/warps.ts"
-      ]
-    },
-    {
-      "iteration": 2,
-      "startedAt": "2026-04-17T03:39:33.326Z",
-      "endedAt": "2026-04-17T03:43:18.757Z",
-      "durationMs": 142390,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/src/rendering/canvasRenderer.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/rendering/battleScreenLayout.ts"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": [
-        "Test Files  1 failed | 40 passed (41)",
-        "Tests  5 failed | 209 passed (214)"
-      ]
-    },
-    {
-      "iteration": 3,
-      "startedAt": "2026-04-17T03:44:53.298Z",
-      "endedAt": "2026-04-17T03:50:24.624Z",
-      "durationMs": 228787,
+      "startedAt": "2026-04-17T11:40:57.166Z",
+      "endedAt": "2026-04-17T11:49:18.044Z",
+      "durationMs": 418043,
       "agent": "opencode",
       "model": "",
       "toolsUsed": {},
@@ -63,145 +12,39 @@
         ".ralph/ralph-tasks.md",
         "ts-game/src/rendering/battleScreenLayout.ts",
         "ts-game/src/rendering/canvasRenderer.ts",
-        "ts-game/src/world/mapSource.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/rendering/battleTextboxBackground.ts",
-        "ts-game/src/world/maps/celadonCity.json",
-        "ts-game/test/celadonCityMap.test.ts",
-        "ts-game/src/main.ts"
+        "ts-game/test/battleScreenLayout.test.ts",
+        "ts-game/test/seviiMapConnections.test.ts",
+        "ts-game/test/seviiOutdoorMaps.test.ts"
       ],
       "exitCode": 0,
       "completionDetected": false,
       "errors": [
-        "Celadon itself is complete and tested. The only remaining check issue is a pre-existing TypeScript build failure in `ts-game/src/rendering/canvasRenderer.ts`, so I’m recording that blocker in the Ralp",
-        "❯ test/mapConnections.test.ts (49 tests | 2 failed) 41ms",
-        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Route 7 west edge into Celadon City using the decomp offset",
+        "❯ test/seviiMapConnections.test.ts (11 tests | 5 failed) 10ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Kindle Road west edge into One Island using the reciprocal offset",
         "AssertionError: expected null not to be null",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Celadon City east edge into Route 7 using the reciprocal offset",
-        "Test Files  1 failed | 41 passed (42)",
-        "Tests  2 failed | 219 passed (221)",
-        "TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension \".ts\" for /Users/jota/Documents/codigos/pokefirered/ts-game/src/world/mapSource.ts"
-      ]
-    },
-    {
-      "iteration": 4,
-      "startedAt": "2026-04-17T03:51:50.349Z",
-      "endedAt": "2026-04-17T03:57:55.630Z",
-      "durationMs": 279365,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/src/rendering/battleScreenLayout.ts",
-        "ts-game/src/rendering/canvasRenderer.ts",
-        "ts-game/src/world/mapSource.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/world/maps/saffronCity.json",
-        "ts-game/test/saffronCityMap.test.ts"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": [
-        "Tests are mostly green. The new failures are just bad Saffron overlap assumptions on my side, while `build` is still failing in pre-existing `src/rendering/canvasRenderer.ts`. I’m checking the actual ",
-        "❯ test/mapConnections.test.ts (56 tests | 4 failed) 119ms",
-        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City north edge into Route 5 using the decomp offset",
-        "AssertionError: expected { x: 368, y: 624 } to deeply equal { x: 368, y: 880 }",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City south edge into Route 6 using the decomp offset",
-        "AssertionError: expected null not to be null",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City west edge into Route 7 using the decomp offset",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City east edge into Route 8 using the decomp offset",
-        "Test Files  1 failed | 43 passed (44)"
-      ]
-    },
-    {
-      "iteration": 5,
-      "startedAt": "2026-04-17T03:59:35.233Z",
-      "endedAt": "2026-04-17T04:04:04.891Z",
-      "durationMs": 181051,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/src/rendering/canvasRenderer.ts",
-        "ts-game/src/world/mapSource.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/rendering/battleHealthboxBlit.ts",
-        "ts-game/src/world/maps/fuchsiaCity.json",
-        "ts-game/test/fuchsiaCityMap.test.ts"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": []
-    },
-    {
-      "iteration": 6,
-      "startedAt": "2026-04-17T04:05:39.290Z",
-      "endedAt": "2026-04-17T04:10:39.573Z",
-      "durationMs": 222410,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/src/rendering/battleHealthboxBlit.ts",
-        "ts-game/src/rendering/battleScreenLayout.ts",
-        "ts-game/src/rendering/canvasRenderer.ts",
-        "ts-game/src/world/mapSource.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/world/maps/cinnabarIsland.json",
-        "ts-game/test/cinnabarIslandMap.test.ts"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": [
-        "❯ test/mapConnections.test.ts (64 tests | 1 failed) 23ms",
-        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯",
-        "FAIL  test/mapConnections.test.ts > map connections > transitions from Route 21 South south edge into Cinnabar Island using the decomp offset",
-        "AssertionError: expected null not to be null",
-        "Test Files  1 failed | 1 passed (2)",
-        "Tests  1 failed | 67 passed (68)",
-        "Error: Cannot find module './dist/game/mapConnections.js'"
-      ]
-    },
-    {
-      "iteration": 7,
-      "startedAt": "2026-04-17T04:11:58.905Z",
-      "endedAt": "2026-04-17T04:16:38.945Z",
-      "durationMs": 203196,
-      "agent": "opencode",
-      "model": "",
-      "toolsUsed": {},
-      "filesModified": [
-        ".ralph/ralph-tasks.md",
-        "ts-game/src/world/mapSource.ts",
-        "ts-game/test/mapConnections.test.ts",
-        "ts-game/src/world/maps/indigoPlateauExterior.json",
-        "ts-game/src/world/maps/indigoPlateauPokemonCenter1F.json",
-        "ts-game/test/indigoPlateauExteriorMap.test.ts",
-        "ts-game/test/indigoPlateauPokemonCenter1FMap.test.ts"
-      ],
-      "exitCode": 0,
-      "completionDetected": false,
-      "errors": [
-        "Error: Unable to find map \"IndigoPlateau\". Expected a folder name, map name, or MAP_* label from data/maps."
+        "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Two Island north edge into Cape Brink using the decomp offset",
+        "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Cape Brink south edge into Two Island using the reciprocal offset",
+        "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Three Island south edge into the port and west edge into Bond Bridge",
+        "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from the port and Bond Bridge back into Three Island",
+        "Test Files  1 failed (1)",
+        "Tests  5 failed | 6 passed (11)"
       ]
     }
   ],
-  "totalDurationMs": 1514541,
+  "totalDurationMs": 418043,
   "struggleIndicators": {
     "repeatedErrors": {
-      "❯ test/mapConnections.test.ts (64 tests | 1 failed) 23ms": 1,
-      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯": 1,
-      "FAIL  test/mapConnections.test.ts > map connections > transitions from Route 21 South south edge int": 1,
+      "❯ test/seviiMapConnections.test.ts (11 tests | 5 failed) 10ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Kindle Road west e": 1,
       "AssertionError: expected null not to be null": 1,
-      "Test Files  1 failed | 1 passed (2)": 1,
-      "Tests  1 failed | 67 passed (68)": 1,
-      "Error: Cannot find module './dist/game/mapConnections.js'": 1,
-      "Error: Unable to find map \"IndigoPlateau\". Expected a folder name, map name, or MAP_* label from dat": 1
+      "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Two Island north e": 1,
+      "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Cape Brink south e": 1,
+      "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Three Island south": 1,
+      "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from the port and Bond ": 1,
+      "Test Files  1 failed (1)": 1,
+      "Tests  5 failed | 6 passed (11)": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

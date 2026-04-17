@@ -34,6 +34,83 @@ export const BATTLE_SINGLE_HEALTHBOX_DIM = {
   player: { w: 128, h: 64 }
 } as const;
 
+/**
+ * `AddTextPrinterAndCreateWindowOnHealthbox` (`battle_interface.c`) passes
+ * `color[] = { 2, 1, 3 }` into `AddTextPrinterParameterized4` (`menu2.c`):
+ * `bgColor = color[0]`, `fgColor = color[1]`, `shadowColor = color[2]`.
+ * RGB values from `graphics/battle_interface/healthbox.pal` (JASC indices 1 and 3).
+ */
+export const BATTLE_HEALTHBOX_TEXT = {
+  fg: '#414141',
+  shadow: '#ded5b4'
+} as const;
+
+/**
+ * `sTextOnWindowsInfo_Normal[B_WIN_MSG]` / `[B_WIN_ACTION_PROMPT]` (`battle_message.c`):
+ * `fgColor = 1`, `shadowColor = 6` on palette 0 from `graphics/battle_interface/textbox1.pal`.
+ */
+export const BATTLE_MESSAGE_TEXT = {
+  fg: '#ffffff',
+  shadow: '#6a5a73'
+} as const;
+
+/**
+ * Battle command + move windows use BG palette slot 5 (`paletteNum = 5` in `battle_bg.c` window templates).
+ * `LoadBattleMenuWindowGfx` overwrites indices 12–15 to GBA RGB(9,9,9), RGB(9,9,9), RGB(31,31,31), RGB(26,26,25);
+ * `sTextOnWindowsInfo_Normal` uses fg 13, bg 14, shadow 15 for `B_WIN_ACTION_MENU`, move names, type, etc.
+ */
+const gba5To8 = (v: number): number => Math.min(255, Math.round((v * 255) / 31));
+
+export const BATTLE_PAL5_TEXT = {
+  fg: `rgb(${gba5To8(9)}, ${gba5To8(9)}, ${gba5To8(9)})`,
+  shadow: `rgb(${gba5To8(26)}, ${gba5To8(26)}, ${gba5To8(25)})`
+} as const;
+
+/**
+ * `gPPTextPalette` (`graphics/interface/text_pp.pal`) pairs written to palette 5 indices 12 (fg) and 11 (shadow)
+ * by `SetPpNumbersPaletteInMoveSelection` (`battle_message.c`), keyed by `GetCurrentPpToMaxPpState`.
+ */
+const BATTLE_PP_TEXT_PAIRS: ReadonlyArray<{ fg: string; shadow: string }> = [
+  { fg: '#eede00', shadow: '#fff68b' },
+  { fg: '#ff9400', shadow: '#ffee73' },
+  { fg: '#ee0000', shadow: '#f6de9c' },
+  { fg: '#202020', shadow: '#dedede' }
+];
+
+/** Mirrors `GetCurrentPpToMaxPpState` in `battle_message.c`. */
+export function getBattlePpToMaxPpState(currentPp: number, maxPp: number): number {
+  if (maxPp === currentPp) {
+    return 3;
+  }
+  if (maxPp <= 2) {
+    if (currentPp > 1) {
+      return 3;
+    }
+    return 2 - currentPp;
+  }
+  if (maxPp <= 7) {
+    if (currentPp > 2) {
+      return 3;
+    }
+    return 2 - currentPp;
+  }
+  if (currentPp === 0) {
+    return 2;
+  }
+  if (currentPp <= Math.floor(maxPp / 4)) {
+    return 1;
+  }
+  if (currentPp > Math.floor(maxPp / 2)) {
+    return 3;
+  }
+  return 0;
+}
+
+export function getBattlePpLineColors(currentPp: number, maxPp: number): { fg: string; shadow: string } {
+  const state = getBattlePpToMaxPpState(currentPp, maxPp);
+  return BATTLE_PP_TEXT_PAIRS[state] ?? BATTLE_PP_TEXT_PAIRS[3]!;
+}
+
 /** Text overlays relative to **OAM top-left** of the 128px-wide composite (`getSinglesHealthboxDrawRect`). */
 export const BATTLE_HEALTHBOX_OVERLAY = {
   opponent: {
