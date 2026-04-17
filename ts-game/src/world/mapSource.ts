@@ -699,6 +699,10 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRoute21SouthMap();
     case 'MAP_ROUTE22':
       return loadRoute22Map();
+    case 'MAP_ROUTE24':
+      return loadRoute24Map();
+    case 'MAP_ROUTE25':
+      return loadRoute25Map();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
     default:
