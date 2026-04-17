@@ -42,6 +42,7 @@ import twoIslandMapJson from './maps/twoIsland.json';
 import twoIslandCapeBrinkMapJson from './maps/twoIslandCapeBrink.json';
 import vermilionCityMapJson from './maps/vermilionCity.json';
 import viridianCityMapJson from './maps/viridianCity.json';
+import viridianCityMartMapJson from './maps/viridianCityMart.json';
 import viridianCityPokemonCenter1FMapJson from './maps/viridianCityPokemonCenter1F.json';
 import type { TileMap } from './tileMap';
 
@@ -894,6 +895,9 @@ export const loadRoute22Map = (): TileMap =>
 export const loadViridianCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityMapJson));
 
+export const loadViridianCityMartMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(viridianCityMartMapJson));
+
 export const loadViridianCityPokemonCenter1FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityPokemonCenter1FMapJson));
 
@@ -987,6 +991,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadVermilionCityMap();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
+    case 'MAP_VIRIDIAN_CITY_MART':
+      return loadViridianCityMartMap();
     case 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F':
       return loadViridianCityPokemonCenter1FMap();
     default:

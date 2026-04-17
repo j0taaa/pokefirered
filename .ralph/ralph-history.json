@@ -186,9 +186,41 @@
         "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Viridian City Pokemon Center door warp into the loaded center map",
         "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Viridian City Pokemon Center exit warp back to loaded Viridian City"
       ]
+    },
+    {
+      "iteration": 7,
+      "startedAt": "2026-04-17T12:43:10.934Z",
+      "endedAt": "2026-04-17T12:49:20.881Z",
+      "durationMs": 282423,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/game/scripts.ts",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/test/scripts.test.ts",
+        "ts-game/test/warpRuntime.test.ts",
+        "ts-game/src/world/maps/viridianCityMart.json",
+        "ts-game/test/viridianCityMartMap.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "❯ test/warpRuntime.test.ts (21 tests | 2 failed) 26ms",
+        "❯ test/viridianCityMartMap.test.ts (3 tests | 3 failed) 34ms",
+        "❯ test/scripts.test.ts (7 tests | 1 failed) 10ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/scripts.test.ts > script runtime helpers > Viridian Mart clerk shop stub exposes the decomp stock list",
+        "AssertionError: expected [ 'May I help you?', …(2) ] to deeply equal [ 'May I help you?', …(2) ]",
+        "FAIL  test/viridianCityMartMap.test.ts > Viridian City Mart compact map source > matches the decomp exporter output exactly",
+        "AssertionError: expected { id: 'MAP_VIRIDIAN_CITY_MART', …(14) } to deeply equal { id: 'MAP_VIRIDIAN_CITY_MART', …(15) }",
+        "FAIL  test/viridianCityMartMap.test.ts > Viridian City Mart compact map source > loads Viridian City Mart into the runtime tile map shape",
+        "Error: Map source \"MAP_VIRIDIAN_CITY_MART\" visual.layerTypes must contain 99 integers."
+      ]
     }
   ],
-  "totalDurationMs": 2679607,
+  "totalDurationMs": 2962030,
   "struggleIndicators": {
     "repeatedErrors": {
       "❯ test/palletTownRivalsHouseMap.test.ts (3 tests | 3 failed) 59ms": 1,
@@ -214,7 +246,17 @@
       "FAIL  test/viridianCityPokemonCenter1FMap.test.ts > Viridian City Pokemon Center 1F compact map sour": 3,
       "Error: Map source \"MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F\" visual.layerTypes must contain 150 integers.": 1,
       "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Viridian City Pokemon Center door warp ": 1,
-      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Viridian City Pokemon Center exit warp ": 1
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Viridian City Pokemon Center exit warp ": 1,
+      "❯ test/warpRuntime.test.ts (21 tests | 2 failed) 26ms": 1,
+      "❯ test/viridianCityMartMap.test.ts (3 tests | 3 failed) 34ms": 1,
+      "❯ test/scripts.test.ts (7 tests | 1 failed) 10ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/scripts.test.ts > script runtime helpers > Viridian Mart clerk shop stub exposes the deco": 1,
+      "AssertionError: expected [ 'May I help you?', …(2) ] to deeply equal [ 'May I help you?', …(2) ]": 1,
+      "FAIL  test/viridianCityMartMap.test.ts > Viridian City Mart compact map source > matches the decomp ": 1,
+      "AssertionError: expected { id: 'MAP_VIRIDIAN_CITY_MART', …(14) } to deeply equal { id: 'MAP_VIRIDIAN": 1,
+      "FAIL  test/viridianCityMartMap.test.ts > Viridian City Mart compact map source > loads Viridian City": 1,
+      "Error: Map source \"MAP_VIRIDIAN_CITY_MART\" visual.layerTypes must contain 99 integers.": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

@@ -17,6 +17,7 @@ import {
   loadPalletTownPlayersHouse2FMap,
   loadPalletTownRivalsHouseMap,
   loadViridianCityMap,
+  loadViridianCityMartMap,
   loadViridianCityPokemonCenter1FMap,
   mapFromCompactSource,
   parseCompactMapSource,
@@ -133,6 +134,36 @@ describe('warp runtime', () => {
       destinationMap: loadViridianCityMap(),
       destinationWarp: { x: 26, y: 26, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F', destWarpId: 1 },
       playerPosition: { x: 26 * 16, y: 26 * 16 }
+    });
+  });
+
+  test('resolves the Viridian City Mart door warp into the loaded mart map', () => {
+    const map = loadViridianCityMap();
+    const player = createPlayer();
+    player.position = vec2(36 * map.tileSize, 19 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 36, y: 19, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_MART', destWarpId: 1 },
+      destinationMap: loadViridianCityMartMap(),
+      destinationWarp: { x: 4, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 4 },
+      playerPosition: { x: 4 * 16, y: 7 * 16 }
+    });
+  });
+
+  test('resolves the Viridian City Mart exit warp back to loaded Viridian City', () => {
+    const map = loadViridianCityMartMap();
+    const player = createPlayer();
+    player.position = vec2(4 * map.tileSize, 7 * map.tileSize);
+    player.facing = 'down';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 4, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 4 },
+      destinationMap: loadViridianCityMap(),
+      destinationWarp: { x: 36, y: 19, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_MART', destWarpId: 1 },
+      playerPosition: { x: 36 * 16, y: 19 * 16 }
     });
   });
 

@@ -1,6 +1,6 @@
 import { openDialogueSequence, type DialogueState } from './interaction';
 import type { PlayerState } from './player';
-import { createBagState, type BagState } from './bag';
+import { createBagState, getItemDefinition, type BagState } from './bag';
 import {
   createDefaultParty,
   createDefaultPokedex,
@@ -106,6 +106,18 @@ export const openScriptDialogue = (
   openDialogueSequence(dialogue, speakerId, [text]);
 };
 
+const VIRIDIAN_MART_STOCK = [
+  'ITEM_POKE_BALL',
+  'ITEM_POTION',
+  'ITEM_ANTIDOTE',
+  'ITEM_PARALYZE_HEAL'
+] as const;
+
+const viridianMartStockLine = (): string =>
+  `Shop UI stub: ${VIRIDIAN_MART_STOCK
+    .map((itemId) => getItemDefinition(itemId).name.replace('é', 'e').toUpperCase())
+    .join(', ')}.`;
+
 // Script callbacks are intentionally registry-based, mirroring how the original
 // engine resolves script pointers from events in field_control_avatar.c.
 export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
@@ -197,6 +209,34 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     openDialogueSequence(dialogue, 'ViridianCity_PokemonCenter_1F_ObjectEvent_Youngster', [
       'POKeMON CENTERS heal your tired, hurt, or fainted POKeMON.',
       'They make all POKeMON completely healthy.'
+    ]);
+  },
+  ViridianCity_Mart_EventScript_Clerk: ({ dialogue, runtime }) => {
+    if (getScriptVar(runtime, 'VAR_MAP_SCENE_VIRIDIAN_CITY_MART') === 1) {
+      openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_MART_CLERK', [
+        'Okay, thanks! Please say hi to',
+        'PROF. OAK for me, too.'
+      ]);
+      return;
+    }
+
+    openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_MART_CLERK', [
+      'May I help you?',
+      viridianMartStockLine(),
+      'Please come again!'
+    ]);
+  },
+  ViridianCity_Mart_EventScript_Woman: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Mart_ObjectEvent_Woman', [
+      "This shop does good business in",
+      "ANTIDOTES, I've heard."
+    ]);
+  },
+  ViridianCity_Mart_EventScript_Youngster: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Mart_ObjectEvent_Youngster', [
+      "I've got to buy some POTIONS.",
+      'You never know when your POKeMON',
+      'will need quick healing.'
     ]);
   }
 };

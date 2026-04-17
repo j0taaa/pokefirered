@@ -79,4 +79,68 @@ describe('script runtime helpers', () => {
       'We hope to see you again!'
     ]);
   });
+
+  test('Viridian Mart clerk shop stub exposes the decomp stock list', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    expect(
+      runScriptById(
+        'ViridianCity_Mart_EventScript_Clerk',
+        { player, dialogue, runtime },
+        prototypeScriptRegistry
+      )
+    ).toBe(true);
+
+    expect(dialogue.queue).toEqual([
+      'May I help you?',
+      'Shop UI stub: POKE BALL, POTION, ANTIDOTE, PARLYZ HEAL.',
+      'Please come again!'
+    ]);
+  });
+
+  test('Viridian Mart clerk matches the Oak parcel follow-up branch', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    setScriptVar(runtime, 'VAR_MAP_SCENE_VIRIDIAN_CITY_MART', 1);
+
+    expect(
+      runScriptById(
+        'ViridianCity_Mart_EventScript_Clerk',
+        { player, dialogue, runtime },
+        prototypeScriptRegistry
+      )
+    ).toBe(true);
+
+    expect(dialogue.queue).toEqual([
+      'Okay, thanks! Please say hi to',
+      'PROF. OAK for me, too.'
+    ]);
+  });
+
+  test('Viridian Mart NPC stubs mirror the exported map dialogue ids', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('ViridianCity_Mart_EventScript_Woman', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.queue).toEqual([
+      'This shop does good business in',
+      "ANTIDOTES, I've heard."
+    ]);
+
+    runScriptById(
+      'ViridianCity_Mart_EventScript_Youngster',
+      { player, dialogue, runtime },
+      prototypeScriptRegistry
+    );
+    expect(dialogue.queue).toEqual([
+      "I've got to buy some POTIONS.",
+      'You never know when your POKeMON',
+      'will need quick healing.'
+    ]);
+  });
 });
