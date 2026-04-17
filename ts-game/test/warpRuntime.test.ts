@@ -11,6 +11,9 @@ import {
   loadIndigoPlateauExteriorMap,
   loadIndigoPlateauPokemonCenter1FMap,
   loadMapById,
+  loadPalletTownMap,
+  loadPalletTownPlayersHouse1FMap,
+  loadPalletTownPlayersHouse2FMap,
   mapFromCompactSource,
   parseCompactMapSource,
   type CompactMapSource
@@ -96,6 +99,66 @@ describe('warp runtime', () => {
       destinationMap: loadIndigoPlateauExteriorMap(),
       destinationWarp: { x: 11, y: 6, elevation: 0, destMap: 'MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F', destWarpId: 0 },
       playerPosition: { x: 11 * 16, y: 6 * 16 }
+    });
+  });
+
+  test('resolves the Pallet Town front door warp into the loaded Players House 1F', () => {
+    const map = loadPalletTownMap();
+    const player = createPlayer();
+    player.position = vec2(6 * map.tileSize, 7 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
+      destinationMap: loadPalletTownPlayersHouse1FMap(),
+      destinationWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 },
+      playerPosition: { x: 4 * 16, y: 8 * 16 }
+    });
+  });
+
+  test('resolves the Players House 1F stair warp into the loaded 2F map', () => {
+    const map = loadPalletTownPlayersHouse1FMap();
+    const player = createPlayer();
+    player.position = vec2(10 * map.tileSize, 2 * map.tileSize);
+    player.facing = 'right';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F', destWarpId: 0 },
+      destinationMap: loadPalletTownPlayersHouse2FMap(),
+      destinationWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 2 },
+      playerPosition: { x: 10 * 16, y: 2 * 16 }
+    });
+  });
+
+  test('resolves the Players House 2F stair warp back to the loaded 1F map', () => {
+    const map = loadPalletTownPlayersHouse2FMap();
+    const player = createPlayer();
+    player.position = vec2(10 * map.tileSize, 2 * map.tileSize);
+    player.facing = 'left';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 2 },
+      destinationMap: loadPalletTownPlayersHouse1FMap(),
+      destinationWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F', destWarpId: 0 },
+      playerPosition: { x: 10 * 16, y: 2 * 16 }
+    });
+  });
+
+  test('resolves the Players House 1F exit warp back to loaded Pallet Town', () => {
+    const map = loadPalletTownPlayersHouse1FMap();
+    const player = createPlayer();
+    player.position = vec2(4 * map.tileSize, 8 * map.tileSize);
+    player.facing = 'down';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 },
+      destinationMap: loadPalletTownMap(),
+      destinationWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
+      playerPosition: { x: 6 * 16, y: 7 * 16 }
     });
   });
 

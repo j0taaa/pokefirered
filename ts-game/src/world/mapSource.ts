@@ -10,6 +10,8 @@ import oneIslandMapJson from './maps/oneIsland.json';
 import oneIslandKindleRoadMapJson from './maps/oneIslandKindleRoad.json';
 import oneIslandTreasureBeachMapJson from './maps/oneIslandTreasureBeach.json';
 import palletTownMapJson from './maps/palletTown.json';
+import palletTownPlayersHouse1FMapJson from './maps/palletTownPlayersHouse1F.json';
+import palletTownPlayersHouse2FMapJson from './maps/palletTownPlayersHouse2F.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
 import route21NorthMapJson from './maps/route21North.json';
@@ -760,6 +762,12 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
 export const loadPalletTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(palletTownMapJson));
 
+export const loadPalletTownPlayersHouse1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(palletTownPlayersHouse1FMapJson));
+
+export const loadPalletTownPlayersHouse2FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(palletTownPlayersHouse2FMapJson));
+
 export const loadCeladonCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(celadonCityMapJson));
 
@@ -903,6 +911,10 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadOneIslandTreasureBeachMap();
     case 'MAP_PALLET_TOWN':
       return loadPalletTownMap();
+    case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F':
+      return loadPalletTownPlayersHouse1FMap();
+    case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F':
+      return loadPalletTownPlayersHouse2FMap();
     case 'MAP_PEWTER_CITY':
       return loadPewterCityMap();
     case 'MAP_ROUTE2':
