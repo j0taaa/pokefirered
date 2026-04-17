@@ -17,6 +17,7 @@ import route7MapJson from './maps/route7.json';
 import route8MapJson from './maps/route8.json';
 import route9MapJson from './maps/route9.json';
 import route10MapJson from './maps/route10.json';
+import vermilionCityMapJson from './maps/vermilionCity.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
 
@@ -685,6 +686,9 @@ export const loadRoute9Map = (): TileMap =>
 export const loadRoute10Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route10MapJson));
 
+export const loadVermilionCityMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityMapJson));
+
 export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2ViridianForestNorthEntranceMapJson));
 
@@ -743,6 +747,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRoute9Map();
     case 'MAP_ROUTE10':
       return loadRoute10Map();
+    case 'MAP_VERMILION_CITY':
+      return loadVermilionCityMap();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
     default:

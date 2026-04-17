@@ -86,6 +86,9 @@ import { DecompTextureStore } from './decompTextureStore';
 const PLAYER_SIZE = 14;
 const PLAYER_GRAPHICS_ID = 'OBJ_EVENT_GFX_RED_NORMAL';
 const WINDOW_SLICE = 8;
+/** Inner Pokédex layout matches GBA 240×160 frame (224×144 content). Viewport is narrower (e.g. 192×160), so we map this box to the physical panel. */
+const POKEDEX_LOGICAL_WIDTH = 224;
+const POKEDEX_LOGICAL_HEIGHT = 144;
 
 interface RenderOverlayState {
   startMenu: StartMenuState;
@@ -404,10 +407,19 @@ export class CanvasRenderer {
   }
 
   private drawPokedexScreen(panel: PokedexPanelState): void {
-    const x = 8;
-    const y = 8;
-    const width = this.canvas.width - 16;
-    const height = this.canvas.height - 16;
+    const margin = 8;
+    const panelW = this.canvas.width - margin * 2;
+    const panelH = this.canvas.height - margin * 2;
+
+    this.ctx.save();
+    this.ctx.translate(margin, margin);
+    this.ctx.scale(panelW / POKEDEX_LOGICAL_WIDTH, panelH / POKEDEX_LOGICAL_HEIGHT);
+
+    const x = 0;
+    const y = 0;
+    const width = POKEDEX_LOGICAL_WIDTH;
+    const height = POKEDEX_LOGICAL_HEIGHT;
+
     this.ctx.fillStyle = '#f8f7ef';
     this.ctx.fillRect(x, y, width, height);
 
@@ -438,41 +450,47 @@ export class CanvasRenderer {
 
     if (panel.screen === 'topMenu') {
       this.drawPokedexTopMenu(panel, x, y, width, height);
-      return;
-    }
-
-    if (panel.screen === 'orderedList') {
+    } else if (panel.screen === 'orderedList') {
       this.drawPokedexOrderedList(panel, x, y, width, height);
-      return;
-    }
-
-    if (panel.screen === 'categoryPage') {
+    } else if (panel.screen === 'categoryPage') {
       this.drawPokedexCategoryPage(panel, x, y, width, height);
-      return;
-    }
-
-    if (panel.screen === 'entry') {
+    } else if (panel.screen === 'entry') {
       this.drawPokedexEntryPage(panel, x, y, width, height);
-      return;
+    } else {
+      this.drawPokedexAreaPage(panel, x, y, width, height);
     }
 
-    this.drawPokedexAreaPage(panel, x, y, width, height);
+    this.ctx.restore();
   }
 
   private drawPokedexTopMenu(panel: PokedexPanelState, x: number, y: number, width: number, height: number): void {
+    const rowPitch = 14;
+    const menuX = x + 26;
+    const menuY = y + 42;
+    const menuW = 172;
+    const footerH = 28;
+    const footerY = height - footerH - 4;
+    const maxMenuH = Math.max(48, footerY - 8 - menuY);
+    const menuH = Math.min(146, maxMenuH);
+    const maxVisible = Math.max(1, Math.min(9, Math.floor((menuH - 18) / rowPitch)));
     const scrollOffset = Math.max(
       0,
-      Math.min(panel.topMenuSelectedIndex - 4, Math.max(0, panel.topMenuRows.length - 9))
+      Math.min(
+        panel.topMenuSelectedIndex - Math.floor(maxVisible / 2),
+        Math.max(0, panel.topMenuRows.length - maxVisible)
+      )
     );
-    const visibleRows = panel.topMenuRows.slice(scrollOffset, scrollOffset + 9);
-    const menuX = x + 26;
-    const menuY = y + 54;
-    const menuW = 172;
-    const menuH = 146;
+    const visibleRows = panel.topMenuRows.slice(scrollOffset, scrollOffset + maxVisible);
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(x, y, width, height);
+    this.ctx.clip();
+
     this.drawWindowFrame(menuX, menuY, menuW, menuH, 'std');
 
     visibleRows.forEach((row, index) => {
-      const rowY = menuY + 12 + index * 14;
+      const rowY = menuY + 12 + index * rowPitch;
       const absoluteIndex = scrollOffset + index;
       if (row.kind === 'header') {
         this.drawSmallText(row.label, menuX + 10, rowY);
@@ -490,21 +508,32 @@ export class CanvasRenderer {
     });
 
     const selectedRow = panel.topMenuRows[panel.topMenuSelectedIndex];
+    const iconBoxW = 82;
     const iconX = x + width - 108;
-    const iconY = y + 62;
-    this.drawWindowFrame(iconX, iconY, 82, 76, 'std');
+    const iconY = y + 48;
+    const iconBoxH = Math.max(44, Math.min(76, footerY - iconY - 6));
+    this.drawWindowFrame(iconX, iconY, iconBoxW, iconBoxH, 'std');
     if (selectedRow?.iconId) {
       const icon = this.pokedexIcons.get(selectedRow.iconId);
       if (icon?.complete && icon.naturalWidth > 0) {
-        this.ctx.drawImage(icon, iconX + 18, iconY + 12, 46, 46);
+        const iconInner = Math.min(46, Math.max(28, iconBoxH - 22));
+        this.ctx.drawImage(
+          icon,
+          iconX + Math.floor((iconBoxW - iconInner) / 2),
+          iconY + 8,
+          iconInner,
+          iconInner
+        );
       }
     }
     if (selectedRow?.label) {
-      this.drawSmallText(selectedRow.label, iconX + 8, iconY + 62);
+      this.drawSmallText(selectedRow.label, iconX + 8, iconY + iconBoxH - 12);
     }
 
-    this.drawWindowFrame(x + 26, y + height - 54, width - 36, 34, 'message');
-    this.drawTextLines(['A: SELECT', 'B: CLOSE'], x + 34, y + height - 44, 12);
+    this.drawWindowFrame(x + 26, footerY, width - 36, footerH, 'message');
+    this.drawTextLines(['A: SELECT', 'B: CLOSE'], x + 34, footerY + 8, 12);
+
+    this.ctx.restore();
   }
 
   private drawPokedexOrderedList(panel: PokedexPanelState, x: number, y: number, width: number, height: number): void {
@@ -552,30 +581,39 @@ export class CanvasRenderer {
       );
     }
 
+    const innerGridW = width - 68;
+    const slotW = Math.max(52, Math.min(120, Math.floor((innerGridW - 12) / 2)));
+    const slotGapX = slotW + 12;
+    const row0Top = y + 82;
+    const maxSlotH = Math.max(56, Math.min(70, height - row0Top - 10));
+    const slotRowPitch = maxSlotH + 10;
+
     panel.categorySpecies.forEach((species, index) => {
-      const slotX = x + 34 + (index % 2) * 142;
-      const slotY = y + 82 + Math.floor(index / 2) * 88;
+      const slotX = x + 34 + (index % 2) * slotGapX;
+      const slotY = row0Top + Math.floor(index / 2) * slotRowPitch;
       const isSelected = index === panel.categoryCursorIndex;
       this.ctx.fillStyle = isSelected ? '#fff4cc' : '#fefefe';
-      this.ctx.fillRect(slotX, slotY, 120, 70);
+      this.ctx.fillRect(slotX, slotY, slotW, maxSlotH);
       this.ctx.strokeStyle = isSelected ? '#d48a24' : '#7a7a9a';
       this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(slotX + 1, slotY + 1, 118, 68);
+      this.ctx.strokeRect(slotX + 1, slotY + 1, slotW - 2, maxSlotH - 2);
       if (isSelected) {
-        this.drawCursor(slotX - 10, slotY + 18);
+        this.drawCursor(slotX - 10, slotY + Math.floor(maxSlotH / 2) - 6);
       }
 
-      this.drawPokemonIcon(species, slotX + 8, slotY + 8, 32, 32);
-      this.drawMenuText(species.replace(/_/gu, ' '), slotX + 44, slotY + 10);
+      const iconSize = Math.min(32, maxSlotH - 16);
+      this.drawPokemonIcon(species, slotX + 6, slotY + 6, iconSize, iconSize);
+      const textX = slotX + iconSize + 12;
+      this.drawMenuText(species.replace(/_/gu, ' '), textX, slotY + 8);
       this.drawSmallText(
         `No. ${String(getNationalDexNumber(species) ?? 0).padStart(3, '0')}`,
-        slotX + 44,
-        slotY + 26
+        textX,
+        slotY + 24
       );
       this.drawSmallText(
         getDecompPokedexEntry(species)?.category ?? 'UNKNOWN',
-        slotX + 44,
-        slotY + 40
+        textX,
+        slotY + Math.min(40, maxSlotH - 18)
       );
     });
   }
@@ -625,9 +663,14 @@ export class CanvasRenderer {
 
     const mapX = x + 86;
     const mapY = y + 72;
-    const scale = 2;
+    const mapInnerW = 244;
+    const mapInnerH = 212;
+    const maxMapW = x + width - 6 - mapX;
+    const maxMapH = y + height - 6 - mapY;
+    const mapFit = Math.min(maxMapW / mapInnerW, maxMapH / mapInnerH, 1);
+    const scale = 2 * mapFit;
     this.ctx.fillStyle = '#eef2dd';
-    this.ctx.fillRect(mapX, mapY, 244, 212);
+    this.ctx.fillRect(mapX, mapY, mapInnerW * mapFit, mapInnerH * mapFit);
     this.drawCompositePokedexMap(mapX, mapY, scale);
 
     if (panel.areaMarkers.length === 0) {

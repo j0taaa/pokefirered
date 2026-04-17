@@ -17,6 +17,7 @@ import {
   loadRoute8Map,
   loadRoute9Map,
   loadRoute10Map,
+  loadVermilionCityMap,
   loadViridianCityMap
 } from '../src/world/mapSource';
 
@@ -150,7 +151,7 @@ describe('map connections', () => {
   });
 
   test('returns null for unloaded destination maps', () => {
-    expect(resolveMapConnectionTransition(loadRoute6Map(), 12, 39, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadVermilionCityMap(), 47, 16, 'right', loadMapById)).toBeNull();
   });
 
   test('loads Route 22 through the shared map loader', () => {
@@ -335,5 +336,41 @@ describe('map connections', () => {
     expect(loadMapById('MAP_ROUTE8')?.id).toBe('MAP_ROUTE8');
     expect(loadMapById('MAP_ROUTE9')?.id).toBe('MAP_ROUTE9');
     expect(loadMapById('MAP_ROUTE10')?.id).toBe('MAP_ROUTE10');
+  });
+
+  test('matches Vermilion City decomp connection offsets', () => {
+    const vermilion = loadVermilionCityMap();
+
+    expect(vermilion.connections).toEqual([
+      { map: 'MAP_ROUTE6', offset: 12, direction: 'up' },
+      { map: 'MAP_ROUTE11', offset: 10, direction: 'right' }
+    ]);
+  });
+
+  test('transitions from Route 6 south edge into Vermilion City using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute6Map(), 12, 39, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_VERMILION_CITY');
+    expect(transition?.playerPosition).toEqual({ x: 24 * 16, y: 0 });
+  });
+
+  test('transitions from Vermilion City north edge into Route 6 using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadVermilionCityMap(), 24, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE6');
+    expect(transition?.playerPosition).toEqual({ x: 12 * 16, y: 39 * 16 });
+  });
+
+  test('rejects Vermilion City / Route 6 coordinates outside the connected overlap', () => {
+    expect(resolveMapConnectionTransition(loadVermilionCityMap(), 11, 0, 'up', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadVermilionCityMap(), 36, 0, 'up', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute6Map(), 9, 39, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute6Map(), 13, 39, 'down', loadMapById)).toBeNull();
+  });
+
+  test('loads Vermilion City through the shared map loader', () => {
+    expect(loadMapById('MAP_VERMILION_CITY')?.id).toBe('MAP_VERMILION_CITY');
   });
 });
