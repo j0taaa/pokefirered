@@ -17,6 +17,8 @@ import {
   loadRoute8Map,
   loadRoute9Map,
   loadRoute10Map,
+  loadRockTunnel1FMap,
+  loadRockTunnelB1FMap,
   loadVermilionCityMap,
   loadViridianCityMap
 } from '../src/world/mapSource';
@@ -336,6 +338,13 @@ describe('map connections', () => {
     expect(loadMapById('MAP_ROUTE8')?.id).toBe('MAP_ROUTE8');
     expect(loadMapById('MAP_ROUTE9')?.id).toBe('MAP_ROUTE9');
     expect(loadMapById('MAP_ROUTE10')?.id).toBe('MAP_ROUTE10');
+  });
+
+  test('loads Rock Tunnel 1F and B1F through the shared map loader', () => {
+    expect(loadRockTunnel1FMap().id).toBe('MAP_ROCK_TUNNEL_1F');
+    expect(loadRockTunnelB1FMap().id).toBe('MAP_ROCK_TUNNEL_B1F');
+    expect(loadMapById('MAP_ROCK_TUNNEL_1F')?.id).toBe('MAP_ROCK_TUNNEL_1F');
+    expect(loadMapById('MAP_ROCK_TUNNEL_B1F')?.id).toBe('MAP_ROCK_TUNNEL_B1F');
   });
 
   test('matches Vermilion City decomp connection offsets', () => {

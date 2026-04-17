@@ -18,7 +18,8 @@ describe('npc stepping', () => {
       walkable: Array.from({ length: 12 * 12 }, () => true),
       connections: [],
       triggers: [],
-      npcs: []
+      npcs: [],
+      warps: []
     };
     const npcs: NpcState[] = [
       {
@@ -54,7 +55,8 @@ describe('npc stepping', () => {
       walkable: Array.from({ length: 12 * 12 }, () => true),
       connections: [],
       triggers: [],
-      npcs: []
+      npcs: [],
+      warps: []
     };
 
     const npc: NpcState = {
@@ -92,7 +94,8 @@ describe('npc stepping', () => {
       walkable: Array.from({ length: 12 * 12 }, (_, index) => Math.floor(index / 12) !== 5),
       connections: [],
       triggers: [],
-      npcs: []
+      npcs: [],
+      warps: []
     };
     const npc: NpcState = {
       id: 'blocked',

@@ -1,4 +1,3 @@
-import menuCursorUrl from '../../../graphics/interface/red_arrow.png';
 import stdWindowFrameUrl from '../../../graphics/text_window/std.png';
 import type { ScriptRuntimeState } from '../game/scripts';
 import {
@@ -94,7 +93,10 @@ export const updateStartMenuView = (
   runtime: ScriptRuntimeState
 ): void => {
   const hasPanel = !!menu.panel;
-  const showGenericPanel = menu.panel?.kind !== 'bag';
+  const showGenericPanel =
+    menu.panel?.kind !== 'bag'
+    && menu.panel?.kind !== 'party'
+    && !(menu.panel?.kind === 'summary' && menu.panel.id === 'PLAYER');
   const showMenu = menu.active;
   const showHelp = menu.active && !hasPanel;
   const showSafariStats = showMenu && runtime.startMenu.mode === 'safari';
@@ -110,10 +112,10 @@ export const updateStartMenuView = (
     const item = document.createElement('li');
     item.className = 'start-menu-option';
 
-    const cursor = document.createElement('img');
+    const cursor = document.createElement('span');
     cursor.className = 'start-menu-cursor';
-    cursor.src = menuCursorUrl;
-    cursor.alt = '';
+    cursor.textContent = '▶';
+    cursor.setAttribute('aria-hidden', 'true');
     cursor.classList.toggle('hidden', index !== menu.selectedIndex);
 
     const label = document.createElement('span');
@@ -144,10 +146,10 @@ export const updateStartMenuView = (
       const rowItem = document.createElement('li');
       rowItem.className = 'menu-panel-row';
 
-      const cursor = document.createElement('img');
+      const cursor = document.createElement('span');
       cursor.className = 'menu-panel-cursor';
-      cursor.src = menuCursorUrl;
-      cursor.alt = '';
+      cursor.textContent = '▶';
+      cursor.setAttribute('aria-hidden', 'true');
       cursor.classList.toggle('hidden', !showsCursor || !('selectedIndex' in panel) || index !== panel.selectedIndex);
 
       const label = document.createElement('span');

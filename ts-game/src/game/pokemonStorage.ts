@@ -18,6 +18,9 @@ export interface FieldPokemon {
 export interface PokedexState {
   dexMode: 'KANTO' | 'NATIONAL';
   selectedIndex: number;
+  /** `list_menu.c` scroll state for ordered dex list (`kantoOrderMenuCursorPos` / `ItemsAbove`). */
+  orderListCursorPos: number;
+  orderListItemsAbove: number;
   seenSpecies: string[];
   caughtSpecies: string[];
 }
@@ -58,6 +61,8 @@ export const createDefaultParty = (): FieldPokemon[] => [
 export const createDefaultPokedex = (): PokedexState => ({
   dexMode: 'KANTO',
   selectedIndex: 0,
+  orderListCursorPos: 0,
+  orderListItemsAbove: 0,
   seenSpecies: ['CHARMANDER', 'PIDGEY'],
   caughtSpecies: ['CHARMANDER', 'PIDGEY']
 });
@@ -72,6 +77,8 @@ export const cloneParty = (party: FieldPokemon[]): FieldPokemon[] => party.map(c
 export const clonePokedex = (pokedex: PokedexState): PokedexState => ({
   dexMode: pokedex.dexMode,
   selectedIndex: pokedex.selectedIndex,
+  orderListCursorPos: pokedex.orderListCursorPos ?? 0,
+  orderListItemsAbove: pokedex.orderListItemsAbove ?? 0,
   seenSpecies: [...pokedex.seenSpecies],
   caughtSpecies: [...pokedex.caughtSpecies]
 });

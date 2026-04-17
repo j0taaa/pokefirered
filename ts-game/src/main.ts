@@ -103,6 +103,7 @@ const syncRuntimePartyFromBattle = () => {
 syncBattleStateFromRuntime();
 
 const renderer = new CanvasRenderer(canvas);
+void renderer.preloadPartyMenuBackground().catch(() => undefined);
 const camera = createCamera(12 * map.tileSize, 10 * map.tileSize);
 renderer.resize(camera.viewportWidth, camera.viewportHeight);
 

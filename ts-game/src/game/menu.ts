@@ -4,7 +4,6 @@ import { createBagPanelState, stepBagPanel, type BagPanelState } from './bag';
 import {
   findPokedexCategoryLocation,
   getFirstSelectablePokedexTopMenuIndex,
-  getNextSelectablePokedexTopMenuIndex,
   getPokedexAreaMarkers,
   getPokedexCategoryLabel,
   getPokedexCategoryPageSpecies,
@@ -15,6 +14,7 @@ import {
   getPokedexTopMenuRows,
   getUnlockedPokedexCategoryPageIndices,
   isNationalDexEnabled,
+  listMenuStepFireRed,
   type PokedexAreaMarker,
   type PokedexOrderedEntry,
   type PokedexCategoryId,
@@ -76,11 +76,17 @@ export interface PokedexPanelState {
   screen: 'topMenu' | 'orderedList' | 'categoryPage' | 'entry' | 'area';
   topMenuRows: PokedexTopMenuRow[];
   topMenuSelectedIndex: number;
+  /** `ListMenuInit` cursor scroll (`modeSelectCursorPos`). */
+  topMenuListCursorPos: number;
+  /** `ListMenuInit` row within window (`modeSelectItemsAbove`, initial 1 in `sDexScreenDataInitialState`). */
+  topMenuListItemsAbove: number;
   orderedListMode: 'numerical' | 'characteristic';
   orderId: PokedexOrderId;
   orderEntries: PokedexOrderedEntry[];
   orderSelectedIndex: number;
-  orderScrollOffset: number;
+  /** Ordered list `ListMenu` scroll — replaces centered `orderScrollOffset`. */
+  orderListCursorPos: number;
+  orderListItemsAbove: number;
   categoryId: PokedexCategoryId | null;
   categoryReturnScreen: 'topMenu' | 'orderedList';
   categoryPageIndex: number;
@@ -107,6 +113,9 @@ export interface PlayerSummaryPanelState {
 export type SummaryPanelState = PlayerSummaryPanelState;
 
 export type PartyActionId = 'SUMMARY' | 'SWITCH' | 'CANCEL';
+
+/** FireRed `PARTY_SIZE` — fixed slots on the party screen. */
+export const PARTY_SCREEN_SLOT_COUNT = 6;
 
 export interface PartyPanelState {
   kind: 'party';
@@ -366,36 +375,97 @@ const createDefaultPartyMembers = (): PartyMenuMember[] => [
   }
 ];
 
+const POKEDEX_MODE_LIST_MAX_SHOWED = 9;
+const POKEDEX_ORDERED_LIST_MAX_SHOWED = 9;
+
 const updatePokedexCounts = (panel: PokedexPanelState, runtime: ScriptRuntimeState): void => {
   const counts = getPokedexCounts(runtime.pokedex.seenSpecies, runtime.pokedex.caughtSpecies);
   panel.seen = panel.dexMode === 'NATIONAL' ? counts.seenNational : counts.seenKanto;
   panel.owned = panel.dexMode === 'NATIONAL' ? counts.ownedNational : counts.ownedKanto;
 };
 
-const clampPokedexOrderSelection = (panel: PokedexPanelState): void => {
-  if (panel.orderEntries.length === 0) {
+const syncTopMenuListScrollFromFlat = (panel: PokedexPanelState, flat: number): void => {
+  const rows = panel.topMenuRows;
+  if (rows.length === 0) {
+    panel.topMenuListCursorPos = 0;
+    panel.topMenuListItemsAbove = 0;
+    panel.topMenuSelectedIndex = 0;
+    return;
+  }
+  const max = Math.min(POKEDEX_MODE_LIST_MAX_SHOWED, rows.length);
+  const maxCp = Math.max(0, rows.length - max);
+  const f = Math.max(0, Math.min(flat, rows.length - 1));
+  let ia = Math.min(f, max - 1);
+  let cp = f - ia;
+  if (cp < 0) {
+    cp = 0;
+    ia = f;
+  }
+  if (cp > maxCp) {
+    cp = maxCp;
+    ia = f - cp;
+  }
+  panel.topMenuListCursorPos = cp;
+  panel.topMenuListItemsAbove = ia;
+  panel.topMenuSelectedIndex = f;
+};
+
+const clampTopMenuListScroll = (panel: PokedexPanelState): void => {
+  const rows = panel.topMenuRows;
+  if (rows.length === 0) {
+    return;
+  }
+  let flat = panel.topMenuListCursorPos + panel.topMenuListItemsAbove;
+  if (flat >= rows.length || rows[flat]?.kind === 'header') {
+    const fs = getFirstSelectablePokedexTopMenuIndex(rows);
+    flat = fs >= 0 ? fs : 0;
+  }
+  syncTopMenuListScrollFromFlat(panel, flat);
+};
+
+const clampPokedexOrderSelection = (panel: PokedexPanelState, runtime: ScriptRuntimeState): void => {
+  const len = panel.orderEntries.length;
+  if (len === 0) {
     panel.orderSelectedIndex = 0;
-    panel.orderScrollOffset = 0;
+    panel.orderListCursorPos = 0;
+    panel.orderListItemsAbove = 0;
+    runtime.pokedex.orderListCursorPos = 0;
+    runtime.pokedex.orderListItemsAbove = 0;
     panel.entrySpecies = null;
     return;
   }
 
-  panel.orderSelectedIndex = Math.max(0, Math.min(panel.orderSelectedIndex, panel.orderEntries.length - 1));
-  const visibleCount = Math.min(8, panel.orderEntries.length);
-  const maxScroll = Math.max(0, panel.orderEntries.length - visibleCount);
-  panel.orderScrollOffset = Math.max(
-    0,
-    Math.min(panel.orderSelectedIndex - Math.floor(visibleCount / 2), maxScroll)
-  );
+  const max = Math.min(POKEDEX_ORDERED_LIST_MAX_SHOWED, len);
+  const maxCp = Math.max(0, len - max);
+  panel.orderSelectedIndex = Math.max(0, Math.min(panel.orderSelectedIndex, len - 1));
+  const target = panel.orderSelectedIndex;
+  let cp = panel.orderListCursorPos;
+  let ia = panel.orderListItemsAbove;
+  if (cp + ia !== target || cp > maxCp || ia >= max) {
+    ia = Math.min(target, max - 1);
+    cp = target - ia;
+    if (cp < 0) {
+      cp = 0;
+      ia = target;
+    }
+    if (cp > maxCp) {
+      cp = maxCp;
+      ia = target - cp;
+    }
+  }
+  panel.orderListCursorPos = cp;
+  panel.orderListItemsAbove = ia;
+  panel.orderSelectedIndex = cp + ia;
+  runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
+  runtime.pokedex.orderListCursorPos = cp;
+  runtime.pokedex.orderListItemsAbove = ia;
   panel.entrySpecies = panel.orderEntries[panel.orderSelectedIndex]?.species ?? null;
 };
 
 const updatePokedexTopMenu = (panel: PokedexPanelState, runtime: ScriptRuntimeState): void => {
   const nationalEnabled = isNationalDexEnabled(runtime.pokedex.seenSpecies, runtime.pokedex.caughtSpecies);
   panel.topMenuRows = getPokedexTopMenuRows(nationalEnabled, runtime.pokedex.seenSpecies, panel.dexMode);
-  panel.topMenuSelectedIndex = panel.topMenuRows[panel.topMenuSelectedIndex]?.kind === 'item'
-    ? panel.topMenuSelectedIndex
-    : getFirstSelectablePokedexTopMenuIndex(panel.topMenuRows);
+  clampTopMenuListScroll(panel);
 };
 
 const setPokedexOrderedList = (
@@ -414,12 +484,14 @@ const setPokedexOrderedList = (
     runtime.pokedex.seenSpecies,
     runtime.pokedex.caughtSpecies
   );
+  panel.orderListCursorPos = runtime.pokedex.orderListCursorPos;
+  panel.orderListItemsAbove = runtime.pokedex.orderListItemsAbove;
   panel.orderSelectedIndex = Math.max(0, Math.min(runtime.pokedex.selectedIndex, panel.orderEntries.length - 1));
   panel.description = getPokedexOrderLabel(
     orderId,
     isNationalDexEnabled(runtime.pokedex.seenSpecies, runtime.pokedex.caughtSpecies)
   );
-  clampPokedexOrderSelection(panel);
+  clampPokedexOrderSelection(panel, runtime);
 };
 
 const setPokedexCategoryPage = (
@@ -462,7 +534,7 @@ const createPokedexPanel = (runtime: ScriptRuntimeState): PokedexPanelState => {
     kind: 'pokedex',
     id: 'POKEDEX',
     title: panelTitle('POKEDEX'),
-    description: 'POKeDEX TABLE OF CONTENTS',
+    description: '',
     dexMode: isNationalDexEnabled(runtime.pokedex.seenSpecies, runtime.pokedex.caughtSpecies)
       ? runtime.pokedex.dexMode
       : 'KANTO',
@@ -471,11 +543,14 @@ const createPokedexPanel = (runtime: ScriptRuntimeState): PokedexPanelState => {
     screen: 'topMenu',
     topMenuRows: [],
     topMenuSelectedIndex: 0,
+    topMenuListCursorPos: 0,
+    topMenuListItemsAbove: 1,
     orderedListMode: 'numerical',
     orderId: 'NUMERICAL_KANTO',
     orderEntries: [],
     orderSelectedIndex: Math.max(0, runtime.pokedex.selectedIndex),
-    orderScrollOffset: 0,
+    orderListCursorPos: runtime.pokedex.orderListCursorPos,
+    orderListItemsAbove: runtime.pokedex.orderListItemsAbove,
     categoryId: null,
     categoryReturnScreen: 'topMenu',
     categoryPageIndex: 0,
@@ -490,9 +565,22 @@ const createPokedexPanel = (runtime: ScriptRuntimeState): PokedexPanelState => {
 
   updatePokedexCounts(panel, runtime);
   updatePokedexTopMenu(panel, runtime);
-  panel.topMenuSelectedIndex = getFirstSelectablePokedexTopMenuIndex(panel.topMenuRows);
+  const romDefaultFlat = Math.min(1, Math.max(0, panel.topMenuRows.length - 1));
+  if (panel.topMenuRows[romDefaultFlat]?.kind === 'item') {
+    syncTopMenuListScrollFromFlat(panel, romDefaultFlat);
+  } else {
+    const fs = getFirstSelectablePokedexTopMenuIndex(panel.topMenuRows);
+    syncTopMenuListScrollFromFlat(panel, Math.max(0, fs));
+  }
   return panel;
 };
+
+const partyMemberAtSlot = (members: PartyMenuMember[], slot: number): PartyMenuMember | undefined =>
+  slot < members.length ? members[slot] : undefined;
+
+/** `ShouldUseChooseMonText` — alive means HP ≠ 0 or egg (we omit egg). */
+const countAlivePartyMons = (members: PartyMenuMember[]): number =>
+  members.filter((mon) => mon.hp > 0).length;
 
 const createPartySummaryLines = (
   member: PartyMenuMember | undefined,
@@ -521,17 +609,21 @@ const createPartySummaryLines = (
 };
 
 const updatePartyPanelContent = (panel: PartyPanelState): void => {
-  panel.rows = panel.members.map((member) => {
+  panel.rows = Array.from({ length: PARTY_SCREEN_SLOT_COUNT }, (_, slot) => {
+    const member = partyMemberAtSlot(panel.members, slot);
+    if (!member) {
+      return '';
+    }
     const activeMarker = member.isActive ? ' IN USE' : '';
     return `${formatSpeciesLabel(member.species)} Lv${member.level.toString().padStart(2, '0')}${activeMarker}`;
   });
 
-  const selectedMember = panel.members[panel.selectedIndex];
+  const selectedMember = partyMemberAtSlot(panel.members, panel.selectedIndex);
   panel.summaryLines = createPartySummaryLines(selectedMember, panel.summaryPage);
 
   switch (panel.mode) {
     case 'actions':
-      panel.description = 'Do what with this POKeMON?';
+      panel.description = 'Do what with this POKéMON?';
       break;
     case 'switch':
       panel.description = 'Move to where?';
@@ -539,12 +631,13 @@ const updatePartyPanelContent = (panel: PartyPanelState): void => {
     case 'summary':
       panel.description = selectedMember
         ? `${formatSpeciesLabel(selectedMember.species)} INFO ${panel.summaryPage + 1}/2`
-        : 'There is no POKeMON.';
+        : 'There is no POKéMON.';
       break;
     case 'list':
-      panel.description = selectedMember
-        ? `HP ${selectedMember.hp}/${selectedMember.maxHp}  STATUS ${selectedMember.status}`
-        : 'There is no POKeMON.';
+      panel.description =
+        countAlivePartyMons(panel.members) > 1
+          ? 'Choose POKéMON or CANCEL.'
+          : 'Choose a POKéMON.';
       break;
   }
 };
@@ -723,6 +816,8 @@ const stepPartyPanel = (
   input: InputSnapshot,
   runtime: ScriptRuntimeState
 ): { close: boolean; consumed: boolean; swap?: { fromIndex: number; toIndex: number } } => {
+  const occupied = (index: number): boolean => !!partyMemberAtSlot(panel.members, index);
+
   if (panel.mode === 'summary') {
     if (input.leftPressed || input.rightPressed) {
       panel.summaryPage = panel.summaryPage === 0 ? 1 : 0;
@@ -790,25 +885,38 @@ const stepPartyPanel = (
   }
 
   if (panel.mode === 'switch') {
-    if (panel.members.length > 0) {
-      if (input.upPressed) {
-        panel.selectedIndex = cycleIndex(panel.selectedIndex, panel.members.length, -1);
-        updatePartyPanelContent(panel);
-        runtime.lastScriptId = 'menu.party.move';
-        return { close: false, consumed: true };
+    const advanceSwitchCursor = (direction: -1 | 1): void => {
+      let next = panel.selectedIndex;
+      for (let step = 0; step < PARTY_SCREEN_SLOT_COUNT; step += 1) {
+        next = cycleIndex(next, PARTY_SCREEN_SLOT_COUNT, direction);
+        if (occupied(next)) {
+          panel.selectedIndex = next;
+          return;
+        }
       }
+    };
 
-      if (input.downPressed) {
-        panel.selectedIndex = cycleIndex(panel.selectedIndex, panel.members.length, 1);
-        updatePartyPanelContent(panel);
-        runtime.lastScriptId = 'menu.party.move';
-        return { close: false, consumed: true };
-      }
+    if (input.upPressed) {
+      advanceSwitchCursor(-1);
+      updatePartyPanelContent(panel);
+      runtime.lastScriptId = 'menu.party.move';
+      return { close: false, consumed: true };
+    }
+
+    if (input.downPressed) {
+      advanceSwitchCursor(1);
+      updatePartyPanelContent(panel);
+      runtime.lastScriptId = 'menu.party.move';
+      return { close: false, consumed: true };
     }
 
     if (input.interactPressed) {
       const fromIndex = panel.switchingIndex ?? panel.selectedIndex;
       const toIndex = panel.selectedIndex;
+      if (!occupied(toIndex)) {
+        runtime.lastScriptId = 'menu.party.switch.cancel';
+        return { close: false, consumed: true };
+      }
       if (fromIndex !== toIndex) {
         [panel.members[fromIndex], panel.members[toIndex]] = [panel.members[toIndex], panel.members[fromIndex]];
       }
@@ -837,23 +945,24 @@ const stepPartyPanel = (
     return { close: false, consumed: false };
   }
 
-  if (panel.members.length > 0) {
-    if (input.upPressed) {
-      panel.selectedIndex = cycleIndex(panel.selectedIndex, panel.members.length, -1);
-      updatePartyPanelContent(panel);
-      runtime.lastScriptId = 'menu.party.move';
-      return { close: false, consumed: true };
-    }
+  if (input.upPressed) {
+    panel.selectedIndex = cycleIndex(panel.selectedIndex, PARTY_SCREEN_SLOT_COUNT, -1);
+    updatePartyPanelContent(panel);
+    runtime.lastScriptId = 'menu.party.move';
+    return { close: false, consumed: true };
+  }
 
-    if (input.downPressed) {
-      panel.selectedIndex = cycleIndex(panel.selectedIndex, panel.members.length, 1);
-      updatePartyPanelContent(panel);
-      runtime.lastScriptId = 'menu.party.move';
-      return { close: false, consumed: true };
-    }
+  if (input.downPressed) {
+    panel.selectedIndex = cycleIndex(panel.selectedIndex, PARTY_SCREEN_SLOT_COUNT, 1);
+    updatePartyPanelContent(panel);
+    runtime.lastScriptId = 'menu.party.move';
+    return { close: false, consumed: true };
   }
 
   if (input.interactPressed) {
+    if (!occupied(panel.selectedIndex)) {
+      return { close: false, consumed: true };
+    }
     panel.mode = 'actions';
     panel.actionIndex = 0;
     updatePartyPanelContent(panel);
@@ -892,21 +1001,41 @@ const stepPokedexPanel = (
 
   if (panel.screen === 'topMenu') {
     if (input.upPressed) {
-      panel.topMenuSelectedIndex = getNextSelectablePokedexTopMenuIndex(
-        panel.topMenuRows,
-        panel.topMenuSelectedIndex,
-        -1
+      const total = panel.topMenuRows.length;
+      const isHeader = (i: number): boolean => panel.topMenuRows[i]?.kind === 'header';
+      const r = listMenuStepFireRed(
+        total,
+        POKEDEX_MODE_LIST_MAX_SHOWED,
+        panel.topMenuListCursorPos,
+        panel.topMenuListItemsAbove,
+        false,
+        isHeader
       );
+      if (r.moved) {
+        panel.topMenuListCursorPos = r.cursorPos;
+        panel.topMenuListItemsAbove = r.itemsAbove;
+        panel.topMenuSelectedIndex = r.cursorPos + r.itemsAbove;
+      }
       runtime.lastScriptId = 'menu.pokedex.top.move';
       return { close: false, consumed: true };
     }
 
     if (input.downPressed) {
-      panel.topMenuSelectedIndex = getNextSelectablePokedexTopMenuIndex(
-        panel.topMenuRows,
-        panel.topMenuSelectedIndex,
-        1
+      const total = panel.topMenuRows.length;
+      const isHeader = (i: number): boolean => panel.topMenuRows[i]?.kind === 'header';
+      const r = listMenuStepFireRed(
+        total,
+        POKEDEX_MODE_LIST_MAX_SHOWED,
+        panel.topMenuListCursorPos,
+        panel.topMenuListItemsAbove,
+        true,
+        isHeader
       );
+      if (r.moved) {
+        panel.topMenuListCursorPos = r.cursorPos;
+        panel.topMenuListItemsAbove = r.itemsAbove;
+        panel.topMenuSelectedIndex = r.cursorPos + r.itemsAbove;
+      }
       runtime.lastScriptId = 'menu.pokedex.top.move';
       return { close: false, consumed: true };
     }
@@ -949,17 +1078,45 @@ const stepPokedexPanel = (
   if (panel.screen === 'orderedList') {
     if (panel.orderEntries.length > 0) {
       if (input.upPressed) {
-        panel.orderSelectedIndex = cycleIndex(panel.orderSelectedIndex, panel.orderEntries.length, -1);
-        runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
-        clampPokedexOrderSelection(panel);
+        const len = panel.orderEntries.length;
+        const r = listMenuStepFireRed(
+          len,
+          POKEDEX_ORDERED_LIST_MAX_SHOWED,
+          panel.orderListCursorPos,
+          panel.orderListItemsAbove,
+          false,
+          () => false
+        );
+        if (r.moved) {
+          panel.orderListCursorPos = r.cursorPos;
+          panel.orderListItemsAbove = r.itemsAbove;
+          panel.orderSelectedIndex = r.cursorPos + r.itemsAbove;
+          runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
+          runtime.pokedex.orderListCursorPos = r.cursorPos;
+          runtime.pokedex.orderListItemsAbove = r.itemsAbove;
+        }
         runtime.lastScriptId = 'menu.pokedex.order.move';
         return { close: false, consumed: true };
       }
 
       if (input.downPressed) {
-        panel.orderSelectedIndex = cycleIndex(panel.orderSelectedIndex, panel.orderEntries.length, 1);
-        runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
-        clampPokedexOrderSelection(panel);
+        const len = panel.orderEntries.length;
+        const r = listMenuStepFireRed(
+          len,
+          POKEDEX_ORDERED_LIST_MAX_SHOWED,
+          panel.orderListCursorPos,
+          panel.orderListItemsAbove,
+          true,
+          () => false
+        );
+        if (r.moved) {
+          panel.orderListCursorPos = r.cursorPos;
+          panel.orderListItemsAbove = r.itemsAbove;
+          panel.orderSelectedIndex = r.cursorPos + r.itemsAbove;
+          runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
+          runtime.pokedex.orderListCursorPos = r.cursorPos;
+          runtime.pokedex.orderListItemsAbove = r.itemsAbove;
+        }
         runtime.lastScriptId = 'menu.pokedex.order.move';
         return { close: false, consumed: true };
       }
@@ -1001,6 +1158,7 @@ const stepPokedexPanel = (
 
     if (input.cancelPressed || input.startPressed) {
       panel.screen = 'topMenu';
+      panel.description = '';
       runtime.lastScriptId = 'menu.pokedex.order.close';
       return { close: false, consumed: true };
     }
@@ -1077,13 +1235,23 @@ const stepPokedexPanel = (
     }
 
     if (panel.entryReturnScreen === 'orderedList' && panel.orderEntries.length > 0 && (input.upPressed || input.downPressed)) {
-      panel.orderSelectedIndex = cycleIndex(
-        panel.orderSelectedIndex,
-        panel.orderEntries.length,
-        input.upPressed ? -1 : 1
+      const len = panel.orderEntries.length;
+      const r = listMenuStepFireRed(
+        len,
+        POKEDEX_ORDERED_LIST_MAX_SHOWED,
+        panel.orderListCursorPos,
+        panel.orderListItemsAbove,
+        input.downPressed,
+        () => false
       );
-      runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
-      clampPokedexOrderSelection(panel);
+      if (r.moved) {
+        panel.orderListCursorPos = r.cursorPos;
+        panel.orderListItemsAbove = r.itemsAbove;
+        panel.orderSelectedIndex = r.cursorPos + r.itemsAbove;
+        runtime.pokedex.selectedIndex = panel.orderSelectedIndex;
+        runtime.pokedex.orderListCursorPos = r.cursorPos;
+        runtime.pokedex.orderListItemsAbove = r.itemsAbove;
+      }
       openPokedexEntry(panel, panel.orderEntries[panel.orderSelectedIndex]?.species ?? panel.entrySpecies ?? '', 'orderedList');
       runtime.lastScriptId = 'menu.pokedex.entry.move';
       return { close: false, consumed: true };
@@ -1136,11 +1304,22 @@ const stepSummaryPanel = (
     profileLines: ['KANTO TRAINER', 'ADVENTURE IN PROGRESS']
   };
 
-  if (input.leftPressed || input.rightPressed || input.interactPressed) {
-    panel.pageIndex = panel.pageIndex === 0 ? 1 : 0;
+  /** `Task_TrainerCard` (`trainer_card.c`): front — A flips; B closes. Back — B flips; A closes. */
+  if (panel.pageIndex === 0) {
+    if (input.interactPressed) {
+      panel.pageIndex = 1;
+      updatePlayerSummaryPanel(panel, summary);
+      runtime.lastScriptId = 'menu.player.flip';
+      return { close: false, consumed: true };
+    }
+  } else if (input.cancelPressed) {
+    panel.pageIndex = 0;
     updatePlayerSummaryPanel(panel, summary);
     runtime.lastScriptId = 'menu.player.flip';
     return { close: false, consumed: true };
+  } else if (input.interactPressed) {
+    runtime.lastScriptId = `menu.panel.close.${panel.id.toLowerCase()}`;
+    return { close: true, consumed: true };
   }
 
   if (input.cancelPressed || input.startPressed) {

@@ -121,4 +121,72 @@ describe('Route 10 compact map source', () => {
     expect(trainers).toHaveLength(6);
     expect(map.npcs.filter((n) => n.graphicsId === 'OBJ_EVENT_GFX_CUT_TREE')).toHaveLength(4);
   });
+
+  test('has Rock Tunnel north entrance warp at (8,19) → RockTunnel_1F warp 0', () => {
+    const compactSource = parseCompactMapSource(route10MapJson);
+    const map = mapFromCompactSource(compactSource);
+
+    const warp = map.warps.find((w) => w.x === 8 && w.y === 19);
+    expect(warp).toEqual({
+      x: 8,
+      y: 19,
+      elevation: 3,
+      destMap: 'MAP_ROCK_TUNNEL_1F',
+      destWarpId: 0
+    });
+  });
+
+  test('has Rock Tunnel south entrance warp at (8,57) → RockTunnel_1F warp 5', () => {
+    const compactSource = parseCompactMapSource(route10MapJson);
+    const map = mapFromCompactSource(compactSource);
+
+    const warp = map.warps.find((w) => w.x === 8 && w.y === 57);
+    expect(warp).toEqual({
+      x: 8,
+      y: 57,
+      elevation: 3,
+      destMap: 'MAP_ROCK_TUNNEL_1F',
+      destWarpId: 5
+    });
+  });
+
+  test('has Power Plant entrance warps', () => {
+    const compactSource = parseCompactMapSource(route10MapJson);
+    const map = mapFromCompactSource(compactSource);
+
+    const ppWarps = map.warps.filter((w) => w.destMap === 'MAP_POWER_PLANT');
+    expect(ppWarps).toHaveLength(2);
+    expect(ppWarps).toEqual(expect.arrayContaining([
+      { x: 7, y: 40, elevation: 3, destMap: 'MAP_POWER_PLANT', destWarpId: 1 },
+      { x: 2, y: 37, elevation: 3, destMap: 'MAP_POWER_PLANT', destWarpId: 3 }
+    ]));
+  });
+
+  test('has Pokemon Center warp at (13,20)', () => {
+    const compactSource = parseCompactMapSource(route10MapJson);
+    const map = mapFromCompactSource(compactSource);
+
+    const warp = map.warps.find((w) => w.x === 13 && w.y === 20);
+    expect(warp).toEqual({
+      x: 13,
+      y: 20,
+      elevation: 0,
+      destMap: 'MAP_ROUTE10_POKEMON_CENTER_1F',
+      destWarpId: 1
+    });
+  });
+
+  test('has exactly 5 warps matching decomp source', () => {
+    const compactSource = parseCompactMapSource(route10MapJson);
+    const map = mapFromCompactSource(compactSource);
+
+    expect(map.warps).toHaveLength(5);
+    expect(map.warps).toEqual([
+      { x: 8, y: 19, elevation: 3, destMap: 'MAP_ROCK_TUNNEL_1F', destWarpId: 0 },
+      { x: 8, y: 57, elevation: 3, destMap: 'MAP_ROCK_TUNNEL_1F', destWarpId: 5 },
+      { x: 7, y: 40, elevation: 3, destMap: 'MAP_POWER_PLANT', destWarpId: 1 },
+      { x: 13, y: 20, elevation: 0, destMap: 'MAP_ROUTE10_POKEMON_CENTER_1F', destWarpId: 1 },
+      { x: 2, y: 37, elevation: 3, destMap: 'MAP_POWER_PLANT', destWarpId: 3 }
+    ]);
+  });
 });

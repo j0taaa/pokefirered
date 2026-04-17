@@ -183,14 +183,15 @@ export const getItemDefinition = (itemId: string): ItemDefinition => itemDefinit
 export const getBagPocketByItemId = (itemId: string): BagPocketId | null =>
   pocketFromDecompPocket(getItemDefinition(itemId).pocket);
 
+/** `sPocketNames` in `src/item_menu.c` (`gText_Items2`, `gText_KeyItems2`, `gText_PokeBalls2`). */
 export const getBagPocketLabel = (pocket: BagPocketId): string => {
   switch (pocket) {
     case 'items':
-      return 'ITEMS POCKET';
+      return 'ITEMS';
     case 'keyItems':
-      return 'KEY ITEMS POCKET';
+      return 'KEY ITEMS';
     case 'pokeBalls':
-      return 'POKe BALLS POCKET';
+      return 'POKé BALLS';
   }
 };
 
@@ -442,7 +443,7 @@ export const getSelectedBagEntry = (bag: BagState): BagListEntry => {
 export const getBagDescription = (bag: BagState): string => {
   const entry = getSelectedBagEntry(bag);
   if (entry.isExit || !entry.itemId) {
-    return 'Close the BAG.';
+    return 'CLOSE BAG';
   }
 
   return getItemDefinition(entry.itemId).description;
@@ -573,6 +574,7 @@ const stepContextMenu = (
   }
 
   const quantity = getBagQuantity(bag, menu.itemId);
+  panel.contextMenu = null;
   if (quantity <= 1) {
     panel.quantityPrompt = null;
     panel.confirmationPrompt = {

@@ -17,6 +17,8 @@ import route7MapJson from './maps/route7.json';
 import route8MapJson from './maps/route8.json';
 import route9MapJson from './maps/route9.json';
 import route10MapJson from './maps/route10.json';
+import rockTunnel1FMapJson from './maps/rockTunnel1F.json';
+import rockTunnelB1FMapJson from './maps/rockTunnelB1F.json';
 import vermilionCityMapJson from './maps/vermilionCity.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
@@ -65,6 +67,7 @@ export interface MapSource {
   visual?: MapVisualSource;
   npcs?: MapNpcSource[];
   hiddenItems?: MapHiddenItemSource[];
+  warps?: WarpSource[];
 }
 
 export interface WildEncounterMon {
@@ -96,6 +99,7 @@ export interface CompactMapSource {
   visual?: MapVisualSource;
   npcs?: MapNpcSource[];
   hiddenItems?: MapHiddenItemSource[];
+  warps?: WarpSource[];
 }
 
 export interface MapVisualSource {
@@ -127,6 +131,14 @@ export interface MapHiddenItemSource {
   quantity?: number;
   flag: string;
   underfoot?: boolean;
+}
+
+export interface WarpSource {
+  x: number;
+  y: number;
+  elevation: number;
+  destMap: string;
+  destWarpId: number;
 }
 
 const isPositiveInteger = (value: unknown): value is number =>
@@ -297,6 +309,37 @@ const parseHiddenItemSource = (raw: unknown, mapId: string, index: number): MapH
   };
 };
 
+const parseWarpSource = (raw: unknown, mapId: string, index: number): WarpSource => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(`Map source "${mapId}" warp ${index} must be an object.`);
+  }
+
+  const candidate = raw as Record<string, unknown>;
+  if (!Number.isInteger(candidate.x) || !Number.isInteger(candidate.y)) {
+    throw new Error(`Map source "${mapId}" warp ${index} must define integer x and y.`);
+  }
+
+  if (!Number.isInteger(candidate.elevation)) {
+    throw new Error(`Map source "${mapId}" warp ${index} must define integer elevation.`);
+  }
+
+  if (typeof candidate.destMap !== 'string' || candidate.destMap.length === 0) {
+    throw new Error(`Map source "${mapId}" warp ${index} must define destMap.`);
+  }
+
+  if (!Number.isInteger(candidate.destWarpId) || (candidate.destWarpId as number) < 0) {
+    throw new Error(`Map source "${mapId}" warp ${index} must define non-negative integer destWarpId.`);
+  }
+
+  return {
+    x: candidate.x as number,
+    y: candidate.y as number,
+    elevation: candidate.elevation as number,
+    destMap: candidate.destMap as string,
+    destWarpId: candidate.destWarpId as number
+  };
+};
+
 const parseMapConnectionSource = (raw: unknown, mapId: string, index: number): MapConnectionSource => {
   if (!raw || typeof raw !== 'object') {
     throw new Error(`Map source "${mapId}" connection ${index} must be an object.`);
@@ -464,7 +507,8 @@ export const mapFromSource = (source: MapSource): TileMap => {
       }
       : undefined,
     npcs: source.npcs ? [...source.npcs] : [],
-    hiddenItems: source.hiddenItems ? [...source.hiddenItems] : []
+    hiddenItems: source.hiddenItems ? [...source.hiddenItems] : [],
+    warps: source.warps ? [...source.warps] : []
   };
 };
 
@@ -486,7 +530,8 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     triggers: source.triggers,
     visual: source.visual,
     npcs: source.npcs,
-    hiddenItems: source.hiddenItems
+    hiddenItems: source.hiddenItems,
+    warps: source.warps
   });
 
 export const parseMapSource = (raw: unknown): MapSource => {
@@ -537,6 +582,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" hiddenItems must be an array.`);
   }
 
+  if (candidate.warps !== undefined && !Array.isArray(candidate.warps)) {
+    throw new Error(`Map source "${id}" warps must be an array.`);
+  }
+
   const expectedTiles = candidate.width * candidate.height;
 
   return {
@@ -551,7 +600,8 @@ export const parseMapSource = (raw: unknown): MapSource => {
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
     npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index)),
-    hiddenItems: (candidate.hiddenItems ?? []).map((entry, index) => parseHiddenItemSource(entry, id, index))
+    hiddenItems: (candidate.hiddenItems ?? []).map((entry, index) => parseHiddenItemSource(entry, id, index)),
+    warps: (candidate.warps ?? []).map((entry, index) => parseWarpSource(entry, id, index))
   };
 };
 
@@ -626,6 +676,10 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     throw new Error(`Compact map source "${id}" hiddenItems must be an array.`);
   }
 
+  if (candidate.warps !== undefined && !Array.isArray(candidate.warps)) {
+    throw new Error(`Compact map source "${id}" warps must be an array.`);
+  }
+
   const expectedTiles = candidate.width * candidate.height;
 
   return {
@@ -640,7 +694,8 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
     npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index)),
-    hiddenItems: (candidate.hiddenItems ?? []).map((entry, index) => parseHiddenItemSource(entry, id, index))
+    hiddenItems: (candidate.hiddenItems ?? []).map((entry, index) => parseHiddenItemSource(entry, id, index)),
+    warps: (candidate.warps ?? []).map((entry, index) => parseWarpSource(entry, id, index))
   };
 };
 
@@ -685,6 +740,12 @@ export const loadRoute9Map = (): TileMap =>
 
 export const loadRoute10Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route10MapJson));
+
+export const loadRockTunnel1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(rockTunnel1FMapJson));
+
+export const loadRockTunnelB1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(rockTunnelB1FMapJson));
 
 export const loadVermilionCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(vermilionCityMapJson));
@@ -747,6 +808,10 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRoute9Map();
     case 'MAP_ROUTE10':
       return loadRoute10Map();
+    case 'MAP_ROCK_TUNNEL_1F':
+      return loadRockTunnel1FMap();
+    case 'MAP_ROCK_TUNNEL_B1F':
+      return loadRockTunnelB1FMap();
     case 'MAP_VERMILION_CITY':
       return loadVermilionCityMap();
     case 'MAP_VIRIDIAN_CITY':

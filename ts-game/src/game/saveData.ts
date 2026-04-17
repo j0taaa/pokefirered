@@ -88,8 +88,15 @@ const isPokedexState = (value: unknown): value is PokedexState => {
   }
 
   const candidate = value as Record<string, unknown>;
+  const orderCp = candidate.orderListCursorPos;
+  const orderIa = candidate.orderListItemsAbove;
+  const orderScrollOk =
+    (orderCp === undefined && orderIa === undefined)
+    || (Number.isInteger(orderCp) && Number.isInteger(orderIa));
+
   return (candidate.dexMode === 'KANTO' || candidate.dexMode === 'NATIONAL')
     && Number.isInteger(candidate.selectedIndex)
+    && orderScrollOk
     && isStringArray(candidate.seenSpecies)
     && isStringArray(candidate.caughtSpecies);
 };

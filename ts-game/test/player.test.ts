@@ -29,7 +29,8 @@ describe('player stepping', () => {
     walkable: Array.from({ length: 12 * 12 }, () => true),
     connections: [],
     triggers: [],
-    npcs: []
+    npcs: [],
+    warps: []
   };
 
   const blockedRowMap: TileMap = {
@@ -40,7 +41,8 @@ describe('player stepping', () => {
     walkable: Array.from({ length: 12 * 12 }, (_, index) => Math.floor(index / 12) !== 5),
     connections: [],
     triggers: [],
-    npcs: []
+    npcs: [],
+    warps: []
   };
 
   test('does not move when no direction is pressed', () => {

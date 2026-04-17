@@ -438,19 +438,93 @@ export const getPokedexTopMenuRows = (
 export const getFirstSelectablePokedexTopMenuIndex = (rows: PokedexTopMenuRow[]): number =>
   rows.findIndex((row) => row.kind === 'item');
 
-export const getNextSelectablePokedexTopMenuIndex = (
-  rows: PokedexTopMenuRow[],
-  currentIndex: number,
-  direction: -1 | 1
-): number => {
-  let nextIndex = currentIndex;
-  for (let attempts = 0; attempts < rows.length; attempts += 1) {
-    nextIndex = (nextIndex + direction + rows.length) % rows.length;
-    if (rows[nextIndex]?.kind === 'item') {
-      return nextIndex;
+/** `list_menu.c` `ListMenuUpdateSelectedRowIndexAndScrollOffset` — `isHeader` ⇔ `LIST_HEADER`. */
+export const listMenuUpdateScrollFireRed = (
+  totalItems: number,
+  maxShowed: number,
+  cursorPos: number,
+  itemsAbove: number,
+  movingDown: boolean,
+  isHeader: (flatIndex: number) => boolean
+): { cursorPos: number; itemsAbove: number; changed: boolean } => {
+  let ia = itemsAbove;
+  let cp = cursorPos;
+  const max = Math.min(maxShowed, totalItems);
+
+  if (!movingDown) {
+    const newRow = max === 1 ? 0 : max - (Math.floor(max / 2) + (max % 2)) - 1;
+
+    if (cp === 0) {
+      while (ia !== 0) {
+        ia -= 1;
+        if (!isHeader(cp + ia)) {
+          return { cursorPos: cp, itemsAbove: ia, changed: true };
+        }
+      }
+      return { cursorPos: cp, itemsAbove, changed: false };
+    }
+
+    while (ia > newRow) {
+      ia -= 1;
+      if (!isHeader(cp + ia)) {
+        return { cursorPos: cp, itemsAbove: ia, changed: true };
+      }
+    }
+    const newScroll = cp - 1;
+    return { cursorPos: newScroll, itemsAbove: newRow, changed: true };
+  }
+
+  const newRowDown = max === 1 ? 0 : Math.floor(max / 2) + (max % 2);
+
+  if (cp === totalItems - max) {
+    while (ia < max - 1) {
+      ia += 1;
+      if (!isHeader(cp + ia)) {
+        return { cursorPos: cp, itemsAbove: ia, changed: true };
+      }
+    }
+    return { cursorPos: cp, itemsAbove, changed: false };
+  }
+
+  while (ia < newRowDown) {
+    ia += 1;
+    if (!isHeader(cp + ia)) {
+      return { cursorPos: cp, itemsAbove: ia, changed: true };
     }
   }
-  return currentIndex;
+  const newScrollDown = cp + 1;
+  return { cursorPos: newScrollDown, itemsAbove: newRowDown, changed: true };
+};
+
+/** One DPAD step like `ListMenuChangeSelection` with `count == 1` (repeat while `ret == 2` and on header). */
+export const listMenuStepFireRed = (
+  totalItems: number,
+  maxShowed: number,
+  cursorPos: number,
+  itemsAbove: number,
+  movingDown: boolean,
+  isHeader: (flatIndex: number) => boolean
+): { cursorPos: number; itemsAbove: number; moved: boolean } => {
+  let cp = cursorPos;
+  let ia = itemsAbove;
+  let moved = false;
+  let guard = 0;
+
+  while (guard < totalItems + 8) {
+    guard += 1;
+    const u = listMenuUpdateScrollFireRed(totalItems, maxShowed, cp, ia, movingDown, isHeader);
+    if (!u.changed) {
+      break;
+    }
+    moved = true;
+    cp = u.cursorPos;
+    ia = u.itemsAbove;
+    if (!isHeader(cp + ia)) {
+      break;
+    }
+  }
+
+  return { cursorPos: cp, itemsAbove: ia, moved };
 };
 
 export const getPokedexCategoryPages = (

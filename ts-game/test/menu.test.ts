@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { listMenuStepFireRed } from '../src/game/decompPokedexUi';
 import { createDialogueState, openDialogueSequence } from '../src/game/interaction';
 import { createStartMenuState, stepStartMenu } from '../src/game/menu';
 import { createScriptRuntimeState } from '../src/game/scripts';
@@ -126,6 +127,25 @@ describe('start menu stepping', () => {
 
     expect(menu.active).toBe(false);
     expect(runtime.lastScriptId).toBe('menu.exit');
+  });
+
+  test('Pokédex mode list uses sDexScreenDataInitialState scroll (itemsAbove=1) and ListMenu down step', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    if (!menu.panel || menu.panel.kind !== 'pokedex') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.topMenuListCursorPos).toBe(0);
+    expect(menu.panel.topMenuListItemsAbove).toBe(1);
+    expect(menu.panel.topMenuSelectedIndex).toBe(1);
+
+    const r = listMenuStepFireRed(20, 9, 0, 1, true, (i) => i === 0);
+    expect(r).toEqual({ cursorPos: 0, itemsAbove: 2, moved: true });
   });
 
   test('POKEDEX selection is blocked when no species have been seen yet', () => {
@@ -341,6 +361,48 @@ describe('start menu stepping', () => {
     expect(menu.panel).toBe(null);
     expect(menu.active).toBe(true);
     expect(menu.options[menu.selectedIndex]?.id).toBe('PLAYER');
+  });
+
+  test('PLAYER trainer card: A flips to back, B returns to front, A closes from back', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'PLAYER');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    const panel = menu.panel;
+    expect(panel?.kind).toBe('summary');
+    if (!panel || panel.kind !== 'summary' || panel.id !== 'PLAYER') {
+      throw new Error('expected player panel');
+    }
+    expect(panel.pageIndex).toBe(0);
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    expect(menu.panel?.kind).toBe('summary');
+    if (menu.panel?.kind !== 'summary' || menu.panel.id !== 'PLAYER') {
+      throw new Error('expected player panel');
+    }
+    expect(menu.panel.pageIndex).toBe(1);
+    expect(runtime.lastScriptId).toBe('menu.player.flip');
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    if (menu.panel?.kind !== 'summary' || menu.panel.id !== 'PLAYER') {
+      throw new Error('expected player panel');
+    }
+    expect(menu.panel.pageIndex).toBe(0);
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    expect(menu.panel?.kind).toBe('summary');
+    if (menu.panel?.kind !== 'summary' || menu.panel.id !== 'PLAYER') {
+      throw new Error('expected player panel');
+    }
+    expect(menu.panel.pageIndex).toBe(1);
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
   });
 
   test('supports safari retire prompt with YES/NO choices', () => {

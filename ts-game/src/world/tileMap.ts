@@ -18,6 +18,7 @@ import {
   type MapNpcSource,
   type MapVisualSource,
   type TriggerZone,
+  type WarpSource,
   type WildEncounters
 } from './mapSource';
 
@@ -34,6 +35,7 @@ export interface TileMap {
   visual?: MapVisualSource;
   npcs: MapNpcSource[];
   hiddenItems?: MapHiddenItemSource[];
+  warps: WarpSource[];
 }
 
 export const createPrototypeRouteMap = (): TileMap => loadPrototypeRouteMap();
