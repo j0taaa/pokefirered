@@ -18,6 +18,7 @@ import route6MapJson from './maps/route6.json';
 import route7MapJson from './maps/route7.json';
 import route8MapJson from './maps/route8.json';
 import route9MapJson from './maps/route9.json';
+import saffronCityMapJson from './maps/saffronCity.json';
 import route10MapJson from './maps/route10.json';
 import rockTunnel1FMapJson from './maps/rockTunnel1F.json';
 import rockTunnelB1FMapJson from './maps/rockTunnelB1F.json';
@@ -755,6 +756,9 @@ export const loadRoute9Map = (): TileMap =>
 export const loadRoute10Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route10MapJson));
 
+export const loadSaffronCityMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(saffronCityMapJson));
+
 export const loadRockTunnel1FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(rockTunnel1FMapJson));
 
@@ -826,6 +830,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRoute9Map();
     case 'MAP_ROUTE10':
       return loadRoute10Map();
+    case 'MAP_SAFFRON_CITY':
+      return loadSaffronCityMap();
     case 'MAP_ROCK_TUNNEL_1F':
       return loadRockTunnel1FMap();
     case 'MAP_ROCK_TUNNEL_B1F':

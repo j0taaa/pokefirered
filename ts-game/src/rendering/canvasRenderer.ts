@@ -213,6 +213,7 @@ import {
   BATTLE_COMMAND_LABELS,
   BATTLE_GBA_HEIGHT,
   BATTLE_GBA_WIDTH,
+  BATTLE_HEALTHBOX_OVERLAY,
   BATTLE_LIST_WINDOW,
   BATTLE_MESSAGE_WINDOW,
   BATTLE_MOVE_MENU_WINDOW,
@@ -745,29 +746,56 @@ export class CanvasRenderer {
     if (hb.complete && hb.naturalWidth > 0) {
       const nw = hb.naturalWidth;
       const nh = hb.naturalHeight;
-      if (side === 'opponent') {
-        this.ctx.drawImage(hb, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
-      } else {
-        const destH = Math.round((box.h * 48) / 30);
-        const destY = box.y - (destH - box.h);
-        this.ctx.drawImage(hb, 0, 0, nw, nh, box.x - 12, destY, box.w + 24, destH);
+      this.ctx.drawImage(hb, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
+    } else {
+      const fallback =
+        side === 'opponent'
+          ? { x: 44, y: 30, w: 92, h: 30 }
+          : { x: 158, y: 88, w: 74, h: 30 };
+      this.drawWindowFrame(fallback.x, fallback.y, fallback.w, fallback.h, 'std');
+    }
+
+    if (side === 'player') {
+      const ov = BATTLE_HEALTHBOX_OVERLAY.player;
+      const speciesX = box.x + ov.species.dx;
+      const speciesY = box.y + ov.species.dy;
+      this.drawSmallText(pokemon.species, speciesX, speciesY);
+      const lvStr = `Lv${pokemon.level}`;
+      this.drawSmallText(
+        lvStr,
+        box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
+        speciesY
+      );
+      this.drawSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + ov.hpText.dx, box.y + ov.hpText.dy);
+      this.drawPartyHpBarGba(box.x + ov.hpBar.dx, box.y + ov.hpBar.dy, ov.hpBar.w, pokemon.hp, pokemon.maxHp);
+      if (pokemon.status !== 'none') {
+        this.drawSmallText(
+          pokemon.status.toUpperCase(),
+          box.x + ov.species.dx,
+          box.y + box.h - ov.statusFromBottom,
+          '#7a2432'
+        );
       }
     } else {
-      this.drawWindowFrame(box.x, box.y, box.w, box.h, 'std');
-    }
-
-    this.drawSmallText(side === 'player' ? pokemon.species : `FOE ${pokemon.species}`, box.x + 8, box.y + 6);
-    const lvStr = `Lv${pokemon.level}`;
-    this.drawSmallText(lvStr, box.x + box.w - 8 - this.measureSmallTextWidth(lvStr), box.y + 6);
-    if (side === 'player') {
-      this.drawSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + 8, box.y + 18);
-      this.drawPartyHpBarGba(box.x + 34, box.y + 19, 34, pokemon.hp, pokemon.maxHp);
-    } else {
-      this.drawPartyHpBarGba(box.x + 36, box.y + 18, 44, pokemon.hp, pokemon.maxHp);
-    }
-
-    if (pokemon.status !== 'none') {
-      this.drawSmallText(pokemon.status.toUpperCase(), box.x + 8, box.y + box.h - 10, '#7a2432');
+      const ov = BATTLE_HEALTHBOX_OVERLAY.opponent;
+      const speciesX = box.x + ov.species.dx;
+      const speciesY = box.y + ov.species.dy;
+      this.drawSmallText(`FOE ${pokemon.species}`, speciesX, speciesY);
+      const lvStr = `Lv${pokemon.level}`;
+      this.drawSmallText(
+        lvStr,
+        box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
+        speciesY
+      );
+      this.drawPartyHpBarGba(box.x + ov.hpBar.dx, box.y + ov.hpBar.dy, ov.hpBar.w, pokemon.hp, pokemon.maxHp);
+      if (pokemon.status !== 'none') {
+        this.drawSmallText(
+          pokemon.status.toUpperCase(),
+          box.x + ov.species.dx,
+          box.y + box.h - ov.statusFromBottom,
+          '#7a2432'
+        );
+      }
     }
   }
 

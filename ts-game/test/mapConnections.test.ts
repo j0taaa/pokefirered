@@ -19,6 +19,7 @@ import {
   loadRoute8Map,
   loadRoute9Map,
   loadRoute10Map,
+  loadSaffronCityMap,
   loadRockTunnel1FMap,
   loadRockTunnelB1FMap,
   loadVermilionCityMap,
@@ -460,6 +461,58 @@ describe('map connections', () => {
 
   test('loads Lavender Town through the shared map loader', () => {
     expect(loadMapById('MAP_LAVENDER_TOWN')?.id).toBe('MAP_LAVENDER_TOWN');
+  });
+
+  test('matches Saffron City decomp connection offsets', () => {
+    const saffron = loadSaffronCityMap();
+
+    expect(saffron.connections).toEqual([
+      { map: 'MAP_ROUTE5', offset: 0, direction: 'up' },
+      { map: 'MAP_ROUTE6', offset: 12, direction: 'down' },
+      { map: 'MAP_ROUTE7', offset: 10, direction: 'left' },
+      { map: 'MAP_ROUTE8', offset: 10, direction: 'right' }
+    ]);
+  });
+
+  test('transitions from Saffron City north edge into Route 5 using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadSaffronCityMap(), 23, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE5');
+    expect(transition?.playerPosition).toEqual({ x: 23 * 16, y: 39 * 16 });
+  });
+
+  test('returns null for Saffron City south edge because Route 6 top border is blocked', () => {
+    const transition = resolveMapConnectionTransition(loadSaffronCityMap(), 35, 54, 'down', loadMapById);
+
+    expect(transition).toBeNull();
+  });
+
+  test('transitions from Saffron City west edge into Route 7 using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadSaffronCityMap(), 0, 16, 'left', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE7');
+    expect(transition?.playerPosition).toEqual({ x: 23 * 16, y: 6 * 16 });
+  });
+
+  test('transitions from Saffron City east edge into Route 8 using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadSaffronCityMap(), 65, 16, 'right', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE8');
+    expect(transition?.playerPosition).toEqual({ x: 0, y: 6 * 16 });
+  });
+
+  test('rejects Saffron City coordinates outside the connected overlap', () => {
+    expect(resolveMapConnectionTransition(loadSaffronCityMap(), 22, 0, 'up', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadSaffronCityMap(), 34, 54, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadSaffronCityMap(), 0, 9, 'left', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadSaffronCityMap(), 65, 30, 'right', loadMapById)).toBeNull();
+  });
+
+  test('loads Saffron City through the shared map loader', () => {
+    expect(loadMapById('MAP_SAFFRON_CITY')?.id).toBe('MAP_SAFFRON_CITY');
   });
 
   test('returns null for Celadon City left edge because Route 16 is still unloaded', () => {

@@ -15,9 +15,31 @@ export const BATTLE_SINGLE_BATTLER_COORDS = {
   opponent: { x: 176, y: 40 }
 } as const;
 
+/**
+ * Singles healthbox bitmaps match two OAM pieces side by side (`SpriteCB_HealthBoxOther`: +64px).
+ * Opponent: `InitBattlerHealthboxCoords` is the top-left of the full 128×32 sheet.
+ * Player: ROM x is the horizontal center of the 128×64 sheet (main + other 64×64 tiles).
+ */
 export const BATTLE_SINGLE_HEALTHBOX_COORDS = {
-  opponent: { x: 44, y: 30, w: 92, h: 30 },
-  player: { x: 158, y: 88, w: 74, h: 30 }
+  opponent: { x: 44, y: 30, w: 128, h: 32 },
+  player: { x: 158 - 64, y: 88, w: 128, h: 64 }
+} as const;
+
+/** Text / HP bar overlay offsets relative to each sheet’s top-left (8px grid, tuned to PNG layout). */
+export const BATTLE_HEALTHBOX_OVERLAY = {
+  opponent: {
+    species: { dx: 10, dy: 5 },
+    levelFromRight: 36,
+    hpBar: { dx: 56, dy: 16, w: 64 },
+    statusFromBottom: 10
+  },
+  player: {
+    species: { dx: 14, dy: 8 },
+    levelFromRight: 40,
+    hpText: { dx: 14, dy: 24 },
+    hpBar: { dx: 44, dy: 38, w: 72 },
+    statusFromBottom: 10
+  }
 } as const;
 
 export const BATTLE_MESSAGE_WINDOW = { x: 8, y: 120, w: 224, h: 32 } as const;

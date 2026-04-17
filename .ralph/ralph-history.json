@@ -83,9 +83,41 @@
         "Tests  2 failed | 219 passed (221)",
         "TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension \".ts\" for /Users/jota/Documents/codigos/pokefirered/ts-game/src/world/mapSource.ts"
       ]
+    },
+    {
+      "iteration": 4,
+      "startedAt": "2026-04-17T03:51:50.349Z",
+      "endedAt": "2026-04-17T03:57:55.630Z",
+      "durationMs": 279365,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/rendering/battleScreenLayout.ts",
+        "ts-game/src/rendering/canvasRenderer.ts",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/test/mapConnections.test.ts",
+        "ts-game/src/world/maps/saffronCity.json",
+        "ts-game/test/saffronCityMap.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "Tests are mostly green. The new failures are just bad Saffron overlap assumptions on my side, while `build` is still failing in pre-existing `src/rendering/canvasRenderer.ts`. I’m checking the actual ",
+        "❯ test/mapConnections.test.ts (56 tests | 4 failed) 119ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City north edge into Route 5 using the decomp offset",
+        "AssertionError: expected { x: 368, y: 624 } to deeply equal { x: 368, y: 880 }",
+        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City south edge into Route 6 using the decomp offset",
+        "AssertionError: expected null not to be null",
+        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City west edge into Route 7 using the decomp offset",
+        "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City east edge into Route 8 using the decomp offset",
+        "Test Files  1 failed | 43 passed (44)"
+      ]
     }
   ],
-  "totalDurationMs": 628519,
+  "totalDurationMs": 907884,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /Users/jota/Documents/codigos/pokefirered/ts-game/test/warps.tes": 1,
@@ -96,11 +128,20 @@
       "❯ test/mapConnections.test.ts (49 tests | 2 failed) 41ms": 1,
       "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯": 1,
       "FAIL  test/mapConnections.test.ts > map connections > transitions from Route 7 west edge into Celado": 1,
-      "AssertionError: expected null not to be null": 1,
+      "AssertionError: expected null not to be null": 2,
       "FAIL  test/mapConnections.test.ts > map connections > transitions from Celadon City east edge into R": 1,
       "Test Files  1 failed | 41 passed (42)": 1,
       "Tests  2 failed | 219 passed (221)": 1,
-      "TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension \".ts\" for /Users/jota/Documents/codig": 1
+      "TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension \".ts\" for /Users/jota/Documents/codig": 1,
+      "Tests are mostly green. The new failures are just bad Saffron overlap assumptions on my side, while ": 1,
+      "❯ test/mapConnections.test.ts (56 tests | 4 failed) 119ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City north edge into ": 1,
+      "AssertionError: expected { x: 368, y: 624 } to deeply equal { x: 368, y: 880 }": 1,
+      "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City south edge into ": 1,
+      "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City west edge into R": 1,
+      "FAIL  test/mapConnections.test.ts > map connections > transitions from Saffron City east edge into R": 1,
+      "Test Files  1 failed | 43 passed (44)": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0
