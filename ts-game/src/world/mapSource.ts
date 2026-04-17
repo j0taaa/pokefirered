@@ -77,6 +77,7 @@ export interface MapSource {
   height: number;
   tileSize: number;
   walkable: boolean[];
+  tileBehaviors?: number[];
   connections?: MapConnectionSource[];
   encounterTiles?: string[];
   wildEncounters?: WildEncounters;
@@ -110,6 +111,7 @@ export interface CompactMapSource {
   height: number;
   tileSize: number;
   collisionRows: string[];
+  behaviorRows?: string[];
   connections?: MapConnectionSource[];
   encounterRows?: string[];
   wildEncounters?: WildEncounters;
@@ -172,6 +174,10 @@ const isEncounterTileArray = (value: unknown): value is string[] =>
 const isTileRows = (value: unknown, width: number, allowedPattern: RegExp): value is string[] =>
   Array.isArray(value)
   && value.every((row) => typeof row === 'string' && row.length === width && allowedPattern.test(row));
+
+const isBehaviorRows = (value: unknown, width: number): value is string[] =>
+  Array.isArray(value)
+  && value.every((row) => typeof row === 'string' && row.length === width * 2 && /^[0-9a-f]+$/u.test(row));
 
 const isIntegerArray = (value: unknown): value is number[] =>
   Array.isArray(value) && value.every((entry) => Number.isInteger(entry));
@@ -507,12 +513,19 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.tileBehaviors && source.tileBehaviors.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has tileBehaviors length ${source.tileBehaviors.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
     walkable: [...source.walkable],
+    tileBehaviors: source.tileBehaviors ? [...source.tileBehaviors] : undefined,
     connections: source.connections ? [...source.connections] : [],
     encounterTiles: source.encounterTiles ? [...source.encounterTiles] : undefined,
     wildEncounters: source.wildEncounters,
@@ -537,6 +550,9 @@ const flattenRows = (rows: string[]): string[] => rows.flatMap((row) => [...row]
 const walkableFromCollisionRows = (collisionRows: string[]): boolean[] =>
   flattenRows(collisionRows).map((tile) => tile === '.');
 
+const behaviorsFromRows = (behaviorRows: string[]): number[] =>
+  behaviorRows.flatMap((row) => row.match(/../gu)?.map((behavior) => Number.parseInt(behavior, 16)) ?? []);
+
 export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
   mapFromSource({
     id: source.id,
@@ -544,6 +560,7 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     height: source.height,
     tileSize: source.tileSize,
     walkable: walkableFromCollisionRows(source.collisionRows),
+    tileBehaviors: source.behaviorRows ? behaviorsFromRows(source.behaviorRows) : undefined,
     connections: source.connections,
     encounterTiles: source.encounterRows ? flattenRows(source.encounterRows) : undefined,
     wildEncounters: source.wildEncounters,
@@ -583,6 +600,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include encounterTiles using ., L, or W markers.`);
   }
 
+  if (candidate.tileBehaviors !== undefined && !isIntegerArray(candidate.tileBehaviors)) {
+    throw new Error(`Map source "${id}" must include tileBehaviors as an integer array.`);
+  }
+
   if (candidate.connections !== undefined && !Array.isArray(candidate.connections)) {
     throw new Error(`Map source "${id}" connections must be an array.`);
   }
@@ -615,6 +636,7 @@ export const parseMapSource = (raw: unknown): MapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     walkable: candidate.walkable,
+    tileBehaviors: candidate.tileBehaviors as number[] | undefined,
     connections: (candidate.connections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterTiles: candidate.encounterTiles as string[] | undefined,
     wildEncounters: candidate.wildEncounters as WildEncounters | undefined,
@@ -670,6 +692,18 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     );
   }
 
+  if (candidate.behaviorRows !== undefined && !isBehaviorRows(candidate.behaviorRows, candidate.width)) {
+    throw new Error(
+      `Compact map source "${id}" must include behaviorRows made of ${candidate.width} two-digit hex behaviors.`
+    );
+  }
+
+  if (candidate.behaviorRows !== undefined && candidate.behaviorRows.length !== candidate.height) {
+    throw new Error(
+      `Compact map source "${id}" has ${candidate.behaviorRows.length} behavior rows, expected ${candidate.height}.`
+    );
+  }
+
   const metadata = candidate.metadata as Record<string, unknown> | undefined;
   if (metadata !== undefined && typeof metadata !== 'object') {
     throw new Error(`Compact map source "${id}" metadata must be an object.`);
@@ -710,6 +744,7 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     collisionRows: [...candidate.collisionRows],
+    behaviorRows: candidate.behaviorRows ? [...candidate.behaviorRows] : undefined,
     connections: (metadataConnections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
     wildEncounters: candidate.wildEncounters as WildEncounters | undefined,

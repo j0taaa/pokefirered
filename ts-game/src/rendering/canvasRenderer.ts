@@ -228,7 +228,11 @@ import {
   BATTLE_TYPE_BOX,
   getBattlePpLineColors
 } from './battleScreenLayout';
-import { blitSinglesOpponentHealthbox, blitSinglesPlayerHealthbox } from './battleHealthboxBlit';
+import {
+  blitSinglesOpponentHealthbox,
+  blitSinglesPlayerHealthbox,
+  buildHealthboxCanvasWithObjTransparency
+} from './battleHealthboxBlit';
 import {
   buildBattleTextboxBackgroundCanvas,
   loadBattleTextboxTilemapBytes
@@ -359,6 +363,9 @@ export class CanvasRenderer {
   private readonly battleTextboxTiles = this.loadImage(battleTextboxTilesUrl);
   private readonly battleHealthboxOpponent = this.loadImage(battleHealthboxOpponentUrl);
   private readonly battleHealthboxPlayer = this.loadImage(battleHealthboxPlayerUrl);
+  /** OBJ palette slot 0 = transparent; PNG uses opaque black — see `buildHealthboxCanvasWithObjTransparency`. */
+  private battleHealthboxOpponentPrepared: HTMLCanvasElement | null = null;
+  private battleHealthboxPlayerPrepared: HTMLCanvasElement | null = null;
   private battleTextboxComposite: HTMLCanvasElement | null = null;
   private battleTextboxAssetsReady: Promise<void> | null = null;
   private activeFrameType = 0;
@@ -476,7 +483,28 @@ export class CanvasRenderer {
       this.ensureBattleTextboxAssetsLoaded(),
       this.waitForImageLoad(this.battleHealthboxOpponent),
       this.waitForImageLoad(this.battleHealthboxPlayer)
-    ]).then(() => {});
+    ]).then(() => {
+      this.ensureBattleHealthboxPreparedTextures();
+    });
+  }
+
+  private ensureBattleHealthboxPreparedTextures(): void {
+    const o = this.battleHealthboxOpponent;
+    if (o.complete && o.naturalWidth > 0 && !this.battleHealthboxOpponentPrepared) {
+      this.battleHealthboxOpponentPrepared = buildHealthboxCanvasWithObjTransparency(o);
+    }
+    const p = this.battleHealthboxPlayer;
+    if (p.complete && p.naturalWidth > 0 && !this.battleHealthboxPlayerPrepared) {
+      this.battleHealthboxPlayerPrepared = buildHealthboxCanvasWithObjTransparency(p);
+    }
+  }
+
+  private battleHealthboxDrawSource(side: 'opponent' | 'player'): CanvasImageSource {
+    this.ensureBattleHealthboxPreparedTextures();
+    if (side === 'opponent') {
+      return this.battleHealthboxOpponentPrepared ?? this.battleHealthboxOpponent;
+    }
+    return this.battleHealthboxPlayerPrepared ?? this.battleHealthboxPlayer;
   }
 
   resize(width: number, height: number): void {
@@ -720,9 +748,9 @@ export class CanvasRenderer {
 
     this.ctx.save();
     this.ctx.translate(x, y);
-    if (side === 'player') {
-      this.ctx.scale(-1, 1);
-    }
+    // ROM: `gAffineAnims_BattleSpritePlayerSide[BATTLER_AFFINE_NORMAL]` uses
+    // `sAffineAnim_Battler_Normal` (+1.0,+1.0 scale) — no horizontal flip.
+    // Back pics are authored facing into the battle (toward the foe).
 
     if (img && img.complete && img.naturalWidth > 0) {
       const nw = img.naturalWidth;
@@ -752,11 +780,15 @@ export class CanvasRenderer {
 
     const hb = side === 'opponent' ? this.battleHealthboxOpponent : this.battleHealthboxPlayer;
     if (hb.complete && hb.naturalWidth > 0) {
+      const src = this.battleHealthboxDrawSource(side);
+      this.ctx.save();
+      this.ctx.imageSmoothingEnabled = false;
       if (side === 'opponent') {
-        blitSinglesOpponentHealthbox(this.ctx, hb, anchor, dim.w, dim.h);
+        blitSinglesOpponentHealthbox(this.ctx, src, anchor, dim.w, dim.h);
       } else {
-        blitSinglesPlayerHealthbox(this.ctx, hb, anchor, dim.w, dim.h);
+        blitSinglesPlayerHealthbox(this.ctx, src, anchor, dim.w, dim.h);
       }
+      this.ctx.restore();
     } else {
       const fallback =
         side === 'opponent'

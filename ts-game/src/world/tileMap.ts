@@ -28,6 +28,7 @@ export interface TileMap {
   height: number;
   tileSize: number;
   walkable: boolean[];
+  tileBehaviors?: number[];
   connections: MapConnectionSource[];
   encounterTiles?: string[];
   wildEncounters?: WildEncounters;

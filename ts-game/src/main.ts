@@ -6,7 +6,7 @@ import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadMapById, loadRoute2Map } from './world/mapSource';
 import { createPlayer, getPlayerTilePosition, resolveInputDirection, stepPlayer } from './game/player';
 import { collidesWithNpcs, createMapNpcs, isNpcVisible, stepNpcs } from './game/npc';
-import { createDialogueState, stepInteraction } from './game/interaction';
+import { createDialogueState, openDialogueSequence, stepInteraction } from './game/interaction';
 import { createHud, updateHud } from './ui/hud';
 import { createScriptRuntimeState, prototypeScriptRegistry } from './game/scripts';
 import { runStepTriggersAtPlayerTile } from './game/triggers';
@@ -35,6 +35,7 @@ import {
 import type { FieldPokemonStatus } from './game/pokemonStorage';
 import { hasLandEncounterAtPixel } from './world/tileMap';
 import { resolveMapConnectionTransition } from './game/mapConnections';
+import { resolveWarpTransition } from './game/warps';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -229,27 +230,52 @@ const loop = new GameLoop({
         player.moving = false;
         player.animationTime = 0;
       } else if (enteredNewTile) {
-        runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
-          player,
-          dialogue,
-          runtime: scriptRuntime,
-          scriptRegistry: prototypeScriptRegistry,
-          hiddenItems: map.hiddenItems ?? []
-        });
+        const warpTransition = resolveWarpTransition(map, player, loadMapById);
 
-        const canEncounter = hasLandEncounterAtPixel(map, player.position);
-        if (tryStartWildBattle(
-          battle,
-          battleEncounter,
-          enteredNewTile,
-          canEncounter,
-          map.wildEncounters?.land,
-          map.battleScene,
-          map.id
-        )) {
-          addPokedexSeenSpecies(scriptRuntime.pokedex, battle.wildMon.species);
-          scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
-          scriptRuntime.lastScriptId = 'battle.wild.start';
+        if (warpTransition.status === 'resolved' && warpTransition.destinationMap && warpTransition.playerPosition) {
+          map = warpTransition.destinationMap;
+          npcs = createMapNpcs(map);
+          player.position.x = warpTransition.playerPosition.x;
+          player.position.y = warpTransition.playerPosition.y;
+          player.moving = false;
+          player.animationTime = 0;
+          scriptRuntime.lastScriptId = `warp.${warpTransition.sourceWarp?.destMap ?? map.id}`;
+        } else if (warpTransition.status === 'unloaded_map' || warpTransition.status === 'invalid_warp_id') {
+          player.moving = false;
+          player.animationTime = 0;
+          scriptRuntime.lastScriptId = `warp.${warpTransition.status}.${warpTransition.sourceWarp?.destMap ?? 'unknown'}`;
+          openDialogueSequence(
+            dialogue,
+            'system',
+            [
+              warpTransition.status === 'unloaded_map'
+                ? `This warp leads to ${warpTransition.sourceWarp?.destMap ?? 'an unloaded map'}.`
+                : `This warp points to an invalid destination on ${warpTransition.sourceWarp?.destMap ?? 'the target map'}.`
+            ]
+          );
+        } else {
+          runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
+            player,
+            dialogue,
+            runtime: scriptRuntime,
+            scriptRegistry: prototypeScriptRegistry,
+            hiddenItems: map.hiddenItems ?? []
+          });
+
+          const canEncounter = hasLandEncounterAtPixel(map, player.position);
+          if (tryStartWildBattle(
+            battle,
+            battleEncounter,
+            enteredNewTile,
+            canEncounter,
+            map.wildEncounters?.land,
+            map.battleScene,
+            map.id
+          )) {
+            addPokedexSeenSpecies(scriptRuntime.pokedex, battle.wildMon.species);
+            scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
+            scriptRuntime.lastScriptId = 'battle.wild.start';
+          }
         }
       }
     } else {

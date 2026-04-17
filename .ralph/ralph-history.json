@@ -30,9 +30,42 @@
         "Test Files  1 failed (1)",
         "Tests  5 failed | 6 passed (11)"
       ]
+    },
+    {
+      "iteration": 2,
+      "startedAt": "2026-04-17T11:50:48.627Z",
+      "endedAt": "2026-04-17T12:00:49.422Z",
+      "durationMs": 500276,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/main.ts",
+        "ts-game/src/rendering/battleHealthboxBlit.ts",
+        "ts-game/src/rendering/canvasRenderer.ts",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/src/world/tileMap.ts",
+        "ts-game/src/game/warps.ts",
+        "ts-game/test/warpRuntime.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "The failing cases narrowed it down: the warp data is present, but the Indigo center’s exit/entry tiles aren’t both `MB_WARP_DOOR`. I’m checking the exact exported metatile behaviors at those coordinat",
+        "Test Files  1 failed | 51 passed (52)",
+        "Tests  2 failed | 309 passed (311)",
+        "❯ test/warpRuntime.test.ts (9 tests | 1 failed) 58ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/warpRuntime.test.ts > warp runtime > resolves Indigo Plateau center exit back to the loaded exterior map",
+        "AssertionError: expected { status: 'invalid_warp_id', …(3) } to deeply equal { status: 'resolved', …(4) }",
+        "Tests  1 failed | 310 passed (311)",
+        "❯ test/warpRuntime.test.ts (9 tests | 1 failed) 109ms",
+        "AssertionError: expected { status: 'resolved', …(4) } to deeply equal { status: 'resolved', …(4) }"
+      ]
     }
   ],
-  "totalDurationMs": 418043,
+  "totalDurationMs": 918319,
   "struggleIndicators": {
     "repeatedErrors": {
       "❯ test/seviiMapConnections.test.ts (11 tests | 5 failed) 10ms": 1,
@@ -44,7 +77,17 @@
       "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from Three Island south": 1,
       "FAIL  test/seviiMapConnections.test.ts > Sevii map connections > transitions from the port and Bond ": 1,
       "Test Files  1 failed (1)": 1,
-      "Tests  5 failed | 6 passed (11)": 1
+      "Tests  5 failed | 6 passed (11)": 1,
+      "The failing cases narrowed it down: the warp data is present, but the Indigo center’s exit/entry til": 1,
+      "Test Files  1 failed | 51 passed (52)": 1,
+      "Tests  2 failed | 309 passed (311)": 1,
+      "❯ test/warpRuntime.test.ts (9 tests | 1 failed) 58ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves Indigo Plateau center exit back to the load": 1,
+      "AssertionError: expected { status: 'invalid_warp_id', …(3) } to deeply equal { status: 'resolved', …": 1,
+      "Tests  1 failed | 310 passed (311)": 1,
+      "❯ test/warpRuntime.test.ts (9 tests | 1 failed) 109ms": 1,
+      "AssertionError: expected { status: 'resolved', …(4) } to deeply equal { status: 'resolved', …(4) }": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0
