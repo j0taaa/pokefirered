@@ -67,6 +67,7 @@ export const buildPartyMenuBackgroundCanvas = (
   if (!ctx) {
     throw new Error('2d context unavailable');
   }
+  ctx.imageSmoothingEnabled = false;
 
   for (let ty = 0; ty < MAP_VISIBLE_TILES_H; ty += 1) {
     for (let tx = 0; tx < MAP_TILES_W; tx += 1) {

@@ -7,7 +7,7 @@ This repository currently contains the Pokémon FireRed / LeafGreen decompilatio
 - ✅ Existing decompilation source remains the primary codebase.
 - ✅ A dedicated destination folder for the TypeScript/browser version has been created at `ts-game/`.
 - ✅ This README and repository guidance have been updated to support incremental migration planning.
-- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, a shared decomp-backed bag/inventory slice, a wild-battle command slice, and runtime tests are in `ts-game/`.
+- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, a shared decomp-backed bag/inventory slice, and an in-progress decomp-backed battle engine + canvas battle scene are in `ts-game/`.
 
 ## Original project outputs
 
@@ -63,6 +63,7 @@ Current completion snapshot:
 7. ✅ Trigger zones + script callback hooks v1 (sign/step/warp prototype events)
 8. ✅ UI menus foundation (START menu open/close + selection + tests)
 9. ✅ Battle slice v1 (wild encounter entry + move select + damage preview prototype)
+10. 🚧 Battle parity foundation (decomp-backed move/learnset parsing, script-shaped battle flow, and canvas battle scene integration)
 
 ## Developer setup (decomp side)
 

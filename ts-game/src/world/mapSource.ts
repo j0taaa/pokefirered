@@ -1,4 +1,5 @@
 import ceruleanCityMapJson from './maps/ceruleanCity.json';
+import lavenderTownMapJson from './maps/lavenderTown.json';
 import palletTownMapJson from './maps/palletTown.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
@@ -63,6 +64,7 @@ export interface MapSource {
   connections?: MapConnectionSource[];
   encounterTiles?: string[];
   wildEncounters?: WildEncounters;
+  battleScene?: string;
   triggers?: TriggerZone[];
   visual?: MapVisualSource;
   npcs?: MapNpcSource[];
@@ -95,6 +97,7 @@ export interface CompactMapSource {
   connections?: MapConnectionSource[];
   encounterRows?: string[];
   wildEncounters?: WildEncounters;
+  battleScene?: string;
   triggers?: TriggerZone[];
   visual?: MapVisualSource;
   npcs?: MapNpcSource[];
@@ -497,6 +500,7 @@ export const mapFromSource = (source: MapSource): TileMap => {
     connections: source.connections ? [...source.connections] : [],
     encounterTiles: source.encounterTiles ? [...source.encounterTiles] : undefined,
     wildEncounters: source.wildEncounters,
+    battleScene: source.battleScene,
     triggers: source.triggers ? [...source.triggers] : [],
     visual: source.visual
       ? {
@@ -527,6 +531,7 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     connections: source.connections,
     encounterTiles: source.encounterRows ? flattenRows(source.encounterRows) : undefined,
     wildEncounters: source.wildEncounters,
+    battleScene: source.battleScene,
     triggers: source.triggers,
     visual: source.visual,
     npcs: source.npcs,
@@ -655,6 +660,7 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
   }
 
   const metadataConnections = metadata?.connections ?? undefined;
+  const metadataBattleScene = metadata?.battleScene;
 
   if (metadataConnections !== undefined && !Array.isArray(metadataConnections)) {
     throw new Error(`Compact map source "${id}" metadata.connections must be an array.`);
@@ -691,6 +697,7 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     connections: (metadataConnections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
     wildEncounters: candidate.wildEncounters as WildEncounters | undefined,
+    battleScene: typeof metadataBattleScene === 'string' ? metadataBattleScene : undefined,
     triggers: (candidate.triggers ?? []).map((entry) => parseTriggerZone(entry, id)),
     visual: candidate.visual ? parseVisualSource(candidate.visual, id, expectedTiles) : undefined,
     npcs: (candidate.npcs ?? []).map((entry, index) => parseMapNpcSource(entry, id, index)),
@@ -704,6 +711,9 @@ export const loadPalletTownMap = (): TileMap =>
 
 export const loadCeruleanCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(ceruleanCityMapJson));
+
+export const loadLavenderTownMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(lavenderTownMapJson));
 
 export const loadPewterCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(pewterCityMapJson));
@@ -772,6 +782,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
     case 'MAP_CERULEAN_CITY':
       return loadCeruleanCityMap();
+    case 'MAP_LAVENDER_TOWN':
+      return loadLavenderTownMap();
     case 'MAP_PALLET_TOWN':
       return loadPalletTownMap();
     case 'MAP_PEWTER_CITY':

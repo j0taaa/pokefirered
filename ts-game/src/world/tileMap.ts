@@ -31,6 +31,7 @@ export interface TileMap {
   connections: MapConnectionSource[];
   encounterTiles?: string[];
   wildEncounters?: WildEncounters;
+  battleScene?: string;
   triggers: TriggerZone[];
   visual?: MapVisualSource;
   npcs: MapNpcSource[];

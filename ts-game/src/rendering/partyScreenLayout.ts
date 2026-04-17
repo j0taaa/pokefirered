@@ -62,6 +62,12 @@ export const partyActionsWindowTiles = (numActions: number): { tileLeft: number;
 /** `sCancelButtonWindowTemplate` — CANCEL label window (tile coords). */
 export const PARTY_CANCEL_BUTTON_WINDOW = { tileLeft: 24, tileTop: 17, tileW: 6, tileH: 2 } as const;
 
+/**
+ * `DrawCancelConfirmButtons` blits `cancel_button.bin` to BG1 at (23,18), 7×2 tiles — one tile left of
+ * the cancel window and one row lower. Center the label in this rect when drawing over the pre-built BG.
+ */
+export const PARTY_CANCEL_BUTTON_BG_BLIT = { tileLeft: 23, tileTop: 18, tileW: 7, tileH: 2 } as const;
+
 export const tilesToPixels = (
   tileLeft: number,
   tileTop: number,

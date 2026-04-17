@@ -3,6 +3,7 @@ import { resolveMapConnectionTransition } from '../src/game/mapConnections';
 import {
   loadMapById,
   loadCeruleanCityMap,
+  loadLavenderTownMap,
   loadPalletTownMap,
   loadPewterCityMap,
   loadRoute2Map,
@@ -381,5 +382,58 @@ describe('map connections', () => {
 
   test('loads Vermilion City through the shared map loader', () => {
     expect(loadMapById('MAP_VERMILION_CITY')?.id).toBe('MAP_VERMILION_CITY');
+  });
+
+  test('matches Lavender Town decomp connection offsets', () => {
+    const lavender = loadLavenderTownMap();
+
+    expect(lavender.connections).toEqual([
+      { map: 'MAP_ROUTE10', offset: 0, direction: 'up' },
+      { map: 'MAP_ROUTE12', offset: 0, direction: 'down' },
+      { map: 'MAP_ROUTE8', offset: 0, direction: 'left' }
+    ]);
+  });
+
+  test('transitions from Route 8 east edge into Lavender Town using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute8Map(), 71, 9, 'right', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_LAVENDER_TOWN');
+    expect(transition?.playerPosition).toEqual({ x: 0, y: 9 * 16 });
+  });
+
+  test('transitions from Lavender Town west edge into Route 8 using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadLavenderTownMap(), 0, 9, 'left', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE8');
+    expect(transition?.playerPosition).toEqual({ x: 71 * 16, y: 9 * 16 });
+  });
+
+  test('transitions from Route 10 south edge into Lavender Town using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute10Map(), 11, 79, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_LAVENDER_TOWN');
+    expect(transition?.playerPosition).toEqual({ x: 11 * 16, y: 0 });
+  });
+
+  test('transitions from Lavender Town north edge into Route 10 using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadLavenderTownMap(), 11, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE10');
+    expect(transition?.playerPosition).toEqual({ x: 11 * 16, y: 79 * 16 });
+  });
+
+  test('rejects Lavender Town coordinates outside the connected overlap', () => {
+    expect(resolveMapConnectionTransition(loadRoute8Map(), 71, 8, 'right', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadLavenderTownMap(), 0, 8, 'left', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute10Map(), 7, 79, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadLavenderTownMap(), 7, 0, 'up', loadMapById)).toBeNull();
+  });
+
+  test('loads Lavender Town through the shared map loader', () => {
+    expect(loadMapById('MAP_LAVENDER_TOWN')?.id).toBe('MAP_LAVENDER_TOWN');
   });
 });

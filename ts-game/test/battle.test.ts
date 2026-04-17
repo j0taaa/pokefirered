@@ -30,6 +30,14 @@ const neutralInput = {
   cancelPressed: false
 };
 
+const confirmInput = { ...neutralInput, interact: true, interactPressed: true };
+
+const flushScriptMessages = (battle: ReturnType<typeof createBattleState>, encounter: ReturnType<typeof createBattleEncounterState>) => {
+  while (battle.phase === 'script') {
+    stepBattle(battle, confirmInput, encounter);
+  }
+};
+
 describe('battle vertical slice', () => {
   const routeLikeLandEncounters: WildEncounterGroup = {
     encounterRate: 21,
@@ -42,15 +50,17 @@ describe('battle vertical slice', () => {
 
   test('uses FRLG-like base damage formula floor behavior and STAB/type math', () => {
     const battle = createBattleState();
-    const move = { ...battle.moves[1], type: 'fire' as const };
+    const move = battle.moves.find((entry) => entry.id === 'EMBER');
+    expect(move).toBeTruthy();
     battle.playerMon.types = ['fire'];
     battle.wildMon.types = ['grass'];
+    battle.wildMon.spDefense = 7;
 
-    const damage = calculateBaseDamage(battle.playerMon, battle.wildMon, move);
-    expect(damage).toBe(9);
+    const damage = calculateBaseDamage(battle.playerMon, battle.wildMon, move!);
+    expect(damage).toBe(10);
 
-    const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, move);
-    expect(preview).toEqual({ min: 22, max: 27 });
+    const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, move!);
+    expect(preview).toEqual({ min: 25, max: 30 });
   });
 
   test('applies multi-type effectiveness multiplication', () => {
@@ -73,8 +83,9 @@ describe('battle vertical slice', () => {
 
     expect(started).toBe(true);
     expect(battle.active).toBe(true);
-    expect(battle.phase).toBe('intro');
+    expect(battle.phase).toBe('script');
     expect(battle.turnSummary).toContain('appeared');
+    expect(battle.queuedMessages[0]).toContain('Go!');
     expect(battle.wildMon.species).toMatch(/RATTATA|PIDGEY|CATERPIE/);
   });
 
@@ -105,23 +116,33 @@ describe('battle vertical slice', () => {
     const battle = createBattleState();
     const encounter = createBattleEncounterState();
     battle.active = true;
-    battle.phase = 'intro';
+    battle.phase = 'script';
+    battle.turnSummary = `Wild ${battle.wildMon.species} appeared!`;
+    battle.queuedMessages = [`Go! ${battle.playerMon.species}!`];
+    battle.resumePhase = 'command';
+    battle.resumeSummary = `What will ${battle.playerMon.species} do?`;
     battle.wildMon.hp = 9;
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.turnSummary).toContain('Go!');
+
+    stepBattle(battle, confirmInput, encounter);
     expect(battle.phase).toBe('command');
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    stepBattle(battle, confirmInput, encounter);
     expect(battle.phase).toBe('moveSelect');
 
-    stepBattle(battle, { ...neutralInput, down: true, downPressed: true }, encounter);
-    expect(battle.selectedMoveIndex).toBe(1);
+    const emberIndex = battle.moves.findIndex((move) => move.id === 'EMBER');
+    battle.selectedMoveIndex = emberIndex;
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
-    expect(battle.phase).toBe('resolved');
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.phase).toBe('script');
     expect(battle.wildMon.hp).toBe(0);
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    flushScriptMessages(battle, encounter);
+    expect(battle.phase).toBe('resolved');
+
+    stepBattle(battle, confirmInput, encounter);
     expect(battle.active).toBe(false);
   });
 
@@ -140,8 +161,8 @@ describe('battle vertical slice', () => {
     }
     expect(battle.selectedCommandIndex).toBe(runIndex);
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
-    expect(battle.phase).toBe('moveSelect');
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.phase).toBe('script');
     expect(battle.turnSummary).toContain("Can't escape");
   });
 
@@ -173,33 +194,24 @@ describe('battle vertical slice', () => {
     battle.wildMon.hp = 1;
     encounter.rngState = 0;
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
+    stepBattle(battle, confirmInput, encounter);
     expect(battle.phase).toBe('bagSelect');
     expect(battle.turnSummary).toContain('Choose an item');
 
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
-    expect(battle.turnSummary).toContain('shake x4');
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('thrown');
+
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.turnSummary).toContain('caught');
+
+    stepBattle(battle, confirmInput, encounter);
     expect(battle.phase).toBe('resolved');
   });
 
-  test('enemy AI move selection favors super-effective options with utility heuristics', () => {
+  test('battle state seeds active and wild moves from decomp learnsets', () => {
     const battle = createBattleState();
-    const encounter = createBattleEncounterState();
-    battle.active = true;
-    battle.phase = 'moveSelect';
-    battle.playerMon.types = ['grass'];
-    battle.playerMon.hp = 50;
-    battle.playerMon.speed = 1;
-    battle.wildMon.speed = 99;
-    battle.wildMon.types = ['fire'];
-    battle.moves = [
-      { id: 'tackle', name: 'TACKLE', power: 40, type: 'normal', accuracy: 100 },
-      { id: 'ember', name: 'EMBER', power: 40, type: 'fire', accuracy: 100 }
-    ];
-    encounter.rngState = 12;
-
-    stepBattle(battle, { ...neutralInput, interact: true, interactPressed: true }, encounter);
-    expect(battle.turnSummary).toContain('Enemy');
-    expect(battle.turnSummary).toContain('EMBER');
+    expect(battle.moves.some((move) => move.id === 'EMBER')).toBe(true);
+    expect(battle.wildMoves.some((move) => move.id === 'TACKLE')).toBe(true);
   });
 });

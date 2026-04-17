@@ -19,7 +19,7 @@ The app currently implements a functional runtime slice:
 - START menu flow with FireRed-like dynamic option composition and submenu callbacks
 - START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
 - START > BAG now uses a decomp-derived shared inventory state with `ITEMS` / `KEY ITEMS` / `POKé BALLS` pockets, per-pocket cursor memory, item pickup persistence, and a dedicated FireRed-style bag overlay
-- Battle vertical slice v4: command selection (`FIGHT`/`BAG`/`POKéMON`/`RUN`), full Gen-3 type-chart effectiveness sampling for preview math, Poké Ball/Great Ball shake-count capture messaging, poison end-turn chip damage, party switching, and improved enemy move-utility heuristics
+- Battle parity foundation: decomp-backed move metadata and learnsets, script-shaped single wild-battle sequencing, decomp terrain mapping, and a renderer-backed canvas battle scene instead of the old DOM battle overlay
 - Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
 
@@ -28,8 +28,8 @@ The app currently implements a functional runtime slice:
 - `src/core` — runtime primitives (loop, vectors, camera)
 - `src/input` — browser input adapters / snapshots
 - `src/world` — map and collision data structures
-- `src/game` — gameplay state stepping
-- `src/rendering` — canvas rendering adapter
+- `src/game` — gameplay state stepping, including decomp-backed battle data and battle engine state
+- `src/rendering` — canvas rendering adapter, including the battle scene renderer
 - `src/ui` — lightweight DOM HUD bindings
 - `test` — Vitest unit tests
 - `roadmap` — tracked roadmap + per-step planning notes
@@ -124,3 +124,4 @@ Near-term next increments:
 2. Replace remaining START-menu placeholder panels with fully interactive menu scenes (party/player + deeper save UX parity).
 3. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
 4. Expand decomp-backed overworld parity beyond Route 2 with richer object movement patterns and more map fixtures.
+5. Keep battle implementation aligned to the decompiled sources (`battle_main.c`, `battle_script_commands.c`, `battle_bg.c`, `battle_interface.c`) as more mechanics and UI states are ported.

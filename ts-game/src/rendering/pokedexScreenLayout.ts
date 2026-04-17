@@ -31,7 +31,10 @@ export const DEX_RECT_DEX_COUNTS = { x: 168, y: 16, w: 72, h: 72 } as const;
 /** `sWindowTemplates[0]` — full-width header, 30×2 tiles. */
 export const DEX_RECT_HEADER = { x: 0, y: 0, w: 240, h: 16 } as const;
 
-/** `sWindowTemplates[1]` — full-width footer, tile (0,18) 30×2. */
+/**
+ * `sWindowTemplates[1]` — full-width footer, tile (0,18) 30×2.
+ * Uses the standard UI window frame (`DrawStdWindowFrame` / user frame type), not the dialogue message box.
+ */
 export const DEX_RECT_FOOTER = { x: 0, y: 144, w: 240, h: 16 } as const;
 
 /** `sWindowTemplate_OrderedListMenu` — tile (2,2) size 23×16. */
@@ -54,6 +57,30 @@ export const DEX_ORDERED_LIST_ROW_STRIDE = 14;
 
 /** BG column reserved left of mode-select (tilemap starts at tile 1). */
 export const DEX_LEFT_DECOR_WIDTH = 8;
+
+/** `sWindowTemplate_AreaMap_Kanto` — tile (17,4) size 12×9 (composite map window). */
+export const DEX_AREA_MAP_KANTO_RECT = { x: 136, y: 32, w: 96, h: 72 } as const;
+
+/** `sListMenuTemplate_*ModeSelect` `.lettersSpacing` → `AddTextPrinterParameterized4` letter spacing. */
+export const DEX_MODE_LIST_LETTER_SPACING = 1;
+
+/** `DexScreen_AddTextPrinterParameterized` colorIdx 4 (footer control line via `DexScreen_PrintControlInfo`). */
+export const DEX_FOOTER_CONTROL_TEXT = '#284868';
+
+/** `ItemPrintFunc_DexModeSelect` unlocked: `TEXT_COLOR_WHITE` foreground on std window. */
+export const DEX_MODE_LIST_ITEM_ENABLED = '#203048';
+
+/** Locked category rows: dynamic gray pair approximates disabled palette. */
+export const DEX_MODE_LIST_ITEM_DISABLED = '#7088a8';
+
+/** `FillWindowPixelBuffer(..., PIXEL_FILL(0))` — std dex window interior before text. */
+export const DEX_WINDOW_INNER_PIXEL0 = '#f8f8f8';
+
+/** `PIXEL_FILL(15)` / light header-footer clear on palette 15 windows. */
+export const DEX_WINDOW_INNER_PIXEL15 = '#ffffff';
+
+/** Category icon tile backing (per-slot window BG in ROM). */
+export const DEX_CATEGORY_ICON_TILE_BG = '#e8eef4';
 
 /** Kanto dex counts text — offsets inside dex counts window (`DexScreen_InitGfxForTopMenu` else-branch). */
 export const DEX_COUNTS_KANTO = {

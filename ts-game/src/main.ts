@@ -23,15 +23,16 @@ import {
   loadGameFromStorage,
   saveGameToStorage
 } from './game/saveData';
-import { createBattleOverlay, updateBattleOverlay } from './ui/battleOverlay';
 import {
-  type PokemonType,
+  createBattlePokemonFromFieldPokemon,
   createBattleEncounterState,
   createBattleState,
   isBattleBlockingWorld,
   stepBattle,
-  tryStartWildBattle
+  tryStartWildBattle,
+  type BattlePokemonSnapshot
 } from './game/battle';
+import type { FieldPokemonStatus } from './game/pokemonStorage';
 import { hasLandEncounterAtPixel } from './world/tileMap';
 import { resolveMapConnectionTransition } from './game/mapConnections';
 
@@ -48,9 +49,6 @@ const canvas = document.createElement('canvas');
 viewport.append(canvas);
 
 const hud = createHud();
-
-const battleOverlay = createBattleOverlay();
-viewport.append(battleOverlay.root);
 
 shell.append(viewport, hud.root);
 
@@ -81,12 +79,29 @@ const handleSaveConfirmed = () => {
   return result;
 };
 
+const battleStatusToField = (status: BattlePokemonSnapshot['status']): FieldPokemonStatus =>
+  status === 'poison' ? 'poison' : 'none';
+
+const snapshotToFieldPokemon = (member: BattlePokemonSnapshot) =>
+  cloneFieldPokemon({
+    species: member.species,
+    level: member.level,
+    maxHp: member.maxHp,
+    hp: member.hp,
+    attack: member.attack,
+    defense: member.defense,
+    speed: member.speed,
+    spAttack: member.spAttack,
+    spDefense: member.spDefense,
+    catchRate: member.catchRate,
+    types: [...member.types],
+    status: battleStatusToField(member.status)
+  });
+
 const syncBattleStateFromRuntime = () => {
-  battle.party = scriptRuntime.party.map((member) => ({
-    ...cloneFieldPokemon(member),
-    types: [...member.types] as PokemonType[]
-  }));
+  battle.party = scriptRuntime.party.map((member) => createBattlePokemonFromFieldPokemon(member));
   battle.playerMon = battle.party[0] ?? battle.playerMon;
+  battle.moves = battle.playerMon.moves;
 };
 
 const syncRuntimePartyFromBattle = () => {
@@ -94,17 +109,14 @@ const syncRuntimePartyFromBattle = () => {
     return;
   }
 
-  scriptRuntime.party = battle.party.map((member) => ({
-    ...cloneFieldPokemon(member),
-    types: [...member.types]
-  }));
+  scriptRuntime.party = battle.party.map((member) => snapshotToFieldPokemon(member));
 };
 
 syncBattleStateFromRuntime();
 
 const renderer = new CanvasRenderer(canvas);
 void renderer.preloadPartyMenuBackground().catch(() => undefined);
-const camera = createCamera(12 * map.tileSize, 10 * map.tileSize);
+const camera = createCamera(15 * map.tileSize, 10 * map.tileSize);
 renderer.resize(camera.viewportWidth, camera.viewportHeight);
 
 let frames = 0;
@@ -126,7 +138,7 @@ const loop = new GameLoop({
 
     if (battle.caughtMon) {
       addPokedexCaughtSpecies(scriptRuntime.pokedex, battle.caughtMon.species);
-      addPokemonToParty(scriptRuntime.party, cloneFieldPokemon(battle.caughtMon));
+      addPokemonToParty(scriptRuntime.party, snapshotToFieldPokemon(battle.caughtMon));
       battle.caughtMon = null;
       syncBattleStateFromRuntime();
     }
@@ -230,7 +242,9 @@ const loop = new GameLoop({
           battleEncounter,
           enteredNewTile,
           canEncounter,
-          map.wildEncounters?.land
+          map.wildEncounters?.land,
+          map.battleScene,
+          map.id
         )) {
           addPokedexSeenSpecies(scriptRuntime.pokedex, battle.wildMon.species);
           scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
@@ -269,9 +283,8 @@ const loop = new GameLoop({
   },
   render() {
     const visibleNpcs = npcs.filter((npc) => isNpcVisible(npc, scriptRuntime.flags));
-    renderer.render(map, player, visibleNpcs, camera, { startMenu, runtime: scriptRuntime });
+    renderer.render(map, player, visibleNpcs, camera, { startMenu, runtime: scriptRuntime, battle, bag: scriptRuntime.bag });
     updateHud(hud, player, visibleNpcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
-    updateBattleOverlay(battleOverlay, battle, scriptRuntime.bag);
   }
 });
 

@@ -21,7 +21,10 @@ export const TC_TRAINER_PIC_DX = 13;
 export const TC_TRAINER_PIC_DY = 4;
 export const TC_TRAINER_PIC_SIZE = 0x40;
 
-/** Footer window (`tilemapLeft` 2, `tilemapTop` 15, 26×4 tiles). */
+/**
+ * Footer window — `sTrainerCardWindowTemplates[0]` in `trainer_card.c` (26×4 tiles at 2,15).
+ * Frame uses `LoadStdWindowFrameGfx` / standard UI tiles, not the dialogue message box.
+ */
 export const TC_FOOTER_RECT = { x: 16, y: 120, w: 208, h: 32 } as const;
 
 /** `gText_TrainerCard*` + colon (`strings.c`). */

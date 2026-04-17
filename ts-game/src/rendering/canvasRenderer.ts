@@ -69,9 +69,11 @@ import {
   getBagPocketLabel,
   getBagVisibleRows,
   getItemDefinition,
+  type BagState,
   type BagContextActionId,
   type BagPanelState
 } from '../game/bag';
+import { getBattleBagChoices, type BattleState } from '../game/battle';
 import type {
   OptionPanelState,
   PartyActionId,
@@ -90,17 +92,24 @@ import type { ScriptRuntimeState } from '../game/scripts';
 import type { TileMap } from '../world/tileMap';
 import { DecompTextureStore } from './decompTextureStore';
 import {
+  DEX_AREA_MAP_KANTO_RECT,
+  DEX_CATEGORY_ICON_SIZE,
+  DEX_CATEGORY_ICON_TILE_BG,
   DEX_COUNTS_KANTO,
   DEX_COUNTS_NATIONAL,
   DEX_ENTRY_FLAVOR,
   DEX_ENTRY_MON_PIC,
   DEX_ENTRY_SPECIES_STATS,
+  DEX_FOOTER_CONTROL_TEXT,
   DEX_GBA_HEIGHT,
   DEX_GBA_WIDTH,
   DEX_LEFT_DECOR_WIDTH,
   DEX_MODE_LIST_CURSOR_X,
   DEX_MODE_LIST_HEADER_X,
+  DEX_MODE_LIST_ITEM_DISABLED,
+  DEX_MODE_LIST_ITEM_ENABLED,
   DEX_MODE_LIST_ITEM_X,
+  DEX_MODE_LIST_LETTER_SPACING,
   DEX_MODE_LIST_MAX_SHOWED,
   DEX_MODE_LIST_ROW_STRIDE,
   DEX_MODE_LIST_UP_TEXT_Y,
@@ -115,7 +124,8 @@ import {
   DEX_RECT_MODE_SELECT,
   DEX_RECT_ORDERED_LIST,
   DEX_RECT_SELECTION_ICON,
-  DEX_CATEGORY_ICON_SIZE,
+  DEX_WINDOW_INNER_PIXEL0,
+  DEX_WINDOW_INNER_PIXEL15,
   DEX_STRING_PICK_OK,
   DEX_STRING_PICK_OK_EXIT,
   DEX_STRING_POKEMON_LIST,
@@ -176,10 +186,16 @@ import {
   PARTY_MENU_BG_PIXEL_H
 } from './partyMenuBackground';
 import {
+  blitPartySlotTilemap,
+  loadPartySlotTilemaps,
+  partyBgTilesPerRow,
+  type PartySlotTilemaps
+} from './partySlotBlit';
+import {
   getPartyMessageWindowRect,
   getPartyMonWindowRect,
+  PARTY_CANCEL_BUTTON_BG_BLIT,
   PARTY_CANCEL_BUTTON_WINDOW,
-  PARTY_GBA_HEIGHT,
   PARTY_GBA_WIDTH,
   PARTY_SINGLE_SPRITES,
   PARTY_TEXT_LEFT,
@@ -187,6 +203,21 @@ import {
   partyActionsWindowTiles,
   tilesToPixels
 } from './partyScreenLayout';
+import {
+  BATTLE_ACTION_MENU_WINDOW,
+  BATTLE_ACTION_PROMPT_WINDOW,
+  BATTLE_COMMAND_LABELS,
+  BATTLE_GBA_HEIGHT,
+  BATTLE_GBA_WIDTH,
+  BATTLE_LIST_WINDOW,
+  BATTLE_MESSAGE_WINDOW,
+  BATTLE_MOVE_MENU_WINDOW,
+  BATTLE_MOVE_SLOTS,
+  BATTLE_PP_BOX,
+  BATTLE_SINGLE_BATTLER_COORDS,
+  BATTLE_SINGLE_HEALTHBOX_COORDS,
+  BATTLE_TYPE_BOX
+} from './battleScreenLayout';
 import {
   BAG_CONTEXT_MENU_CURSOR_X,
   BAG_CONTEXT_MENU_FIRST_ROW_Y,
@@ -203,12 +234,9 @@ import {
   BAG_LIST_ROW_PITCH,
   BAG_LIST_UP_TEXT_Y,
   BAG_LIST_WINDOW,
-  BAG_MESSAGE_TEXT_X,
-  BAG_MESSAGE_TEXT_Y,
   BAG_MESSAGE_WINDOW,
   BAG_POCKET_ARROW_LEFT,
   BAG_POCKET_ARROW_RIGHT,
-  BAG_POCKET_NAME_CENTER_WIDTH,
   BAG_POCKET_NAME_TEXT_Y,
   BAG_POCKET_NAME_WINDOW,
   BAG_SPRITE_SRC_H,
@@ -232,6 +260,8 @@ const GBA_VIEW_HEIGHT = 160;
 interface RenderOverlayState {
   startMenu: StartMenuState;
   runtime: ScriptRuntimeState;
+  battle?: BattleState;
+  bag?: BagState;
 }
 
 type NonBagMenuPanel = Exclude<NonNullable<StartMenuState['panel']>, BagPanelState>;
@@ -286,7 +316,8 @@ export class CanvasRenderer {
   private readonly partyBgTilesheet = this.loadImage(partyBgTilesheetUrl);
   private readonly partyPokeball = this.loadImage(partyPokeballUrl);
   private partyMenuBgCanvas: HTMLCanvasElement | null = null;
-  private partyMenuBgReady: Promise<void> | null = null;
+  private partySlotTilemaps: PartySlotTilemaps | null = null;
+  private partyMenuAssetsReady: Promise<void> | null = null;
   private readonly trainerCardTiles = this.loadImage(trainerCardTilesUrl);
   private readonly trainerCardBadges = this.loadImage(trainerCardBadgesUrl);
   private readonly trainerCardRed = this.loadImage(trainerRedUrl);
@@ -363,9 +394,9 @@ export class CanvasRenderer {
     };
   }
 
-  /** Composites `graphics/party_menu/bg.bin` over `bg.png` like the ROM BG layer. */
+  /** Loads party BG tilemap + slot panel tilemaps (`BlitBitmapToPartyWindow` sources). */
   preloadPartyMenuBackground(): Promise<void> {
-    return this.ensurePartyMenuBackgroundLoaded();
+    return this.ensurePartyMenuAssetsLoaded();
   }
 
   private async waitForImageLoad(image: HTMLImageElement): Promise<void> {
@@ -378,21 +409,24 @@ export class CanvasRenderer {
     });
   }
 
-  private ensurePartyMenuBackgroundLoaded(): Promise<void> {
-    if (this.partyMenuBgCanvas) {
+  private ensurePartyMenuAssetsLoaded(): Promise<void> {
+    if (this.partyMenuBgCanvas && this.partySlotTilemaps) {
       return Promise.resolve();
     }
-    if (!this.partyMenuBgReady) {
-      const build = (async () => {
+    if (!this.partyMenuAssetsReady) {
+      this.partyMenuAssetsReady = (async () => {
         await this.waitForImageLoad(this.partyBgTilesheet);
-        const tilemap = await loadPartyMenuTilemapBytes();
+        const [tilemap, slots] = await Promise.all([
+          loadPartyMenuTilemapBytes(),
+          loadPartySlotTilemaps()
+        ]);
         this.partyMenuBgCanvas = buildPartyMenuBackgroundCanvas(this.partyBgTilesheet, tilemap);
-      })();
-      this.partyMenuBgReady = build.finally(() => {
-        this.partyMenuBgReady = null;
+        this.partySlotTilemaps = slots;
+      })().finally(() => {
+        this.partyMenuAssetsReady = null;
       });
     }
-    return this.partyMenuBgReady;
+    return this.partyMenuAssetsReady;
   }
 
   resize(width: number, height: number): void {
@@ -409,6 +443,11 @@ export class CanvasRenderer {
   ): void {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (overlays?.battle?.active) {
+      this.drawBattleScreen(overlays.battle, overlays.runtime, overlays.bag);
+      return;
+    }
+
     this.textureStore.ensureMapTextures(map);
     const renderCamera = this.snapCamera(camera);
 
@@ -554,6 +593,206 @@ export class CanvasRenderer {
     }
   }
 
+  private getBattleTerrainColors(terrain: BattleState['terrain']): { sky: string; horizon: string; floor: string; accent: string } {
+    switch (terrain) {
+      case 'BATTLE_TERRAIN_CAVE':
+        return { sky: '#5e5b74', horizon: '#82758f', floor: '#5b4f46', accent: '#3a2f2a' };
+      case 'BATTLE_TERRAIN_WATER':
+      case 'BATTLE_TERRAIN_POND':
+      case 'BATTLE_TERRAIN_UNDERWATER':
+        return { sky: '#86d0f7', horizon: '#b6ebff', floor: '#3e9ac4', accent: '#216f8d' };
+      case 'BATTLE_TERRAIN_GYM':
+      case 'BATTLE_TERRAIN_BUILDING':
+      case 'BATTLE_TERRAIN_INDOOR_1':
+      case 'BATTLE_TERRAIN_INDOOR_2':
+      case 'BATTLE_TERRAIN_LEADER':
+      case 'BATTLE_TERRAIN_LINK':
+      case 'BATTLE_TERRAIN_LORELEI':
+      case 'BATTLE_TERRAIN_BRUNO':
+      case 'BATTLE_TERRAIN_AGATHA':
+      case 'BATTLE_TERRAIN_LANCE':
+      case 'BATTLE_TERRAIN_CHAMPION':
+        return { sky: '#d4d8e4', horizon: '#edf0f6', floor: '#a89fb0', accent: '#6c6074' };
+      case 'BATTLE_TERRAIN_SAND':
+        return { sky: '#f8daa4', horizon: '#fff2d0', floor: '#d4aa58', accent: '#9a7834' };
+      case 'BATTLE_TERRAIN_MOUNTAIN':
+        return { sky: '#b6d0ef', horizon: '#ebf5ff', floor: '#8a9bb0', accent: '#5a687b' };
+      default:
+        return { sky: '#8cc6ff', horizon: '#dff7ff', floor: '#73c056', accent: '#357f32' };
+    }
+  }
+
+  private drawBattleMonster(species: string, x: number, y: number, side: 'player' | 'opponent'): void {
+    const icon = this.pokemonIcons.get(species);
+    this.ctx.save();
+    if (side === 'player') {
+      this.ctx.translate(x, y);
+      this.ctx.scale(-1, 1);
+    }
+
+    if (icon?.complete && icon.naturalWidth > 0) {
+      const drawX = side === 'player' ? -16 : -16;
+      this.ctx.drawImage(icon, drawX, -16, 32, 32);
+    } else {
+      this.ctx.fillStyle = side === 'player' ? '#f7f7fb' : '#f4f4f4';
+      this.ctx.beginPath();
+      this.ctx.ellipse(0, 0, 18, 14, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.strokeStyle = '#20305f';
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+  }
+
+  private drawBattleHealthbox(
+    battle: BattleState,
+    side: 'player' | 'opponent'
+  ): void {
+    const pokemon = side === 'player' ? battle.playerMon : battle.wildMon;
+    const box = side === 'player' ? BATTLE_SINGLE_HEALTHBOX_COORDS.player : BATTLE_SINGLE_HEALTHBOX_COORDS.opponent;
+
+    this.drawWindowFrame(box.x, box.y, box.w, box.h, 'std');
+    this.drawSmallText(side === 'player' ? pokemon.species : `FOE ${pokemon.species}`, box.x + 8, box.y + 6);
+    this.drawSmallText(`Lv${pokemon.level}`, box.x + box.w - 28, box.y + 6);
+    if (side === 'player') {
+      this.drawSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + 8, box.y + 18);
+      this.drawPartyHpBarGba(box.x + 34, box.y + 19, 34, pokemon.hp, pokemon.maxHp);
+    } else {
+      this.drawPartyHpBarGba(box.x + 36, box.y + 18, 44, pokemon.hp, pokemon.maxHp);
+    }
+
+    if (pokemon.status !== 'none') {
+      this.drawSmallText(pokemon.status.toUpperCase(), box.x + 8, box.y + box.h - 10, '#7a2432');
+    }
+  }
+
+  private drawBattleCommandMenu(battle: BattleState): void {
+    this.drawWindowFrame(
+      BATTLE_ACTION_PROMPT_WINDOW.x,
+      BATTLE_ACTION_PROMPT_WINDOW.y,
+      BATTLE_ACTION_PROMPT_WINDOW.w,
+      BATTLE_ACTION_PROMPT_WINDOW.h,
+      'std'
+    );
+    const promptLines = this.wrapMenuText(battle.turnSummary, BATTLE_ACTION_PROMPT_WINDOW.w - 12);
+    this.drawTextLines(promptLines.slice(0, 2), BATTLE_ACTION_PROMPT_WINDOW.x + 6, BATTLE_ACTION_PROMPT_WINDOW.y + 6, 12);
+
+    this.drawWindowFrame(
+      BATTLE_ACTION_MENU_WINDOW.x,
+      BATTLE_ACTION_MENU_WINDOW.y,
+      BATTLE_ACTION_MENU_WINDOW.w,
+      BATTLE_ACTION_MENU_WINDOW.h,
+      'std'
+    );
+
+    BATTLE_COMMAND_LABELS.forEach((entry, index) => {
+      if (battle.commands[index] === undefined) {
+        return;
+      }
+      if (index === battle.selectedCommandIndex) {
+        this.drawCursor(entry.x - 8, entry.y - 2);
+      }
+      this.drawMenuText(entry.command.toUpperCase(), entry.x, entry.y);
+    });
+  }
+
+  private drawBattleMoveMenu(battle: BattleState): void {
+    this.drawWindowFrame(
+      BATTLE_MOVE_MENU_WINDOW.x,
+      BATTLE_MOVE_MENU_WINDOW.y,
+      BATTLE_MOVE_MENU_WINDOW.w,
+      BATTLE_MOVE_MENU_WINDOW.h,
+      'std'
+    );
+
+    BATTLE_MOVE_SLOTS.forEach((slot) => {
+      const move = battle.moves[slot.index];
+      if (!move) {
+        return;
+      }
+      if (slot.index === battle.selectedMoveIndex) {
+        this.drawCursor(slot.x - 10, slot.y - 2);
+      }
+      this.drawSmallText(move.name, slot.x, slot.y);
+    });
+
+    const move = battle.moves[battle.selectedMoveIndex];
+    if (!move) {
+      return;
+    }
+
+    this.drawWindowFrame(BATTLE_PP_BOX.x, BATTLE_PP_BOX.y, BATTLE_PP_BOX.w, BATTLE_PP_BOX.h, 'std');
+    this.drawSmallText(`PP ${move.ppRemaining}/${move.pp}`, BATTLE_PP_BOX.x + 4, BATTLE_PP_BOX.y + 3);
+    this.drawWindowFrame(BATTLE_TYPE_BOX.x, BATTLE_TYPE_BOX.y, BATTLE_TYPE_BOX.w, BATTLE_TYPE_BOX.h, 'std');
+    this.drawSmallText(move.type.toUpperCase(), BATTLE_TYPE_BOX.x + 4, BATTLE_TYPE_BOX.y + 1);
+  }
+
+  private drawBattleListWindow(battle: BattleState, bag?: BagState): void {
+    this.drawWindowFrame(BATTLE_LIST_WINDOW.x, BATTLE_LIST_WINDOW.y, BATTLE_LIST_WINDOW.w, BATTLE_LIST_WINDOW.h, 'std');
+    const rows = battle.phase === 'partySelect'
+      ? battle.party.map((member, index) => ({
+        label: `${member.species} ${member.hp > 0 ? `HP ${member.hp}/${member.maxHp}` : 'FNT'}`,
+        selected: index === battle.selectedPartyIndex
+      }))
+      : getBattleBagChoices(battle, bag).map((choice, index) => ({
+        label: choice.quantity === null ? choice.label : `${choice.label} x${choice.quantity}`,
+        selected: index === battle.selectedBagIndex
+      }));
+
+    rows.slice(0, 4).forEach((row, index) => {
+      const y = BATTLE_LIST_WINDOW.y + 6 + index * 12;
+      if (row.selected) {
+        this.drawCursor(BATTLE_LIST_WINDOW.x + 4, y - 2);
+      }
+      this.drawSmallText(row.label, BATTLE_LIST_WINDOW.x + 16, y);
+    });
+  }
+
+  private drawBattleMessageWindow(battle: BattleState): void {
+    this.drawWindowFrame(BATTLE_MESSAGE_WINDOW.x, BATTLE_MESSAGE_WINDOW.y, BATTLE_MESSAGE_WINDOW.w, BATTLE_MESSAGE_WINDOW.h, 'std');
+    const lines = this.wrapMenuText(battle.turnSummary, BATTLE_MESSAGE_WINDOW.w - 12);
+    this.drawTextLines(lines.slice(0, 2), BATTLE_MESSAGE_WINDOW.x + 6, BATTLE_MESSAGE_WINDOW.y + 6, 12);
+  }
+
+  private drawBattleScreen(battle: BattleState, runtime: ScriptRuntimeState, bag?: BagState): void {
+    this.activeFrameType = Math.max(0, Math.min(runtime.options.frameType ?? 0, this.stdWindowFrames.length - 1));
+    const { end } = this.beginPartyScreenPixelSpace();
+    const palette = this.getBattleTerrainColors(battle.terrain);
+
+    this.ctx.fillStyle = palette.sky;
+    this.ctx.fillRect(0, 0, BATTLE_GBA_WIDTH, BATTLE_GBA_HEIGHT);
+    this.ctx.fillStyle = palette.horizon;
+    this.ctx.fillRect(0, 0, BATTLE_GBA_WIDTH, 54);
+    this.ctx.fillStyle = palette.floor;
+    this.ctx.beginPath();
+    this.ctx.ellipse(182, 92, 56, 18, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.beginPath();
+    this.ctx.ellipse(64, 102, 64, 22, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.strokeStyle = palette.accent;
+    this.ctx.lineWidth = 2;
+    this.ctx.stroke();
+
+    this.drawBattleMonster(battle.wildMon.species, BATTLE_SINGLE_BATTLER_COORDS.opponent.x, BATTLE_SINGLE_BATTLER_COORDS.opponent.y, 'opponent');
+    this.drawBattleMonster(battle.playerMon.species, BATTLE_SINGLE_BATTLER_COORDS.player.x, BATTLE_SINGLE_BATTLER_COORDS.player.y, 'player');
+    this.drawBattleHealthbox(battle, 'opponent');
+    this.drawBattleHealthbox(battle, 'player');
+
+    if (battle.phase === 'command') {
+      this.drawBattleCommandMenu(battle);
+    } else if (battle.phase === 'moveSelect') {
+      this.drawBattleMoveMenu(battle);
+    } else if (battle.phase === 'partySelect' || battle.phase === 'bagSelect') {
+      this.drawBattleListWindow(battle, bag);
+      this.drawBattleMessageWindow(battle);
+    } else {
+      this.drawBattleMessageWindow(battle);
+    }
+
+    end();
+  }
+
   private drawStartMenuOverlay(startMenu: StartMenuState, runtime: ScriptRuntimeState): void {
     if (!startMenu.active && !startMenu.panel) {
       return;
@@ -691,21 +930,20 @@ export class CanvasRenderer {
   private drawPokedexScreen(panel: PokedexPanelState, runtime: ScriptRuntimeState): void {
     const panelW = this.canvas.width;
     const panelH = this.canvas.height;
+    const uniform = Math.min(panelW / DEX_GBA_WIDTH, panelH / DEX_GBA_HEIGHT);
+    const drawnW = DEX_GBA_WIDTH * uniform;
+    const drawnH = DEX_GBA_HEIGHT * uniform;
+    const offX = Math.floor((panelW - drawnW) / 2);
+    const offY = Math.floor((panelH - drawnH) / 2);
 
     this.ctx.save();
-    this.ctx.scale(panelW / DEX_GBA_WIDTH, panelH / DEX_GBA_HEIGHT);
+    this.ctx.resetTransform();
+    this.ctx.fillStyle = '#080810';
+    this.ctx.fillRect(0, 0, panelW, panelH);
+    this.ctx.translate(offX, offY);
+    this.ctx.scale(uniform, uniform);
 
-    /** BG1/3 tile fill tone from `DexScreen_InitGfxForTopMenu` (`FillBgTilemapBufferRect` 0x000 / 0x00E area). */
-    this.ctx.fillStyle = '#b8ccd8';
-    this.ctx.fillRect(0, 0, DEX_GBA_WIDTH, DEX_GBA_HEIGHT);
-
-    this.tileImageVerticalPokedexSidebar(
-      panel.dexMode === 'NATIONAL' ? this.pokedexNationalSidebar : this.pokedexSidebar,
-      0,
-      0,
-      DEX_LEFT_DECOR_WIDTH,
-      DEX_GBA_HEIGHT
-    );
+    this.drawPokedexBackground(panel);
 
     if (panel.screen === 'topMenu') {
       this.drawPokedexHeaderTitle(DEX_STRING_TABLE_OF_CONTENTS);
@@ -729,21 +967,64 @@ export class CanvasRenderer {
     this.ctx.restore();
   }
 
+  /**
+   * Composite BG under dex windows: approximates `FillBgTilemapBufferRect` on BG1–BG3 in
+   * `DexScreen_InitGfxForTopMenu` (tile 0x00E / 0x000 + palette 17) plus the left decor strip.
+   */
+  private drawPokedexBackground(panel: PokedexPanelState): void {
+    const g = this.ctx.createLinearGradient(0, 0, DEX_GBA_WIDTH, DEX_GBA_HEIGHT);
+    g.addColorStop(0, '#88a4b8');
+    g.addColorStop(0.45, '#b8ccd8');
+    g.addColorStop(1, '#98b0c0');
+    this.ctx.fillStyle = g;
+    this.ctx.fillRect(0, 0, DEX_GBA_WIDTH, DEX_GBA_HEIGHT);
+
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.12;
+    this.ctx.fillStyle = '#305070';
+    for (let x = DEX_LEFT_DECOR_WIDTH; x < DEX_GBA_WIDTH; x += 8) {
+      this.ctx.fillRect(x, 0, 4, DEX_GBA_HEIGHT);
+    }
+    this.ctx.restore();
+
+    this.tileImageVerticalPokedexSidebar(
+      panel.dexMode === 'NATIONAL' ? this.pokedexNationalSidebar : this.pokedexSidebar,
+      0,
+      0,
+      DEX_LEFT_DECOR_WIDTH,
+      DEX_GBA_HEIGHT
+    );
+  }
+
+  /** After `drawWindowFrame`, overwrite nine-slice center like `FillWindowPixelBuffer` before text. */
+  private drawPokedexWindowInnerFill(x: number, y: number, w: number, h: number, fill: string): void {
+    const pad = WINDOW_SLICE;
+    const iw = Math.max(0, w - pad * 2);
+    const ih = Math.max(0, h - pad * 2);
+    if (iw <= 0 || ih <= 0) {
+      return;
+    }
+    this.ctx.fillStyle = fill;
+    this.ctx.fillRect(x + pad, y + pad, iw, ih);
+  }
+
   /** `sWindowTemplates[0]` + `DexScreen_PrintStringWithAlignment` (TEXT_CENTER). */
   private drawPokedexHeaderTitle(title: string): void {
     const r = DEX_RECT_HEADER;
     this.drawWindowFrame(r.x, r.y, r.w, r.h, 'std');
+    this.drawPokedexWindowInnerFill(r.x, r.y, r.w, r.h, DEX_WINDOW_INNER_PIXEL15);
     const tw = this.measureMenuText(title);
     /** `DexScreen_PrintStringWithAlignment` uses y=2. */
     this.drawMenuText(title, r.x + Math.floor((DEX_GBA_WIDTH - tw) / 2), r.y + 2);
   }
 
-  /** `sWindowTemplates[1]` + `DexScreen_PrintControlInfo` — x = 236 - width, y = 2. */
+  /** `sWindowTemplates[1]` + `DexScreen_PrintControlInfo` — FONT_SMALL analog, colorIdx 4; x = 236 - width, y = 2. */
   private drawPokedexFooterHelp(text: string): void {
     const r = DEX_RECT_FOOTER;
-    this.drawWindowFrame(r.x, r.y, r.w, r.h, 'message');
+    this.drawWindowFrame(r.x, r.y, r.w, r.h, 'std');
+    this.drawPokedexWindowInnerFill(r.x, r.y, r.w, r.h, DEX_WINDOW_INNER_PIXEL15);
     const tw = this.measureSmallTextWidth(text);
-    this.drawSmallText(text, 236 - tw, r.y + 2);
+    this.drawSmallText(text, 236 - tw, r.y + 2, DEX_FOOTER_CONTROL_TEXT);
   }
 
   /** `DexScreen_PrintNum3RightAlign` — left edge of the 3-char cell; leading `0` → space (see `pokedex_screen.c`). */
@@ -767,6 +1048,7 @@ export class CanvasRenderer {
   private drawPokedexDexCountsWindow(panel: PokedexPanelState, runtime: ScriptRuntimeState): void {
     const r = DEX_RECT_DEX_COUNTS;
     this.drawWindowFrame(r.x, r.y, r.w, r.h, 'std');
+    this.drawPokedexWindowInnerFill(r.x, r.y, r.w, r.h, DEX_WINDOW_INNER_PIXEL0);
 
     /** Offsets in `DEX_COUNTS_*` are already relative to the dex-counts window (see `DexScreen_InitGfxForTopMenu`). */
     const miniX = r.x + 4;
@@ -812,6 +1094,7 @@ export class CanvasRenderer {
   private drawPokedexModeSelectList(panel: PokedexPanelState): void {
     const w = DEX_RECT_MODE_SELECT;
     this.drawWindowFrame(w.x, w.y, w.w, w.h, 'std');
+    this.drawPokedexWindowInnerFill(w.x, w.y, w.w, w.h, DEX_WINDOW_INNER_PIXEL0);
 
     const row0 = w.y + DEX_MODE_LIST_UP_TEXT_Y;
     const maxVisible = Math.min(DEX_MODE_LIST_MAX_SHOWED, panel.topMenuRows.length);
@@ -819,39 +1102,32 @@ export class CanvasRenderer {
     const selectedFlat = panel.topMenuListCursorPos + panel.topMenuListItemsAbove;
     const visibleRows = panel.topMenuRows.slice(scrollOffset, scrollOffset + maxVisible);
 
-    const innerRight = w.x + w.w - 2;
     visibleRows.forEach((row, index) => {
       const rowY = row0 + index * DEX_MODE_LIST_ROW_STRIDE;
       const absoluteIndex = scrollOffset + index;
       const textX = w.x + (row.kind === 'header' ? DEX_MODE_LIST_HEADER_X : DEX_MODE_LIST_ITEM_X);
 
       if (absoluteIndex === selectedFlat && row.kind === 'item') {
-        this.drawCursor(w.x + DEX_MODE_LIST_CURSOR_X, rowY - 2);
-        this.ctx.fillStyle = 'rgba(255, 240, 180, 0.55)';
-        const hiLeft = w.x + DEX_MODE_LIST_ITEM_X;
-        this.ctx.fillRect(hiLeft, rowY - 1, Math.max(8, innerRight - hiLeft - 2), 13);
+        this.drawPokedexSelectorArrow(w.x + DEX_MODE_LIST_CURSOR_X, rowY - 2);
       }
 
       if (row.kind === 'header') {
         this.drawSmallText(row.label, textX, rowY);
       } else if (row.enabled) {
-        this.drawMenuText(row.label, textX, rowY);
+        this.drawMenuTextSpaced(row.label, textX, rowY, DEX_MODE_LIST_ITEM_ENABLED, DEX_MODE_LIST_LETTER_SPACING);
       } else {
-        this.ctx.save();
-        this.ctx.fillStyle = '#6a6088';
-        this.ctx.font = 'bold 10px "Trebuchet MS", sans-serif';
-        this.ctx.textBaseline = 'top';
-        this.ctx.fillText(row.label, textX, rowY);
-        this.ctx.restore();
+        this.drawMenuTextSpaced(row.label, textX, rowY, DEX_MODE_LIST_ITEM_DISABLED, DEX_MODE_LIST_LETTER_SPACING);
       }
     });
+
+    this.drawPokedexListScrollArrows(w, scrollOffset, panel.topMenuRows.length, maxVisible);
   }
 
   /** `sWindowTemplate_SelectionIcon` — full 64×48 tile (matches cat icon asset). */
   private drawPokedexSelectionIconWindow(panel: PokedexPanelState): void {
     const r = DEX_RECT_SELECTION_ICON;
     /** ROM fills this window from `CopyToWindowPixelBuffer` — no second std frame. */
-    this.ctx.fillStyle = '#e8eef4';
+    this.ctx.fillStyle = DEX_CATEGORY_ICON_TILE_BG;
     this.ctx.fillRect(r.x, r.y, r.w, r.h);
     this.ctx.strokeStyle = '#a8a8c0';
     this.ctx.lineWidth = 1;
@@ -870,6 +1146,7 @@ export class CanvasRenderer {
   private drawPokedexOrderedListDecomp(panel: PokedexPanelState): void {
     const w = DEX_RECT_ORDERED_LIST;
     this.drawWindowFrame(w.x, w.y, w.w, w.h, 'std');
+    this.drawPokedexWindowInnerFill(w.x, w.y, w.w, w.h, DEX_WINDOW_INNER_PIXEL0);
 
     const row0 = w.y + DEX_ORDERED_LIST_UP_TEXT_Y;
     const maxVisible = Math.min(DEX_ORDERED_LIST_MAX_SHOWED, panel.orderEntries.length);
@@ -877,19 +1154,21 @@ export class CanvasRenderer {
     const selectedFlat = panel.orderListCursorPos + panel.orderListItemsAbove;
     const visibleEntries = panel.orderEntries.slice(scrollOffset, scrollOffset + maxVisible);
 
-    const innerRightOl = w.x + w.w - 2;
     visibleEntries.forEach((entry, index) => {
       const absoluteIndex = scrollOffset + index;
       const rowY = row0 + index * DEX_ORDERED_LIST_ROW_STRIDE;
       if (absoluteIndex === selectedFlat) {
-        this.drawCursor(w.x + DEX_ORDERED_LIST_CURSOR_X, rowY - 2);
-        this.ctx.fillStyle = 'rgba(255, 240, 180, 0.55)';
-        const hiLeft = w.x + DEX_ORDERED_LIST_ITEM_X - 4;
-        this.ctx.fillRect(hiLeft, rowY - 1, Math.max(8, innerRightOl - hiLeft - 2), 13);
+        this.drawPokedexSelectorArrow(w.x + DEX_ORDERED_LIST_CURSOR_X, rowY - 2);
       }
 
       this.drawSmallText(entry.displayNumber, w.x + 12, rowY);
-      this.drawMenuText(entry.label, w.x + DEX_ORDERED_LIST_ITEM_X, rowY);
+      this.drawMenuTextSpaced(
+        entry.label,
+        w.x + DEX_ORDERED_LIST_ITEM_X,
+        rowY,
+        DEX_MODE_LIST_ITEM_ENABLED,
+        DEX_MODE_LIST_LETTER_SPACING
+      );
       if (entry.caught && this.pokedexCaughtMarker.complete && this.pokedexCaughtMarker.naturalWidth > 0) {
         this.ctx.drawImage(this.pokedexCaughtMarker, w.x + 0x28, rowY - 1, 8, 8);
       }
@@ -901,6 +1180,8 @@ export class CanvasRenderer {
         );
       }
     });
+
+    this.drawPokedexListScrollArrows(w, scrollOffset, panel.orderEntries.length, maxVisible);
   }
 
   /** Category page windows from `sCategoryPageIconCoords` / `DexScreen_CreateCategoryListGfx`. */
@@ -918,13 +1199,16 @@ export class CanvasRenderer {
       }
       const isSelected = index === panel.categoryCursorIndex;
       this.drawWindowFrame(slot.info.x, slot.info.y, 64, 40, 'std');
+      this.drawPokedexWindowInnerFill(slot.info.x, slot.info.y, 64, 40, DEX_WINDOW_INNER_PIXEL0);
       if (this.pokedexMiniPage.complete && this.pokedexMiniPage.naturalWidth > 0) {
         this.ctx.drawImage(this.pokedexMiniPage, slot.info.x + 2, slot.info.y + 2, 48, 22);
       }
       this.drawSmallText(`No.${String(getNationalDexNumber(species) ?? 0).padStart(3, '0')}`, slot.info.x + 10, slot.info.y + 2);
       this.drawMenuText(species.replace(/_/gu, ' '), slot.info.x + 4, slot.info.y + 14);
+      this.ctx.fillStyle = DEX_CATEGORY_ICON_TILE_BG;
+      this.ctx.fillRect(slot.icon.x, slot.icon.y, DEX_CATEGORY_ICON_SIZE, DEX_CATEGORY_ICON_SIZE);
       if (isSelected) {
-        this.drawCursor(slot.icon.x - 2, slot.icon.y + 24);
+        this.drawPokedexSelectorArrow(slot.icon.x - 2, slot.icon.y + 24);
       }
       this.drawPokemonIcon(species, slot.icon.x, slot.icon.y, DEX_CATEGORY_ICON_SIZE, DEX_CATEGORY_ICON_SIZE);
       if (isSelected) {
@@ -944,6 +1228,7 @@ export class CanvasRenderer {
     const flavor = DEX_ENTRY_FLAVOR;
 
     this.drawWindowFrame(stats.x, stats.y, stats.w, stats.h, 'std');
+    this.drawPokedexWindowInnerFill(stats.x, stats.y, stats.w, stats.h, DEX_WINDOW_INNER_PIXEL0);
     this.drawMenuText(species.replace(/_/gu, ' '), stats.x + 4, stats.y + 6);
     this.drawSmallText(`No. ${String(getNationalDexNumber(species) ?? 0).padStart(3, '0')}`, stats.x + 4, stats.y + 22);
     this.drawPokemonIcon(species, pic.x, pic.y, pic.w, pic.h);
@@ -960,7 +1245,8 @@ export class CanvasRenderer {
       return;
     }
 
-    this.drawWindowFrame(flavor.x, flavor.y, flavor.w, flavor.h, 'message');
+    this.drawWindowFrame(flavor.x, flavor.y, flavor.w, flavor.h, 'std');
+    this.drawPokedexWindowInnerFill(flavor.x, flavor.y, flavor.w, flavor.h, DEX_WINDOW_INNER_PIXEL0);
     this.drawTextLines(
       this.wrapMenuText(entry?.description ?? `${species.replace(/_/gu, ' ')} data page.`, flavor.w - 16).slice(0, 7),
       flavor.x + 8,
@@ -977,10 +1263,10 @@ export class CanvasRenderer {
     this.drawPokemonIcon(species, 8, 16, 32, 32);
     this.drawSmallText(`No. ${String(getNationalDexNumber(species) ?? 0).padStart(3, '0')}`, 40, 20);
 
-    const mapX = 136;
-    const mapY = 32;
-    const mapInnerW = 244;
-    const mapInnerH = 212;
+    const mapX = DEX_AREA_MAP_KANTO_RECT.x;
+    const mapY = DEX_AREA_MAP_KANTO_RECT.y;
+    const mapInnerW = DEX_AREA_MAP_KANTO_RECT.w;
+    const mapInnerH = DEX_AREA_MAP_KANTO_RECT.h;
     const maxMapW = DEX_GBA_WIDTH - 8 - mapX;
     const maxMapH = DEX_RECT_FOOTER.y - 8 - mapY;
     const mapFit = Math.min(maxMapW / mapInnerW, maxMapH / mapInnerH, 1);
@@ -991,7 +1277,10 @@ export class CanvasRenderer {
     this.drawCompositePokedexMap(mapX, mapY, scale);
 
     if (panel.areaMarkers.length === 0) {
-      this.drawWindowFrame(mapX + 40, mapY + 72, 112, 24, 'message');
+      const ux = mapX + 40;
+      const uy = mapY + 72;
+      this.drawWindowFrame(ux, uy, 112, 24, 'std');
+      this.drawPokedexWindowInnerFill(ux, uy, 112, 24, DEX_WINDOW_INNER_PIXEL0);
       this.drawMenuText('AREA UNKNOWN', mapX + 52, mapY + 80);
       this.drawPokedexFooterHelp('B: BACK');
       return;
@@ -1125,10 +1414,39 @@ export class CanvasRenderer {
     return slot < panel.members.length ? panel.members[slot] : undefined;
   }
 
+  /**
+   * Party menu (and other full-screen GBA panels) must scale X and Y by the same factor
+   * so 8×8 tiles stay square; `gbaX`/`gbaY` alone stretch when the canvas is not 3:2.
+   */
+  private partyScreenUniformScale(): number {
+    const sx = this.canvas.width / GBA_VIEW_WIDTH;
+    const sy = this.canvas.height / GBA_VIEW_HEIGHT;
+    const fit = Math.min(sx, sy);
+    if (fit >= 1) {
+      return Math.max(1, Math.floor(fit));
+    }
+    return Math.max(fit, 1e-6);
+  }
+
+  private beginPartyScreenPixelSpace(): { end: () => void } {
+    const scale = this.partyScreenUniformScale();
+    const ox = (this.canvas.width - GBA_VIEW_WIDTH * scale) / 2;
+    const oy = (this.canvas.height - GBA_VIEW_HEIGHT * scale) / 2;
+    this.ctx.save();
+    this.ctx.translate(ox, oy);
+    this.ctx.scale(scale, scale);
+    return {
+      end: () => {
+        this.ctx.restore();
+      }
+    };
+  }
+
   private drawPartyScreen(panel: PartyPanelState): void {
-    void this.ensurePartyMenuBackgroundLoaded();
-    const vw = this.gbaX(PARTY_GBA_WIDTH);
-    const vh = this.gbaY(PARTY_GBA_HEIGHT);
+    void this.ensurePartyMenuAssetsLoaded();
+    const { end } = this.beginPartyScreenPixelSpace();
+    const W = PARTY_GBA_WIDTH;
+
     if (this.partyMenuBgCanvas) {
       this.ctx.drawImage(
         this.partyMenuBgCanvas,
@@ -1138,165 +1456,172 @@ export class CanvasRenderer {
         PARTY_MENU_BG_PIXEL_H,
         0,
         0,
-        vw,
-        vh
+        PARTY_MENU_BG_DRAW_W,
+        PARTY_MENU_BG_PIXEL_H
       );
     } else {
       this.ctx.fillStyle = '#98c0a8';
-      this.ctx.fillRect(0, 0, vw, vh);
+      this.ctx.fillRect(0, 0, W, GBA_VIEW_HEIGHT);
     }
+
+    const tpl = this.partyBgTilesheet;
+    const slotMaps = this.partySlotTilemaps;
+    const canBlitSlots = !!(slotMaps && tpl.complete && tpl.naturalWidth > 0);
+    const tilesPerRow = canBlitSlots ? partyBgTilesPerRow(tpl) : 8;
+    const partyBgArt = !!this.partyMenuBgCanvas;
 
     for (let slot = 0; slot < PARTY_SCREEN_SLOT_COUNT; slot += 1) {
       const win = getPartyMonWindowRect(slot);
-      const wx = this.gbaX(win.x);
-      const wy = this.gbaY(win.y);
-      const ww = this.gbaX(win.w);
-      const wh = this.gbaY(win.h);
+      const { x: wx, y: wy, w: ww, h: wh } = win;
       const member = this.partyMemberAt(panel, slot);
+
+      if (canBlitSlots && slotMaps) {
+        if (slot === 0) {
+          if (member) {
+            blitPartySlotTilemap(this.ctx, wx, wy, slotMaps.main, 10, 10, 7, tpl, tilesPerRow);
+          }
+        } else if (member) {
+          blitPartySlotTilemap(this.ctx, wx, wy, slotMaps.wide, 18, 18, 3, tpl, tilesPerRow);
+        } else {
+          blitPartySlotTilemap(this.ctx, wx, wy, slotMaps.wideEmpty, 18, 18, 3, tpl, tilesPerRow);
+        }
+      } else if (slot > 0 && !member) {
+        this.ctx.fillStyle = 'rgba(248, 248, 248, 0.35)';
+        this.ctx.fillRect(wx, wy, ww, wh);
+      }
+
       const isSelected =
         slot === panel.selectedIndex && (panel.mode === 'list' || panel.mode === 'switch' || panel.mode === 'actions');
       const isSwitchSource = panel.mode === 'switch' && slot === panel.switchingIndex;
-
-      if (!member) {
-        this.ctx.fillStyle = isSelected ? 'rgba(255, 248, 200, 0.45)' : 'rgba(248, 248, 248, 0.35)';
-        this.ctx.fillRect(wx, wy, ww, wh);
+      if (isSwitchSource) {
+        this.ctx.strokeStyle = 'rgba(200, 72, 72, 0.95)';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wh - 1);
       } else if (isSelected) {
-        this.ctx.fillStyle = 'rgba(255, 240, 160, 0.42)';
-        this.ctx.fillRect(wx, wy, ww, wh);
-      } else if (isSwitchSource) {
-        this.ctx.fillStyle = 'rgba(255, 200, 200, 0.35)';
-        this.ctx.fillRect(wx, wy, ww, wh);
+        this.ctx.strokeStyle = 'rgba(232, 168, 32, 0.95)';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wh - 1);
       }
 
       if (isSelected) {
         const sp = PARTY_SINGLE_SPRITES[slot];
-        this.drawCursor(this.gbaX(sp.mon.x) - this.gbaX(2), this.gbaY(sp.mon.y) + this.gbaY(8));
+        this.drawCursor(sp.mon.x - 2, sp.mon.y + 8);
       }
 
       const sprites = PARTY_SINGLE_SPRITES[slot];
       const pb = sprites.pokeball;
       if (this.partyPokeball.complete && this.partyPokeball.naturalWidth > 0 && member) {
         const srcY = member.hp > 0 ? 0 : 8;
-        const destW = this.gbaX(16);
-        const destH = this.gbaY(16);
-        this.ctx.drawImage(
-          this.partyPokeball,
-          0,
-          srcY,
-          8,
-          8,
-          this.gbaX(pb.x),
-          this.gbaY(pb.y),
-          destW,
-          destH
-        );
+        this.ctx.drawImage(this.partyPokeball, 0, srcY, 8, 8, pb.x, pb.y, 8, 8);
       }
 
       if (member) {
         const text = win.column === 'left' ? PARTY_TEXT_LEFT : PARTY_TEXT_RIGHT;
         const nick = getSpeciesDisplayName(member.species);
-        this.drawMenuText(nick, wx + this.gbaX(text.nickname.x), wy + this.gbaY(text.nickname.y));
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.rect(wx, wy, ww, wh);
+        this.ctx.clip();
+
+        this.drawPartyMenuClippedText(nick, wx + text.nickname.x, wy + text.nickname.y, text.nickname.w);
         const lvStr = `Lv${member.level.toString().padStart(2, ' ')}`;
-        this.drawSmallText(lvStr, wx + this.gbaX(text.level.x), wy + this.gbaY(text.level.y));
+        this.drawSmallText(lvStr, wx + text.level.x, wy + text.level.y);
 
         const hpStr = member.hp.toString().padStart(3, ' ');
-        this.drawSmallText(
-          hpStr,
-          wx + this.gbaX(text.hp.x + text.hp.w) - this.measureSmallTextWidth(hpStr),
-          wy + this.gbaY(text.hp.y)
-        );
+        this.drawSmallText(hpStr, wx + text.hp.x + text.hp.w - this.measureSmallTextWidth(hpStr), wy + text.hp.y);
         const maxStr = `/${member.maxHp.toString().padStart(3, ' ')}`;
-        this.drawSmallText(
-          maxStr,
-          wx + this.gbaX(text.maxHp.x + text.maxHp.w) - this.measureSmallTextWidth(maxStr),
-          wy + this.gbaY(text.maxHp.y)
-        );
+        this.drawSmallText(maxStr, wx + text.maxHp.x + text.maxHp.w - this.measureSmallTextWidth(maxStr), wy + text.maxHp.y);
 
-        const barX = wx + this.gbaX(text.hpBar.x);
-        const barY = wy + this.gbaY(text.hpBar.y);
-        const barW = this.gbaX(text.hpBar.w);
+        const barX = wx + text.hpBar.x;
+        const barY = wy + text.hpBar.y;
+        const barW = text.hpBar.w;
         this.drawPartyHpBarGba(barX, barY, barW, member.hp, member.maxHp);
 
-        const iconSize = this.gbaX(32);
-        const iconH = this.gbaY(32);
-        this.drawPokemonIcon(member.species, this.gbaX(sprites.mon.x), this.gbaY(sprites.mon.y), iconSize, iconH);
+        this.ctx.restore();
+
+        this.drawPokemonIcon(member.species, sprites.mon.x, sprites.mon.y, 32, 32);
 
         if (member.status !== 'OK' && member.status !== 'none') {
-          this.drawSmallText(member.status, this.gbaX(sprites.status.x), this.gbaY(sprites.status.y));
+          this.drawSmallText(member.status, sprites.status.x, sprites.status.y);
         }
       }
     }
 
     const msg = getPartyMessageWindowRect();
-    const mx = this.gbaX(msg.x);
-    const my = this.gbaY(msg.y);
-    const mw = this.gbaX(msg.w);
-    const mh = this.gbaY(msg.h);
-    this.drawWindowFrame(mx, my, mw, mh, 'message');
-    const msgPadX = this.gbaX(8);
-    const msgPadY = this.gbaY(6);
+    const { x: mx, y: my, w: mw, h: mh } = msg;
+    if (!partyBgArt) {
+      this.drawWindowFrame(mx, my, mw, mh, 'std');
+    }
+    const msgInnerPadX = partyBgArt ? 8 : WINDOW_SLICE;
+    const msgInnerPadY = partyBgArt ? 5 : WINDOW_SLICE;
+    const msgLineH = 12;
     this.drawTextLines(
-      this.wrapMenuText(panel.description, mw - msgPadX * 2).slice(0, 2),
-      mx + msgPadX,
-      my + msgPadY,
-      this.gbaY(12)
+      this.wrapMenuText(panel.description, mw - msgInnerPadX * 2).slice(0, 2),
+      mx + msgInnerPadX,
+      my + msgInnerPadY,
+      msgLineH
     );
 
     const cancelT = PARTY_CANCEL_BUTTON_WINDOW;
     const cancelR = tilesToPixels(cancelT.tileLeft, cancelT.tileTop, cancelT.tileW, cancelT.tileH);
-    this.drawWindowFrame(this.gbaX(cancelR.x), this.gbaY(cancelR.y), this.gbaX(cancelR.w), this.gbaY(cancelR.h), 'std');
+    if (!partyBgArt) {
+      this.drawWindowFrame(cancelR.x, cancelR.y, cancelR.w, cancelR.h, 'std');
+    }
     const cancelLabel = 'CANCEL';
     const cw = this.measureMenuText(cancelLabel);
+    const cancelVisual = tilesToPixels(
+      PARTY_CANCEL_BUTTON_BG_BLIT.tileLeft,
+      PARTY_CANCEL_BUTTON_BG_BLIT.tileTop,
+      PARTY_CANCEL_BUTTON_BG_BLIT.tileW,
+      PARTY_CANCEL_BUTTON_BG_BLIT.tileH
+    );
+    const cancelTextRect = partyBgArt ? cancelVisual : cancelR;
+    const menuFontH = 10;
     this.drawMenuText(
       cancelLabel,
-      this.gbaX(cancelR.x) + (this.gbaX(cancelR.w) - cw) / 2,
-      this.gbaY(cancelR.y) + this.gbaY(4)
+      cancelTextRect.x + (cancelTextRect.w - cw) / 2,
+      cancelTextRect.y + (cancelTextRect.h - menuFontH) / 2
     );
 
     if (panel.mode === 'actions') {
       const n = panel.actionRows.length;
       const tw = partyActionsWindowTiles(n);
       const aw = tilesToPixels(tw.tileLeft, tw.tileTop, tw.tileW, tw.tileH);
-      const ax = this.gbaX(aw.x);
-      const ay = this.gbaY(aw.y);
-      const awPx = this.gbaX(aw.w);
-      const ahPx = this.gbaY(aw.h);
+      const { x: ax, y: ay, w: awPx, h: ahPx } = aw;
       this.drawWindowFrame(ax, ay, awPx, ahPx, 'std');
-      const cursorDim = this.gbaX(8);
+      const textStartX = ax + 8;
       panel.actionRows.forEach((action, index) => {
-        const rowY = ay + this.gbaY(2) + index * this.gbaY(16);
+        const rowY = ay + 2 + index * 16;
         if (index === panel.actionIndex) {
-          this.drawCursor(ax + cursorDim - this.gbaX(4), rowY - this.gbaY(2));
+          this.drawCursor(ax + 2, rowY - 2);
         }
-        this.drawMenuText(this.partyActionLabel(action), ax + cursorDim + this.gbaX(2), rowY, '#f8f8f8');
+        this.drawMenuText(this.partyActionLabel(action), textStartX, rowY, '#f8f8f8');
       });
     }
 
     if (panel.mode === 'summary') {
-      const summaryX = this.gbaX(16);
-      const summaryY = this.gbaY(28);
-      const summaryW = this.gbaX(PARTY_GBA_WIDTH - 32);
-      const summaryH = this.gbaY(96);
+      const summaryX = 16;
+      const summaryY = 28;
+      const summaryW = PARTY_GBA_WIDTH - 32;
+      const summaryH = 96;
       this.drawWindowFrame(summaryX, summaryY, summaryW, summaryH, 'std');
       panel.summaryLines.forEach((line, index) => {
-        this.drawMenuText(line, summaryX + this.gbaX(8), summaryY + this.gbaY(10) + index * this.gbaY(16));
+        this.drawMenuText(line, summaryX + 8, summaryY + 10 + index * 16);
       });
       const pageStr = `PAGE ${panel.summaryPage + 1}/2`;
-      this.drawSmallText(
-        pageStr,
-        summaryX + summaryW - this.measureSmallTextWidth(pageStr) - this.gbaX(6),
-        summaryY + summaryH - this.gbaY(12)
-      );
+      this.drawSmallText(pageStr, summaryX + summaryW - this.measureSmallTextWidth(pageStr) - 6, summaryY + summaryH - 12);
     }
+
+    end();
   }
 
+  /**
+   * Trainer card fills the canvas edge-to-edge (GBA 240×160 mapped to the whole viewport).
+   * Footer uses `DrawStdWindowFrame` / `LoadStdWindowFrameGfx` (`trainer_card.c`), not the message box.
+   */
   private drawTrainerCardScreen(panel: PlayerSummaryPanelState, runtime: ScriptRuntimeState): void {
-    const margin = 8;
-    const panelW = this.canvas.width - margin * 2;
-    const panelH = this.canvas.height - margin * 2;
     this.ctx.save();
-    this.ctx.translate(margin, margin);
-    this.ctx.scale(panelW / GBA_VIEW_WIDTH, panelH / GBA_VIEW_HEIGHT);
+    this.ctx.scale(this.canvas.width / GBA_VIEW_WIDTH, this.canvas.height / GBA_VIEW_HEIGHT);
 
     const labelColor = '#385060';
     const valueColor = '#20305f';
@@ -1319,7 +1644,7 @@ export class CanvasRenderer {
     }
 
     const foot = TC_FOOTER_RECT;
-    this.drawWindowFrame(foot.x, foot.y, foot.w, foot.h, 'message');
+    this.drawWindowFrame(foot.x, foot.y, foot.w, foot.h, 'std');
     const footerText = panel.pageIndex === 0 ? TC_STR.footerFront : TC_STR.footerBack;
     this.drawSmallText(footerText, foot.x + 8, foot.y + 10, valueColor);
 
@@ -1528,7 +1853,7 @@ export class CanvasRenderer {
       }
     });
 
-    this.drawWindowFrame(x + 10, y + height - 42, width - 20, 28, 'message');
+    this.drawWindowFrame(x + 10, y + height - 42, width - 20, 28, 'std');
     this.drawTextLines(this.wrapMenuText(panel.description, width - 36).slice(0, 2), x + 18, y + height - 32, 12);
   }
 
@@ -1546,7 +1871,7 @@ export class CanvasRenderer {
     this.drawSmallText(`POKeDEX ${runtime.startMenu.seenPokemonCount}`, x + 24, y + 68);
     this.drawSmallText(`TIME ${Math.floor((runtime.vars.playTimeSeconds ?? 0) / 60)} MIN`, x + 24, y + 82);
 
-    this.drawWindowFrame(x + 14, y + height - 58, width - 28, 42, 'message');
+    this.drawWindowFrame(x + 14, y + height - 58, width - 28, 42, 'std');
     this.drawTextLines(this.wrapMenuText(panel.description, width - 44).slice(0, 3), x + 22, y + height - 48, 12);
 
     if (panel.stage !== 'result') {
@@ -1590,6 +1915,10 @@ export class CanvasRenderer {
 
   private drawBagScreen(panel: BagPanelState, runtime: ScriptRuntimeState): void {
     const bag = runtime.bag;
+    /** One GBA tile border inside scaled windows (`drawWindowFrameGbaBorder`). */
+    const winPadX = this.gbaX(8);
+    const winPadY = this.gbaY(8);
+
     /** `LoadCompressedPalette(gBagBgPalette, …)` — solid fill until full BG tilemap is ported. */
     this.ctx.fillStyle = '#88b0c8';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -1620,10 +1949,9 @@ export class CanvasRenderer {
     const py = this.gbaY(pocketWin.y);
     const pw = this.gbaX(pocketWin.w);
     const ph = this.gbaY(pocketWin.h);
-    this.drawWindowFrame(px, py, pw, ph, 'std');
+    this.drawWindowFrameGbaBorder(px, py, pw, ph, 'std');
     const pocketLabel = getBagPocketLabel(bag.selectedPocket);
-    const pocketTextX =
-      px + (this.gbaX(BAG_POCKET_NAME_CENTER_WIDTH) - this.measureMenuText(pocketLabel)) / 2;
+    const pocketTextX = px + (pw - this.measureMenuText(pocketLabel)) / 2;
     this.drawMenuText(pocketLabel, pocketTextX, py + this.gbaY(BAG_POCKET_NAME_TEXT_Y));
 
     const listWin = BAG_LIST_WINDOW;
@@ -1631,9 +1959,12 @@ export class CanvasRenderer {
     const ly = this.gbaY(listWin.y);
     const lw = this.gbaX(listWin.w);
     const lh = this.gbaY(listWin.h);
-    this.drawWindowFrame(lx, ly, lw, lh, 'std');
+    this.drawWindowFrameGbaBorder(lx, ly, lw, lh, 'std');
 
     const rows = getBagVisibleRows(bag);
+    const listInnerRight = lx + lw - winPadX;
+    const listNameMaxW = listInnerRight - this.gbaX(2) - (lx + this.gbaX(BAG_LIST_ITEM_X)) - this.gbaX(36);
+
     rows.forEach((row, index) => {
       const rowYWin = BAG_LIST_UP_TEXT_Y + index * BAG_LIST_ROW_PITCH;
       const rowTop = ly + this.gbaY(rowYWin);
@@ -1641,18 +1972,20 @@ export class CanvasRenderer {
         this.drawCursor(lx + this.gbaX(BAG_LIST_CURSOR_X), rowTop - this.gbaY(2));
       }
 
-      this.drawMenuText(row.label, lx + this.gbaX(BAG_LIST_ITEM_X), rowTop);
+      const nameX = lx + this.gbaX(BAG_LIST_ITEM_X);
+      const nameLines = this.wrapMenuText(row.label, Math.max(this.gbaX(24), listNameMaxW));
+      this.drawTextLines(nameLines.slice(0, 1), nameX, rowTop, this.gbaY(14));
 
       if (!row.isExit && row.quantity !== null && bag.selectedPocket !== 'keyItems') {
         const qtyStr = `×${row.quantity.toString().padStart(3, '0')}`;
-        const qtyRight = lx + this.gbaX(BAG_LIST_QTY_X);
+        const qtyRight = Math.min(lx + this.gbaX(BAG_LIST_QTY_X), listInnerRight - this.gbaX(2));
         this.drawSmallText(qtyStr, qtyRight - this.measureSmallTextWidth(qtyStr), rowTop + this.gbaY(1));
       } else if (row.isRegistered) {
-        this.drawSmallText(
-          'SELECT',
+        const selectX = Math.min(
           lx + this.gbaX(BAG_LIST_SELECT_BLIT_X),
-          rowTop + this.gbaY(1)
+          listInnerRight - this.measureSmallTextWidth('SELECT')
         );
+        this.drawSmallText('SELECT', selectX, rowTop + this.gbaY(1));
       }
     });
 
@@ -1673,12 +2006,13 @@ export class CanvasRenderer {
     const my = this.gbaY(msgWin.y);
     const mw = this.gbaX(msgWin.w);
     const mh = this.gbaY(msgWin.h);
-    this.drawWindowFrame(mx, my, mw, mh, 'message');
+    this.drawWindowFrameGbaBorder(mx, my, mw, mh, 'message');
     const description = panel.message?.text ?? getBagDescription(bag);
-    const msgTextX = mx + this.gbaX(BAG_MESSAGE_TEXT_X + 2);
-    const msgTextY = my + this.gbaY(BAG_MESSAGE_TEXT_Y + 3);
+    const msgTextX = mx + winPadX + this.gbaX(2);
+    const msgTextY = my + winPadY + this.gbaY(3);
+    const msgInnerW = mw - winPadX * 2 - this.gbaX(4);
     this.drawTextLines(
-      this.wrapMenuText(description, mw - this.gbaX(8)).slice(0, 2),
+      this.wrapMenuText(description, Math.max(this.gbaX(40), msgInnerW)).slice(0, 2),
       msgTextX,
       msgTextY,
       this.gbaY(14)
@@ -1715,13 +2049,14 @@ export class CanvasRenderer {
       const tpy = this.gbaY(tossPrompt.y);
       const tpw = this.gbaX(tossPrompt.w);
       const tph = this.gbaY(tossPrompt.h);
-      this.drawWindowFrame(tpx, tpy, tpw, tph, 'std');
+      this.drawWindowFrameGbaBorder(tpx, tpy, tpw, tph, 'std');
       const itemName = getItemDefinition(panel.quantityPrompt.itemId).name;
       const tossHead = `Toss out how many\n${itemName}(s)?`;
+      const tossInnerW = tpw - winPadX * 2 - this.gbaX(4);
       this.drawTextLines(
-        this.wrapMenuText(tossHead, tpw - this.gbaX(8)).slice(0, 2),
-        tpx + this.gbaX(2),
-        tpy + this.gbaY(2),
+        this.wrapMenuText(tossHead, Math.max(this.gbaX(40), tossInnerW)).slice(0, 2),
+        tpx + winPadX + this.gbaX(2),
+        tpy + winPadY + this.gbaY(2),
         this.gbaY(14)
       );
 
@@ -1730,9 +2065,9 @@ export class CanvasRenderer {
       const qy = this.gbaY(qtyBox.y);
       const qw = this.gbaX(qtyBox.w);
       const qh = this.gbaY(qtyBox.h);
-      this.drawWindowFrame(qx, qy, qw, qh, 'std');
+      this.drawWindowFrameGbaBorder(qx, qy, qw, qh, 'std');
       const qtyStr = `×${panel.quantityPrompt.quantity.toString().padStart(3, '0')}`;
-      this.drawSmallText(qtyStr, qx + this.gbaX(4), qy + this.gbaY(10));
+      this.drawSmallText(qtyStr, qx + winPadX + this.gbaX(4), qy + winPadY + this.gbaY(10));
     } else if (panel.confirmationPrompt) {
       const cp = panel.confirmationPrompt;
       const titleRect = BAG_CONTEXT_TITLE_RECT;
@@ -1740,13 +2075,14 @@ export class CanvasRenderer {
       const cy = this.gbaY(titleRect.y);
       const cw = this.gbaX(titleRect.w);
       const ch = this.gbaY(titleRect.h);
-      this.drawWindowFrame(cx, cy, cw, ch, 'std');
+      this.drawWindowFrameGbaBorder(cx, cy, cw, ch, 'std');
       const qStr = cp.quantity.toString().padStart(3, ' ');
       const confirmText = `Throw away ${qStr} of\nthis item?`;
+      const confirmInnerW = cw - winPadX * 2 - this.gbaX(4);
       this.drawTextLines(
-        this.wrapMenuText(confirmText, cw - this.gbaX(8)).slice(0, 2),
-        cx + this.gbaX(2),
-        cy + this.gbaY(2),
+        this.wrapMenuText(confirmText, Math.max(this.gbaX(40), confirmInnerW)).slice(0, 2),
+        cx + winPadX + this.gbaX(2),
+        cy + winPadY + this.gbaY(2),
         this.gbaY(14)
       );
 
@@ -1755,13 +2091,13 @@ export class CanvasRenderer {
       const yy = this.gbaY(yn.y);
       const yw = this.gbaX(yn.w);
       const yh = this.gbaY(yn.h);
-      this.drawWindowFrame(yx, yy, yw, yh, 'std');
+      this.drawWindowFrameGbaBorder(yx, yy, yw, yh, 'std');
       ['YES', 'NO'].forEach((choice, index) => {
-        const rowY = yy + this.gbaY(8 + index * 14);
+        const rowY = yy + winPadY + this.gbaY(8 + index * 14);
         if (index === cp.selectedIndex) {
-          this.drawCursor(yx + this.gbaX(4), rowY - this.gbaY(2));
+          this.drawCursor(yx + winPadX + this.gbaX(4), rowY - this.gbaY(2));
         }
-        this.drawMenuText(choice, yx + this.gbaX(12), rowY);
+        this.drawMenuText(choice, yx + winPadX + this.gbaX(12), rowY);
       });
     } else if (panel.contextMenu) {
       const contextMenu = panel.contextMenu;
@@ -1770,24 +2106,29 @@ export class CanvasRenderer {
       const ty = this.gbaY(titleRect.y);
       const tw = this.gbaX(titleRect.w);
       const th = this.gbaY(titleRect.h);
-      this.drawWindowFrame(tx, ty, tw, th, 'std');
+      this.drawWindowFrameGbaBorder(tx, ty, tw, th, 'std');
       const itemName = getItemDefinition(contextMenu.itemId).name;
-      const selectedLines = [`${itemName} is`, 'selected.'];
-      this.drawTextLines(selectedLines, tx + this.gbaX(2), ty + this.gbaY(2), this.gbaY(14));
+      const titleInnerW = tw - winPadX * 2 - this.gbaX(4);
+      const titleLine1 = this.wrapMenuText(`${itemName} is`, Math.max(this.gbaX(24), titleInnerW))[0] ?? `${itemName} is`;
+      this.drawTextLines([titleLine1, 'selected.'], tx + winPadX + this.gbaX(2), ty + winPadY + this.gbaY(2), this.gbaY(14));
 
       const actionsRect = bagContextActionsRect(contextMenu.actions.length);
       const ax = this.gbaX(actionsRect.x);
       const ay = this.gbaY(actionsRect.y);
       const aw = this.gbaX(actionsRect.w);
       const ah = this.gbaY(actionsRect.h);
-      this.drawWindowFrame(ax, ay, aw, ah, 'std');
+      this.drawWindowFrameGbaBorder(ax, ay, aw, ah, 'std');
 
       contextMenu.actions.forEach((action, index) => {
-        const rowY = ay + this.gbaY(BAG_CONTEXT_MENU_FIRST_ROW_Y + index * BAG_CONTEXT_MENU_ROW_PITCH);
+        const rowY = ay + winPadY + this.gbaY(BAG_CONTEXT_MENU_FIRST_ROW_Y + index * BAG_CONTEXT_MENU_ROW_PITCH);
         if (index === contextMenu.selectedIndex) {
-          this.drawCursor(ax + this.gbaX(BAG_CONTEXT_MENU_CURSOR_X - 2), rowY - this.gbaY(2));
+          this.drawCursor(ax + winPadX + this.gbaX(BAG_CONTEXT_MENU_CURSOR_X - 2), rowY - this.gbaY(2));
         }
-        this.drawMenuText(this.getBagActionLabel(action), ax + this.gbaX(BAG_CONTEXT_MENU_TEXT_X + 4), rowY);
+        this.drawMenuText(
+          this.getBagActionLabel(action),
+          ax + winPadX + this.gbaX(BAG_CONTEXT_MENU_TEXT_X + 4),
+          rowY
+        );
       });
     }
   }
@@ -1820,7 +2161,7 @@ export class CanvasRenderer {
       ? this.menuMessageWindow
       : this.stdWindowFrames[this.activeFrameType] ?? this.stdWindowFrame;
     if (frame.complete && frame.naturalWidth > 0) {
-      this.drawNineSlice(frame, x, y, width, height, WINDOW_SLICE);
+      this.drawNineSlice(frame, x, y, width, height, WINDOW_SLICE, WINDOW_SLICE);
       return;
     }
 
@@ -1831,30 +2172,58 @@ export class CanvasRenderer {
     this.ctx.strokeRect(x + 1, y + 1, width - 2, height - 2);
   }
 
+  /**
+   * Bag / full-screen overlays scale window rects with `gbaX`/`gbaY` but GBA tiles are still 8×8
+   * logical pixels — border thickness must scale too (fixed `WINDOW_SLICE` would be only ~8 CSS px).
+   */
+  private drawWindowFrameGbaBorder(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    variant: 'std' | 'message'
+  ): void {
+    const frame = variant === 'message'
+      ? this.menuMessageWindow
+      : this.stdWindowFrames[this.activeFrameType] ?? this.stdWindowFrame;
+    if (frame.complete && frame.naturalWidth > 0) {
+      const sx = this.gbaX(8);
+      const sy = this.gbaY(8);
+      this.drawNineSlice(frame, x, y, width, height, sx, sy);
+      return;
+    }
+
+    this.drawWindowFrame(x, y, width, height, variant);
+  }
+
   private drawNineSlice(
     image: HTMLImageElement,
     dx: number,
     dy: number,
     dw: number,
     dh: number,
-    slice: number
+    destSliceX: number,
+    destSliceY: number
   ): void {
+    const srcSlice = WINDOW_SLICE;
+    const sx = Math.min(destSliceX, Math.floor(dw / 2));
+    const sy = Math.min(destSliceY, Math.floor(dh / 2));
     const sw = image.naturalWidth;
     const sh = image.naturalHeight;
-    const centerSw = sw - slice * 2;
-    const centerSh = sh - slice * 2;
-    const centerDw = dw - slice * 2;
-    const centerDh = dh - slice * 2;
+    const centerSw = sw - srcSlice * 2;
+    const centerSh = sh - srcSlice * 2;
+    const centerDw = Math.max(0, dw - sx * 2);
+    const centerDh = Math.max(0, dh - sy * 2);
 
-    this.ctx.drawImage(image, 0, 0, slice, slice, dx, dy, slice, slice);
-    this.ctx.drawImage(image, slice, 0, centerSw, slice, dx + slice, dy, centerDw, slice);
-    this.ctx.drawImage(image, sw - slice, 0, slice, slice, dx + dw - slice, dy, slice, slice);
-    this.ctx.drawImage(image, 0, slice, slice, centerSh, dx, dy + slice, slice, centerDh);
-    this.ctx.drawImage(image, slice, slice, centerSw, centerSh, dx + slice, dy + slice, centerDw, centerDh);
-    this.ctx.drawImage(image, sw - slice, slice, slice, centerSh, dx + dw - slice, dy + slice, slice, centerDh);
-    this.ctx.drawImage(image, 0, sh - slice, slice, slice, dx, dy + dh - slice, slice, slice);
-    this.ctx.drawImage(image, slice, sh - slice, centerSw, slice, dx + slice, dy + dh - slice, centerDw, slice);
-    this.ctx.drawImage(image, sw - slice, sh - slice, slice, slice, dx + dw - slice, dy + dh - slice, slice, slice);
+    this.ctx.drawImage(image, 0, 0, srcSlice, srcSlice, dx, dy, sx, sy);
+    this.ctx.drawImage(image, srcSlice, 0, centerSw, srcSlice, dx + sx, dy, centerDw, sy);
+    this.ctx.drawImage(image, sw - srcSlice, 0, srcSlice, srcSlice, dx + dw - sx, dy, sx, sy);
+    this.ctx.drawImage(image, 0, srcSlice, srcSlice, centerSh, dx, dy + sy, sx, centerDh);
+    this.ctx.drawImage(image, srcSlice, srcSlice, centerSw, centerSh, dx + sx, dy + sy, centerDw, centerDh);
+    this.ctx.drawImage(image, sw - srcSlice, srcSlice, srcSlice, centerSh, dx + dw - sx, dy + sy, sx, centerDh);
+    this.ctx.drawImage(image, 0, sh - srcSlice, srcSlice, srcSlice, dx, dy + dh - sy, sx, sy);
+    this.ctx.drawImage(image, srcSlice, sh - srcSlice, centerSw, srcSlice, dx + sx, dy + dh - sy, centerDw, sy);
+    this.ctx.drawImage(image, sw - srcSlice, sh - srcSlice, srcSlice, srcSlice, dx + dw - sx, dy + dh - sy, sx, sy);
   }
 
   /**
@@ -1884,6 +2253,63 @@ export class CanvasRenderer {
     this.ctx.textBaseline = 'top';
     this.ctx.fillText(text, x, y);
     this.ctx.restore();
+  }
+
+  /** `FONT_NORMAL` + `lettersSpacing` from `sListMenuTemplate_*ModeSelect` (advance in user space). */
+  private drawMenuTextSpaced(text: string, x: number, y: number, fillStyle: string, letterSpacing: number): void {
+    this.ctx.save();
+    this.ctx.font = 'bold 10px "Trebuchet MS", sans-serif';
+    this.ctx.fillStyle = fillStyle;
+    this.ctx.textBaseline = 'top';
+    let cx = x;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i]!;
+      this.ctx.fillText(ch, cx, y);
+      cx += this.measureMenuText(ch) + (i < text.length - 1 ? letterSpacing : 0);
+    }
+    this.ctx.restore();
+  }
+
+  /** `ListMenuDrawCursor` / `gText_SelectorArrow2` ("▶") for dex lists. */
+  private drawPokedexSelectorArrow(x: number, y: number): void {
+    this.drawSmallText('▶', x, y, DEX_MODE_LIST_ITEM_ENABLED);
+  }
+
+  /** Minimal scroll affordance when `AddScrollIndicatorArrowPair` would show in ROM. */
+  private drawPokedexListScrollArrows(
+    w: { x: number; y: number; w: number; h: number },
+    scrollOffset: number,
+    totalRows: number,
+    maxVisible: number
+  ): void {
+    if (totalRows <= maxVisible) {
+      return;
+    }
+    const cx = w.x + Math.floor(w.w / 2) - 4;
+    const fg = DEX_MODE_LIST_ITEM_ENABLED;
+    if (scrollOffset > 0) {
+      this.drawSmallText('▲', cx, w.y + 4, fg);
+    }
+    if (scrollOffset + maxVisible < totalRows) {
+      this.drawSmallText('▼', cx, w.y + w.h - 12, fg);
+    }
+  }
+
+  /** Party nickname rect from `sPartyBoxInfoRects` — ellipsize so long names stay inside the slot. */
+  private drawPartyMenuClippedText(text: string, x: number, y: number, maxWidth: number): void {
+    if (this.measureMenuText(text) <= maxWidth) {
+      this.drawMenuText(text, x, y);
+      return;
+    }
+    const ell = '…';
+    for (let i = text.length; i >= 1; i -= 1) {
+      const candidate = `${text.slice(0, i)}${ell}`;
+      if (this.measureMenuText(candidate) <= maxWidth) {
+        this.drawMenuText(candidate, x, y);
+        return;
+      }
+    }
+    this.drawMenuText(ell, x, y);
   }
 
   private drawTextLines(lines: string[], x: number, y: number, lineHeight: number): void {
