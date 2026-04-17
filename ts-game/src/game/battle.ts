@@ -1,5 +1,6 @@
 import type { InputSnapshot } from '../input/inputState';
 import { getBagQuantity, type BagState } from './bag';
+import { getDecompSpeciesInfo } from './decompSpecies';
 import type { WildEncounterGroup } from '../world/mapSource';
 
 export type PokemonType =
@@ -31,6 +32,8 @@ export interface BattlePokemonSnapshot {
   attack: number;
   defense: number;
   speed: number;
+  spAttack: number;
+  spDefense: number;
   catchRate: number;
   types: PokemonType[];
   status: StatusCondition;
@@ -75,6 +78,7 @@ export interface BattleState {
     pokeBalls: number;
     greatBalls: number;
   };
+  caughtMon: BattlePokemonSnapshot | null;
 }
 
 export interface CaptureResult {
@@ -292,6 +296,8 @@ export const createBattleState = (): BattleState => {
     attack: 13,
     defense: 11,
     speed: 14,
+    spAttack: 15,
+    spDefense: 12,
     catchRate: 45,
     types: ['fire'],
     status: 'none'
@@ -304,6 +310,8 @@ export const createBattleState = (): BattleState => {
     attack: 11,
     defense: 10,
     speed: 13,
+    spAttack: 10,
+    spDefense: 10,
     catchRate: 255,
     types: ['normal', 'flying'],
     status: 'none'
@@ -316,6 +324,8 @@ export const createBattleState = (): BattleState => {
     attack: 8,
     defense: 7,
     speed: 8,
+    spAttack: 7,
+    spDefense: 7,
     catchRate: 255,
     types: ['normal', 'flying'],
     status: 'none'
@@ -342,7 +352,8 @@ export const createBattleState = (): BattleState => {
     bag: {
       pokeBalls: 5,
       greatBalls: 1
-    }
+    },
+    caughtMon: null
   };
 };
 
@@ -367,18 +378,21 @@ const chooseWildEncounterMon = (
   const maxLevel = Math.max(selectedMon.minLevel, selectedMon.maxLevel);
   const level = minLevel + nextEncounterRoll(encounterState, maxLevel - minLevel + 1);
   const species = selectedMon.species.replace(/^SPECIES_/, '');
-  const baseHp = 10 + level * 2;
+  const speciesInfo = getDecompSpeciesInfo(species);
+  const baseHp = Math.max(10, Math.floor((speciesInfo?.baseHp ?? 10) / 2) + level * 2);
 
   return {
     species,
     level,
     maxHp: baseHp,
     hp: baseHp,
-    attack: 5 + level,
-    defense: 5 + level,
-    speed: 5 + level,
-    catchRate: 255,
-    types: ['normal'],
+    attack: Math.max(5, Math.floor((speciesInfo?.baseAttack ?? 10) / 5) + level),
+    defense: Math.max(5, Math.floor((speciesInfo?.baseDefense ?? 10) / 5) + level),
+    speed: Math.max(5, Math.floor((speciesInfo?.baseSpeed ?? 10) / 5) + level),
+    spAttack: Math.max(5, Math.floor((speciesInfo?.baseSpAttack ?? 10) / 5) + level),
+    spDefense: Math.max(5, Math.floor((speciesInfo?.baseSpDefense ?? 10) / 5) + level),
+    catchRate: speciesInfo?.catchRate ?? 255,
+    types: (speciesInfo?.types ?? ['normal']) as PokemonType[],
     status: 'none'
   };
 };
@@ -405,18 +419,13 @@ export const tryStartWildBattle = (
   battle.phase = 'intro';
   battle.wildMon.hp = battle.wildMon.maxHp;
   battle.wildMon.status = 'none';
-  battle.playerMon.hp = battle.playerMon.maxHp;
-  battle.playerMon.status = 'none';
-  battle.party.forEach((mon) => {
-    mon.hp = mon.maxHp;
-    mon.status = 'none';
-  });
   battle.selectedMoveIndex = 0;
   battle.selectedCommandIndex = 0;
   battle.selectedPartyIndex = 0;
   battle.selectedBagIndex = 0;
   battle.commands = ['fight', 'bag', 'pokemon', 'run'];
   battle.runAttempts = 0;
+  battle.caughtMon = null;
   battle.turnSummary = `Wild ${battle.wildMon.species} appeared!`;
   battle.damagePreview = calculateDamagePreview(battle.playerMon, battle.wildMon, battle.moves[0]);
   encounter.stepsSinceLastEncounter = 0;
@@ -572,6 +581,7 @@ export const stepBattle = (
       battle.phase = 'intro';
       battle.turnSummary = '';
       battle.damagePreview = null;
+      battle.caughtMon = null;
     }
     return;
   }
@@ -663,6 +673,7 @@ export const stepBattle = (
 
     if (capture.caught) {
       battle.phase = 'resolved';
+      battle.caughtMon = { ...battle.wildMon, types: [...battle.wildMon.types] };
       battle.turnSummary = `${capture.ballLabel}... shake x4! Gotcha! ${battle.wildMon.species} was caught!`;
     } else {
       battle.phase = 'command';

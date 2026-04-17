@@ -361,7 +361,7 @@ export const removeBagItem = (bag: BagState, itemId: string, count: number): boo
   return true;
 };
 
-export const createBagPanelState = (): BagPanelState => ({
+export const createBagPanelState = (returnToMenuOnClose = false): BagPanelState => ({
   kind: 'bag',
   id: 'BAG',
   title: 'BAG',
@@ -370,7 +370,7 @@ export const createBagPanelState = (): BagPanelState => ({
   quantityPrompt: null,
   confirmationPrompt: null,
   message: null,
-  returnToMenuOnClose: false
+  returnToMenuOnClose
 });
 
 export interface BagListEntry {

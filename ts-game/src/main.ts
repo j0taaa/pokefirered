@@ -12,15 +12,26 @@ import { createScriptRuntimeState, prototypeScriptRegistry } from './game/script
 import { runStepTriggersAtPlayerTile } from './game/triggers';
 import { createStartMenuState, isStartMenuBlockingWorld, stepStartMenu } from './game/menu';
 import {
+  addPokedexCaughtSpecies,
+  addPokedexSeenSpecies,
+  addPokemonToParty,
+  cloneFieldPokemon
+} from './game/pokemonStorage';
+import {
   applySaveSnapshot,
   DEFAULT_SAVE_SLOT_KEY,
   loadGameFromStorage,
   saveGameToStorage
 } from './game/saveData';
-import { createStartMenuView, updateStartMenuView } from './ui/startMenu';
-import { createBagMenuView, updateBagMenuView } from './ui/bagMenu';
 import { createBattleOverlay, updateBattleOverlay } from './ui/battleOverlay';
-import { createBattleEncounterState, createBattleState, isBattleBlockingWorld, stepBattle, tryStartWildBattle } from './game/battle';
+import {
+  type PokemonType,
+  createBattleEncounterState,
+  createBattleState,
+  isBattleBlockingWorld,
+  stepBattle,
+  tryStartWildBattle
+} from './game/battle';
 import { hasLandEncounterAtPixel } from './world/tileMap';
 import { resolveMapConnectionTransition } from './game/mapConnections';
 
@@ -31,20 +42,17 @@ if (!app) {
 
 const shell = document.createElement('div');
 shell.className = 'game-shell';
+const viewport = document.createElement('div');
+viewport.className = 'game-viewport';
 const canvas = document.createElement('canvas');
-shell.append(canvas);
+viewport.append(canvas);
 
 const hud = createHud();
-shell.append(hud.root);
-
-const startMenuView = createStartMenuView();
-shell.append(startMenuView.root);
-
-const bagMenuView = createBagMenuView();
-shell.append(bagMenuView.root);
 
 const battleOverlay = createBattleOverlay();
-shell.append(battleOverlay.root);
+viewport.append(battleOverlay.root);
+
+shell.append(viewport, hud.root);
 
 app.append(shell);
 
@@ -73,6 +81,27 @@ const handleSaveConfirmed = () => {
   return result;
 };
 
+const syncBattleStateFromRuntime = () => {
+  battle.party = scriptRuntime.party.map((member) => ({
+    ...cloneFieldPokemon(member),
+    types: [...member.types] as PokemonType[]
+  }));
+  battle.playerMon = battle.party[0] ?? battle.playerMon;
+};
+
+const syncRuntimePartyFromBattle = () => {
+  if (battle.party.length === 0) {
+    return;
+  }
+
+  scriptRuntime.party = battle.party.map((member) => ({
+    ...cloneFieldPokemon(member),
+    types: [...member.types]
+  }));
+};
+
+syncBattleStateFromRuntime();
+
 const renderer = new CanvasRenderer(canvas);
 const camera = createCamera(12 * map.tileSize, 10 * map.tileSize);
 renderer.resize(camera.viewportWidth, camera.viewportHeight);
@@ -85,11 +114,60 @@ const loop = new GameLoop({
   update(dt) {
     const snapshot = input.readSnapshot();
     const visibleNpcs = npcs.filter((npc) => isNpcVisible(npc, scriptRuntime.flags));
+    scriptRuntime.vars.playTimeSeconds = (scriptRuntime.vars.playTimeSeconds ?? 0) + dt;
+
+    if (!battle.active) {
+      syncBattleStateFromRuntime();
+    }
 
     stepBattle(battle, snapshot, battleEncounter, scriptRuntime.bag);
+    syncRuntimePartyFromBattle();
+
+    if (battle.caughtMon) {
+      addPokedexCaughtSpecies(scriptRuntime.pokedex, battle.caughtMon.species);
+      addPokemonToParty(scriptRuntime.party, cloneFieldPokemon(battle.caughtMon));
+      battle.caughtMon = null;
+      syncBattleStateFromRuntime();
+    }
 
     if (!isBattleBlockingWorld(battle)) {
-      stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, { onSaveConfirmed: handleSaveConfirmed });
+      stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, {
+        onSaveConfirmed: handleSaveConfirmed,
+        getPartyMembers: () => scriptRuntime.party.map((member, index) => ({
+          species: member.species,
+          level: member.level,
+          hp: member.hp,
+          maxHp: member.maxHp,
+          attack: member.attack,
+          defense: member.defense,
+          speed: member.speed,
+          spAttack: member.spAttack,
+          spDefense: member.spDefense,
+          types: [...member.types],
+          status: member.status === 'none' ? 'OK' : member.status.toUpperCase(),
+          isActive: index === 0
+        })),
+        onPartySwap: (fromIndex, toIndex) => {
+          [scriptRuntime.party[fromIndex], scriptRuntime.party[toIndex]] = [
+            scriptRuntime.party[toIndex],
+            scriptRuntime.party[fromIndex]
+          ];
+          syncBattleStateFromRuntime();
+        },
+        getPlayerSummary: () => ({
+          name: scriptRuntime.startMenu.playerName,
+          money: Math.max(0, Math.trunc(scriptRuntime.vars.money ?? 3000)),
+          badges: Math.max(0, Math.trunc(scriptRuntime.vars.badges ?? 0)),
+          playTimeMinutes: Math.floor((scriptRuntime.vars.playTimeSeconds ?? 0) / 60),
+          location: map.id,
+          saveCount: scriptRuntime.saveCounter,
+          profileLines: [
+            `NAME    ${scriptRuntime.startMenu.playerName}`,
+            `MODE    ${scriptRuntime.startMenu.mode.toUpperCase()}`,
+            `POKeDEX ${scriptRuntime.pokedex.caughtSpecies.length} OWN`
+          ]
+        })
+      });
     }
 
     if (!isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle)) {
@@ -153,6 +231,8 @@ const loop = new GameLoop({
           canEncounter,
           map.wildEncounters?.land
         )) {
+          addPokedexSeenSpecies(scriptRuntime.pokedex, battle.wildMon.species);
+          scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
           scriptRuntime.lastScriptId = 'battle.wild.start';
         }
       }
@@ -181,13 +261,15 @@ const loop = new GameLoop({
       frames = 0;
       fpsAccumulator = 0;
     }
+
+    scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
+    scriptRuntime.startMenu.hasPokemon = scriptRuntime.party.length > 0;
+    scriptRuntime.startMenu.hasPokedex = scriptRuntime.pokedex.seenSpecies.length > 0 || scriptRuntime.startMenu.hasPokedex;
   },
   render() {
     const visibleNpcs = npcs.filter((npc) => isNpcVisible(npc, scriptRuntime.flags));
-    renderer.render(map, player, visibleNpcs, camera);
+    renderer.render(map, player, visibleNpcs, camera, { startMenu, runtime: scriptRuntime });
     updateHud(hud, player, visibleNpcs, fps, camera, dialogue, scriptRuntime.lastScriptId, startMenu, battle);
-    updateStartMenuView(startMenuView, startMenu);
-    updateBagMenuView(bagMenuView, startMenu.panel?.kind === 'bag' ? startMenu.panel : null, scriptRuntime.bag);
     updateBattleOverlay(battleOverlay, battle, scriptRuntime.bag);
   }
 });

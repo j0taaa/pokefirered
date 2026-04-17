@@ -1,9 +1,15 @@
 import type { PlayerState } from './player';
 import type { ScriptRuntimeState } from './scripts';
 import { isValidBagState, sanitizeBagState } from './bag';
+import {
+  cloneParty,
+  clonePokedex,
+  type FieldPokemon,
+  type PokedexState
+} from './pokemonStorage';
 
-export const SAVE_SCHEMA_VERSION = 3;
-export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v3';
+export const SAVE_SCHEMA_VERSION = 6;
+export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v6';
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -26,6 +32,8 @@ export interface SaveSnapshot {
     consumedTriggerIds: string[];
     startMenu: ScriptRuntimeState['startMenu'];
     options: ScriptRuntimeState['options'];
+    party: ScriptRuntimeState['party'];
+    pokedex: ScriptRuntimeState['pokedex'];
     bag: ScriptRuntimeState['bag'];
   };
 }
@@ -49,6 +57,42 @@ const isObjectWithNumberValues = (value: unknown): value is Record<string, numbe
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+
+const isFieldPokemon = (value: unknown): value is FieldPokemon => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.species === 'string'
+    && Number.isInteger(candidate.level)
+    && typeof candidate.maxHp === 'number'
+    && typeof candidate.hp === 'number'
+    && typeof candidate.attack === 'number'
+    && typeof candidate.defense === 'number'
+    && typeof candidate.speed === 'number'
+    && typeof candidate.spAttack === 'number'
+    && typeof candidate.spDefense === 'number'
+    && typeof candidate.catchRate === 'number'
+    && Array.isArray(candidate.types)
+    && candidate.types.every((entry) => typeof entry === 'string')
+    && (candidate.status === 'none' || candidate.status === 'poison');
+};
+
+const isFieldPokemonArray = (value: unknown): value is FieldPokemon[] =>
+  Array.isArray(value) && value.every((entry) => isFieldPokemon(entry));
+
+const isPokedexState = (value: unknown): value is PokedexState => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (candidate.dexMode === 'KANTO' || candidate.dexMode === 'NATIONAL')
+    && Number.isInteger(candidate.selectedIndex)
+    && isStringArray(candidate.seenSpecies)
+    && isStringArray(candidate.caughtSpecies);
+};
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -77,6 +121,8 @@ export const createSaveSnapshot = (
       consumedTriggerIds: [...runtime.consumedTriggerIds],
       startMenu: { ...runtime.startMenu },
       options: { ...runtime.options },
+      party: cloneParty(runtime.party),
+      pokedex: clonePokedex(runtime.pokedex),
       bag: JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag']
     }
   };
@@ -137,7 +183,20 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     || (options.textSpeed !== 'slow' && options.textSpeed !== 'mid' && options.textSpeed !== 'fast')
     || typeof options.battleScene !== 'boolean'
     || (options.battleStyle !== 'shift' && options.battleStyle !== 'set')
+    || (options.sound !== 'mono' && options.sound !== 'stereo')
+    || (
+      options.buttonMode !== 'help'
+      && options.buttonMode !== 'lr'
+      && options.buttonMode !== 'lEqualsA'
+    )
+    || !Number.isInteger(options.frameType)
+    || (options.frameType as number) < 0
+    || (options.frameType as number) > 9
   ) {
+    return null;
+  }
+
+  if (!isFieldPokemonArray(runtime.party) || !isPokedexState(runtime.pokedex)) {
     return null;
   }
 
@@ -169,8 +228,13 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
       options: {
         textSpeed: options.textSpeed,
         battleScene: options.battleScene,
-        battleStyle: options.battleStyle
+        battleStyle: options.battleStyle,
+        sound: options.sound,
+        buttonMode: options.buttonMode,
+        frameType: options.frameType as number
       },
+      party: cloneParty(runtime.party as FieldPokemon[]),
+      pokedex: clonePokedex(runtime.pokedex as PokedexState),
       bag: sanitizeBagState(JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag'])
     }
   };
@@ -231,6 +295,8 @@ export const applySaveSnapshot = (
   runtime.consumedTriggerIds = new Set<string>(snapshot.runtime.consumedTriggerIds);
   runtime.startMenu = { ...snapshot.runtime.startMenu };
   runtime.options = { ...snapshot.runtime.options };
+  runtime.party = cloneParty(snapshot.runtime.party);
+  runtime.pokedex = clonePokedex(snapshot.runtime.pokedex);
   runtime.bag = sanitizeBagState(JSON.parse(JSON.stringify(snapshot.runtime.bag)) as ScriptRuntimeState['bag']);
   runtime.saveCounter = snapshot.saveIndex;
   return true;

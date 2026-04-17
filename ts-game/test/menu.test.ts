@@ -53,7 +53,7 @@ describe('start menu stepping', () => {
     expect(menu.selectedIndex).toBe(menu.options.length - 1);
   });
 
-  test('non-exit opens start-menu text panel using FireRed descriptions and EXIT closes menu', () => {
+  test('POKEDEX opens top menu, navigates numerical list, and closes back to START menu', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();
     const runtime = createScriptRuntimeState();
@@ -63,15 +63,64 @@ describe('start menu stepping', () => {
     stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
 
     expect(menu.active).toBe(false);
+    expect(menu.panel?.kind).toBe('pokedex');
     expect(menu.panel?.id).toBe('POKEDEX');
-    expect(menu.panel?.description).toContain('records POKéMON secrets');
+    if (!menu.panel || menu.panel.kind !== 'pokedex' || menu.panel.id !== 'POKEDEX') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.screen).toBe('topMenu');
+    expect(menu.panel.topMenuRows[menu.panel.topMenuSelectedIndex]?.actionId).toBe('NUMERICAL_KANTO');
     expect(runtime.lastScriptId).toBe('menu.open.pokedex');
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    if (!menu.panel || menu.panel.kind !== 'pokedex' || menu.panel.id !== 'POKEDEX') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.screen).toBe('orderedList');
+    expect(menu.panel.orderId).toBe('NUMERICAL_KANTO');
+    expect(runtime.lastScriptId).toBe('menu.pokedex.order.open');
+
+    const charmanderIndex = menu.panel.orderEntries.findIndex((entry) => entry.species === 'CHARMANDER');
+    expect(charmanderIndex).toBeGreaterThanOrEqual(0);
+    for (let i = 0; i < charmanderIndex; i += 1) {
+      stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    }
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    if (!menu.panel || menu.panel.kind !== 'pokedex' || menu.panel.id !== 'POKEDEX') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.screen).toBe('entry');
+    expect(menu.panel.entrySpecies).toBe('CHARMANDER');
+    expect(runtime.lastScriptId).toBe('menu.pokedex.entry.open');
+
+    stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
+    if (!menu.panel || menu.panel.kind !== 'pokedex' || menu.panel.id !== 'POKEDEX') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.entryPageIndex).toBe(1);
+    expect(runtime.lastScriptId).toBe('menu.pokedex.entry.page');
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    if (!menu.panel || menu.panel.kind !== 'pokedex' || menu.panel.id !== 'POKEDEX') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.screen).toBe('orderedList');
+    expect(runtime.lastScriptId).toBe('menu.pokedex.entry.close');
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    if (!menu.panel || menu.panel.kind !== 'pokedex' || menu.panel.id !== 'POKEDEX') {
+      throw new Error('expected pokedex panel');
+    }
+    expect(menu.panel.screen).toBe('topMenu');
+    expect(runtime.lastScriptId).toBe('menu.pokedex.order.close');
 
     stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
     expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(menu.options[menu.selectedIndex]?.id).toBe('POKEDEX');
     expect(runtime.lastScriptId).toBe('menu.panel.close.pokedex');
 
-    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
     menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'EXIT');
     stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
 
@@ -120,7 +169,7 @@ describe('start menu stepping', () => {
 
     stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
     expect(menu.panel).toBe(null);
-    expect(menu.active).toBe(true);
+    expect(menu.active).toBe(false);
     expect(runtime.lastScriptId).toBe('menu.panel.close.save');
   });
 
@@ -139,6 +188,22 @@ describe('start menu stepping', () => {
     expect(menu.panel?.description).toContain('Overwrite');
   });
 
+  test('SAVE panel can be cancelled from the YES/NO prompt', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'SAVE');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(runtime.lastScriptId).toBe('menu.save.cancelled');
+  });
+
   test('OPTION panel updates runtime options with directional input', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();
@@ -155,6 +220,15 @@ describe('start menu stepping', () => {
     stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
     stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
     expect(runtime.options.battleScene).toBe(false);
+
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
+    expect(runtime.options.sound).toBe('mono');
+
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
+    expect(runtime.options.buttonMode).toBe('lr');
   });
 
   test('opens BAG as the dedicated inventory panel instead of a text stub', () => {
@@ -169,6 +243,104 @@ describe('start menu stepping', () => {
     expect(menu.panel?.kind).toBe('bag');
     expect(menu.panel?.id).toBe('BAG');
     expect(runtime.lastScriptId).toBe('menu.open.bag');
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(menu.options[menu.selectedIndex]?.id).toBe('BAG');
+  });
+
+  test('POKEMON opens a navigable party panel with actions and switching', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+    const swaps: Array<[number, number]> = [];
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'POKEMON');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime, {
+      onPartySwap: (fromIndex, toIndex) => {
+        swaps.push([fromIndex, toIndex]);
+      }
+    });
+
+    expect(menu.panel?.kind).toBe('party');
+    if (!menu.panel || menu.panel.kind !== 'party') {
+      throw new Error('expected party panel');
+    }
+    expect(menu.panel.rows[0]).toContain('CHARMANDER');
+
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    expect(menu.panel.selectedIndex).toBe(1);
+    expect(runtime.lastScriptId).toBe('menu.party.move');
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime, {
+      onPartySwap: (fromIndex, toIndex) => {
+        swaps.push([fromIndex, toIndex]);
+      }
+    });
+    expect(menu.panel.mode).toBe('actions');
+
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime, {
+      onPartySwap: (fromIndex, toIndex) => {
+        swaps.push([fromIndex, toIndex]);
+      }
+    });
+    expect(menu.panel.mode).toBe('summary');
+    expect(menu.panel.summaryPage).toBe(0);
+
+    stepStartMenu(menu, { ...neutralInput, right: true, rightPressed: true }, dialogue, runtime);
+    expect(menu.panel.summaryPage).toBe(1);
+    expect(runtime.lastScriptId).toBe('menu.party.summary.page');
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    expect(menu.panel.mode).toBe('actions');
+
+    stepStartMenu(menu, { ...neutralInput, down: true, downPressed: true }, dialogue, runtime);
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime, {
+      onPartySwap: (fromIndex, toIndex) => {
+        swaps.push([fromIndex, toIndex]);
+      }
+    });
+    expect(menu.panel.mode).toBe('switch');
+
+    stepStartMenu(menu, { ...neutralInput, up: true, upPressed: true }, dialogue, runtime, {
+      onPartySwap: (fromIndex, toIndex) => {
+        swaps.push([fromIndex, toIndex]);
+      }
+    });
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime, {
+      onPartySwap: (fromIndex, toIndex) => {
+        swaps.push([fromIndex, toIndex]);
+      }
+    });
+    expect(menu.panel.mode).toBe('list');
+    expect(swaps).toEqual([[1, 0]]);
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(menu.options[menu.selectedIndex]?.id).toBe('POKEMON');
+  });
+
+  test('PLAYER closes back into the start menu instead of the field', () => {
+    const menu = createStartMenuState();
+    const dialogue = createDialogueState();
+    const runtime = createScriptRuntimeState();
+
+    stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
+    menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'PLAYER');
+    stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
+
+    expect(menu.panel?.kind).toBe('summary');
+    if (!menu.panel || menu.panel.kind !== 'summary' || menu.panel.id !== 'PLAYER') {
+      throw new Error('expected player panel');
+    }
+
+    stepStartMenu(menu, { ...neutralInput, cancel: true, cancelPressed: true }, dialogue, runtime);
+    expect(menu.panel).toBe(null);
+    expect(menu.active).toBe(true);
+    expect(menu.options[menu.selectedIndex]?.id).toBe('PLAYER');
   });
 
   test('supports safari retire prompt with YES/NO choices', () => {

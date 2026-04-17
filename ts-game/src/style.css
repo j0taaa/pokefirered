@@ -26,9 +26,14 @@ body {
   width: min(100%, 1200px);
 }
 
+.game-viewport {
+  position: relative;
+  width: min(100%, 960px);
+}
+
 canvas {
   display: block;
-  width: min(100%, 960px);
+  width: 100%;
   height: auto;
   aspect-ratio: 6 / 5;
   border: 4px solid #5f6f98;
@@ -56,27 +61,29 @@ strong {
   color: #96cdfb;
 }
 
-.game-shell {
-  position: relative;
+.hidden {
+  display: none !important;
+}
+
+.gba-window {
+  border: 8px solid transparent;
+  border-image: var(--window-frame-url) 8 fill stretch;
+  image-rendering: pixelated;
+  background: #f8f8f8;
+}
+
+.start-menu-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .start-menu {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  min-width: 150px;
-  padding: 6px 10px;
-  border: 2px solid #d8e6ff;
-  border-radius: 6px;
-  background: rgba(20, 28, 44, 0.95);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-}
-
-.start-menu-title {
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  color: #9cb7e7;
-  margin-bottom: 6px;
+  top: 8px;
+  right: 8px;
+  min-width: 144px;
+  padding: 8px 10px 8px 8px;
 }
 
 .start-menu-options {
@@ -84,40 +91,75 @@ strong {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .start-menu-option {
-  color: #eaf2ff;
-  font-size: 0.9rem;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  min-height: 14px;
 }
 
-.hidden {
-  display: none;
+.start-menu-cursor,
+.menu-panel-cursor {
+  width: 12px;
+  height: 12px;
+  image-rendering: pixelated;
+  align-self: center;
 }
 
+.start-menu-label,
+.menu-panel-row-label {
+  color: #20305f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.start-menu-help,
 .menu-panel {
   position: absolute;
-  left: 10px;
-  bottom: 90px;
-  width: 260px;
+  left: 8px;
+  bottom: 8px;
+  width: min(380px, calc(100% - 16px));
+  min-height: 78px;
+  padding: 10px 12px;
+}
+
+.start-menu-help-text,
+.menu-panel-description {
+  margin: 0;
+  color: #20305f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.start-menu-safari {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 92px;
   padding: 8px 10px;
-  border: 2px solid #d8e6ff;
-  border-radius: 6px;
-  background: rgba(20, 28, 44, 0.95);
+}
+
+.start-menu-safari-text {
+  margin: 0;
+  color: #20305f;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: pre;
 }
 
 .menu-panel-title {
-  margin: 0 0 6px;
-  color: #eaf2ff;
-  font-size: 0.9rem;
-}
-
-.menu-panel-description {
-  margin: 0;
-  color: #c9d8f5;
-  font-size: 0.82rem;
-  line-height: 1.35;
+  margin: 0 0 4px;
+  color: #20305f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .menu-panel-rows {
@@ -125,19 +167,14 @@ strong {
   margin: 8px 0 0;
   padding: 0;
   display: grid;
-  gap: 2px;
-  color: #dfe9ff;
-  font-size: 0.78rem;
+  gap: 4px;
 }
 
 .menu-panel-row {
-  white-space: pre;
-}
-
-.menu-panel-hint {
-  margin: 8px 0 0;
-  color: #95add8;
-  font-size: 0.75rem;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  min-height: 14px;
 }
 
 .battle-overlay {
@@ -379,7 +416,7 @@ strong {
     width: min(90vw, 1180px);
   }
 
-  canvas {
+  .game-viewport {
     width: min(88vw, 980px);
   }
 }

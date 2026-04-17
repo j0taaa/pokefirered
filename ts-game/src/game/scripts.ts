@@ -1,6 +1,12 @@
 import { openDialogueSequence, type DialogueState } from './interaction';
 import type { PlayerState } from './player';
 import { createBagState, type BagState } from './bag';
+import {
+  createDefaultParty,
+  createDefaultPokedex,
+  type FieldPokemon,
+  type PokedexState
+} from './pokemonStorage';
 
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
@@ -19,7 +25,12 @@ export interface ScriptRuntimeState {
     textSpeed: 'slow' | 'mid' | 'fast';
     battleScene: boolean;
     battleStyle: 'shift' | 'set';
+    sound: 'mono' | 'stereo';
+    buttonMode: 'help' | 'lr' | 'lEqualsA';
+    frameType: number;
   };
+  party: FieldPokemon[];
+  pokedex: PokedexState;
   bag: BagState;
 }
 
@@ -32,24 +43,34 @@ export interface ScriptContext {
 export type ScriptHandler = (context: ScriptContext) => void;
 
 export const createScriptRuntimeState = (): ScriptRuntimeState => ({
-  vars: {},
-  flags: new Set<string>(),
-  consumedTriggerIds: new Set<string>(),
-  saveCounter: 0,
-  lastScriptId: null,
-  startMenu: {
-    mode: 'normal',
-    playerName: 'PLAYER',
-    hasPokedex: true,
-    hasPokemon: true,
-    seenPokemonCount: 1
-  },
-  options: {
-    textSpeed: 'mid',
-    battleScene: true,
-    battleStyle: 'shift'
-  },
-  bag: createBagState()
+  ...(() => {
+    const pokedex = createDefaultPokedex();
+    return {
+      vars: {},
+      flags: new Set<string>(),
+      consumedTriggerIds: new Set<string>(),
+      saveCounter: 0,
+      lastScriptId: null,
+      startMenu: {
+        mode: 'normal' as const,
+        playerName: 'PLAYER',
+        hasPokedex: true,
+        hasPokemon: true,
+        seenPokemonCount: pokedex.seenSpecies.length
+      },
+      options: {
+        textSpeed: 'mid' as const,
+        battleScene: true,
+        battleStyle: 'shift' as const,
+        sound: 'stereo' as const,
+        buttonMode: 'help' as const,
+        frameType: 0
+      },
+      party: createDefaultParty(),
+      pokedex,
+      bag: createBagState()
+    };
+  })()
 });
 
 export const getScriptVar = (runtime: ScriptRuntimeState, key: string): number =>
