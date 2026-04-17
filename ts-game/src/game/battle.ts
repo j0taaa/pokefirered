@@ -44,6 +44,7 @@ export interface BattleMove {
 export interface BattlePokemonSnapshot {
   species: string;
   level: number;
+  expProgress: number;
   maxHp: number;
   hp: number;
   attack: number;
@@ -282,6 +283,7 @@ const createBattlePokemonFromSpecies = (
   return {
     species: normalizedSpecies,
     level,
+    expProgress: 0,
     maxHp,
     hp: maxHp,
     attack: calculateStat(speciesInfo?.baseAttack ?? 10, level, false),
@@ -300,6 +302,7 @@ const createBattlePokemonFromSpecies = (
 export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): BattlePokemonSnapshot => ({
   species: normalizeSpecies(pokemon.species),
   level: pokemon.level,
+  expProgress: pokemon.expProgress ?? 0,
   maxHp: pokemon.maxHp,
   hp: pokemon.hp,
   attack: pokemon.attack,
@@ -888,6 +891,7 @@ export const createBattleState = (): BattleState => {
   const playerMonA = createBattlePokemonFromFieldPokemon({
     species: 'CHARMANDER',
     level: 8,
+    expProgress: 0.62,
     maxHp: 23,
     hp: 23,
     attack: 13,
@@ -902,6 +906,7 @@ export const createBattleState = (): BattleState => {
   const playerMonB = createBattlePokemonFromFieldPokemon({
     species: 'PIDGEY',
     level: 7,
+    expProgress: 0.34,
     maxHp: 21,
     hp: 21,
     attack: 11,

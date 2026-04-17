@@ -3,6 +3,7 @@ export type FieldPokemonStatus = 'none' | 'poison';
 export interface FieldPokemon {
   species: string;
   level: number;
+  expProgress?: number;
   maxHp: number;
   hp: number;
   attack: number;
@@ -31,6 +32,7 @@ export const createDefaultParty = (): FieldPokemon[] => [
   {
     species: 'CHARMANDER',
     level: 8,
+    expProgress: 0.62,
     maxHp: 23,
     hp: 23,
     attack: 13,
@@ -45,6 +47,7 @@ export const createDefaultParty = (): FieldPokemon[] => [
   {
     species: 'PIDGEY',
     level: 7,
+    expProgress: 0.34,
     maxHp: 21,
     hp: 21,
     attack: 11,

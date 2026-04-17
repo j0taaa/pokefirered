@@ -44,6 +44,7 @@ import vermilionCityMapJson from './maps/vermilionCity.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import viridianCityMartMapJson from './maps/viridianCityMart.json';
 import viridianCityPokemonCenter1FMapJson from './maps/viridianCityPokemonCenter1F.json';
+import viridianCitySchoolMapJson from './maps/viridianCitySchool.json';
 import type { TileMap } from './tileMap';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
@@ -901,6 +902,9 @@ export const loadViridianCityMartMap = (): TileMap =>
 export const loadViridianCityPokemonCenter1FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityPokemonCenter1FMapJson));
 
+export const loadViridianCitySchoolMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(viridianCitySchoolMapJson));
+
 export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
     case 'MAP_CELADON_CITY':
@@ -995,6 +999,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadViridianCityMartMap();
     case 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F':
       return loadViridianCityPokemonCenter1FMap();
+    case 'MAP_VIRIDIAN_CITY_SCHOOL':
+      return loadViridianCitySchoolMap();
     default:
       return null;
   }

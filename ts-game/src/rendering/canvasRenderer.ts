@@ -38,6 +38,7 @@ import trainerLeafUrl from '../../../graphics/trainers/front_pics/leaf_front_pic
 import trainerRedUrl from '../../../graphics/trainers/front_pics/red_front_pic.png';
 import battleHealthboxOpponentUrl from '../../../graphics/battle_interface/healthbox_singles_opponent.png';
 import battleHealthboxPlayerUrl from '../../../graphics/battle_interface/healthbox_singles_player.png';
+import enemyMonShadowUrl from '../../../graphics/battle_interface/enemy_mon_shadow.png';
 import battleTextboxTilesUrl from '../../../graphics/battle_interface/textbox.png';
 import partyBgTilesheetUrl from '../../../graphics/party_menu/bg.png';
 import partyPokeballUrl from '../../../graphics/party_menu/pokeball.png';
@@ -233,6 +234,7 @@ import {
   blitSinglesPlayerHealthbox,
   buildPreparedSinglesHealthboxSheetFromTileBytes
 } from './battleHealthboxBlit';
+import { getBattleSpriteCoords } from './battleSpriteCoords';
 import {
   loadHealthboxSinglesOpponentTileBytes,
   loadHealthboxSinglesPlayerTileBytes
@@ -367,6 +369,7 @@ export class CanvasRenderer {
   private readonly battleTextboxTiles = this.loadImage(battleTextboxTilesUrl);
   private readonly battleHealthboxOpponent = this.loadImage(battleHealthboxOpponentUrl);
   private readonly battleHealthboxPlayer = this.loadImage(battleHealthboxPlayerUrl);
+  private readonly enemyMonShadow = this.loadImage(enemyMonShadowUrl);
   /** Decoded from gbagfx-linear 4bpp tile bytes — see `buildPreparedSinglesHealthboxSheetFromTileBytes`. */
   private battleHealthboxOpponentPrepared: HTMLCanvasElement | null = null;
   private battleHealthboxPlayerPrepared: HTMLCanvasElement | null = null;
@@ -493,6 +496,8 @@ export class CanvasRenderer {
       this.battleHealthboxOpponentPrepared = buildPreparedSinglesHealthboxSheetFromTileBytes(
         loadHealthboxSinglesOpponentTileBytes(),
         128,
+        32,
+        64,
         32
       );
     }
@@ -500,6 +505,8 @@ export class CanvasRenderer {
       this.battleHealthboxPlayerPrepared = buildPreparedSinglesHealthboxSheetFromTileBytes(
         loadHealthboxSinglesPlayerTileBytes(),
         128,
+        64,
+        64,
         64
       );
     }
@@ -743,9 +750,11 @@ export class CanvasRenderer {
     const pic = side === 'opponent' ? pics?.front : pics?.back;
     const icon = this.pokemonIcons.get(key);
     const img = pic?.complete && pic.naturalWidth > 0 ? pic : icon;
+    const coords = getBattleSpriteCoords(species, side);
+    const spriteY = y + coords.yOffset;
 
     this.ctx.save();
-    this.ctx.translate(x, y);
+    this.ctx.translate(x, spriteY);
     // ROM: `gAffineAnims_BattleSpritePlayerSide[BATTLER_AFFINE_NORMAL]` uses
     // `sAffineAnim_Battler_Normal` (+1.0,+1.0 scale) — no horizontal flip.
     // Back pics are authored facing into the battle (toward the foe).
@@ -753,8 +762,8 @@ export class CanvasRenderer {
     if (img && img.complete && img.naturalWidth > 0) {
       const nw = img.naturalWidth;
       const nh = img.naturalHeight;
-      const dw = 64;
-      const dh = 64;
+      const dw = coords.width;
+      const dh = coords.height;
       this.ctx.drawImage(img, 0, 0, nw, nh, -dw / 2, -dh / 2, dw, dh);
     } else {
       this.ctx.fillStyle = side === 'player' ? '#f7f7fb' : '#f4f4f4';
@@ -814,18 +823,27 @@ export class CanvasRenderer {
       }
     }
 
+    const displayName = getSpeciesDisplayName(pokemon.species);
+
     if (side === 'player') {
       const ov = BATTLE_HEALTHBOX_OVERLAY.player;
       const speciesX = box.x + ov.species.dx;
       const speciesY = box.y + ov.species.dy;
-      this.drawHealthboxSmallText(pokemon.species, speciesX, speciesY);
+      this.drawClippedHealthboxText(displayName, speciesX, speciesY, ov.speciesWidth);
       const lvStr = `Lv${pokemon.level}`;
       this.drawHealthboxSmallText(
         lvStr,
         box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
         speciesY
       );
-      this.drawHealthboxSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + ov.hpText.dx, box.y + ov.hpText.dy);
+      this.drawBattleHpBarGba(box.x + ov.hpBar.dx, box.y + ov.hpBar.dy, ov.hpBar.w, pokemon.hp, pokemon.maxHp);
+      const hpStr = `${pokemon.hp}/${pokemon.maxHp}`;
+      this.drawHealthboxSmallText(
+        hpStr,
+        box.x + ov.hpText.dx,
+        box.y + ov.hpText.dy
+      );
+      this.drawBattleExpBarGba(box.x + ov.expBar.dx, box.y + ov.expBar.dy, ov.expBar.w, pokemon.expProgress);
       if (pokemon.status !== 'none') {
         this.drawHealthboxSmallText(
           pokemon.status.toUpperCase(),
@@ -837,13 +855,14 @@ export class CanvasRenderer {
       const ov = BATTLE_HEALTHBOX_OVERLAY.opponent;
       const speciesX = box.x + ov.species.dx;
       const speciesY = box.y + ov.species.dy;
-      this.drawHealthboxSmallText(`FOE ${pokemon.species}`, speciesX, speciesY);
+      this.drawClippedHealthboxText(displayName, speciesX, speciesY, ov.speciesWidth);
       const lvStr = `Lv${pokemon.level}`;
       this.drawHealthboxSmallText(
         lvStr,
         box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
         speciesY
       );
+      this.drawBattleHpBarGba(box.x + ov.hpBar.dx, box.y + ov.hpBar.dy, ov.hpBar.w, pokemon.hp, pokemon.maxHp);
       if (pokemon.status !== 'none') {
         this.drawHealthboxSmallText(
           pokemon.status.toUpperCase(),
@@ -863,6 +882,15 @@ export class CanvasRenderer {
     this.ctx.fillText(text, x + 1, y + 1);
     this.ctx.fillStyle = BATTLE_HEALTHBOX_TEXT.fg;
     this.ctx.fillText(text, x, y);
+    this.ctx.restore();
+  }
+
+  private drawClippedHealthboxText(text: string, x: number, y: number, maxWidth: number): void {
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(x, y, maxWidth, 10);
+    this.ctx.clip();
+    this.drawHealthboxSmallText(text, x, y);
     this.ctx.restore();
   }
 
@@ -949,15 +977,13 @@ export class CanvasRenderer {
       12
     );
 
-    if (!tiled) {
-      this.drawWindowFrame(
-        BATTLE_ACTION_MENU_WINDOW.x,
-        BATTLE_ACTION_MENU_WINDOW.y,
-        BATTLE_ACTION_MENU_WINDOW.w,
-        BATTLE_ACTION_MENU_WINDOW.h,
-        'std'
-      );
-    }
+    this.drawWindowFrame(
+      BATTLE_ACTION_MENU_WINDOW.x,
+      BATTLE_ACTION_MENU_WINDOW.y,
+      BATTLE_ACTION_MENU_WINDOW.w,
+      BATTLE_ACTION_MENU_WINDOW.h,
+      'std'
+    );
 
     BATTLE_COMMAND_LABELS.forEach((entry, index) => {
       if (battle.commands[index] === undefined) {
@@ -1053,16 +1079,27 @@ export class CanvasRenderer {
     this.ctx.fillRect(0, 0, BATTLE_GBA_WIDTH, BATTLE_GBA_HEIGHT);
     this.ctx.fillStyle = palette.horizon;
     this.ctx.fillRect(0, 0, BATTLE_GBA_WIDTH, 54);
+    const playerGroundX = BATTLE_SINGLE_BATTLER_COORDS.player.x;
+    const playerGroundY = BATTLE_SINGLE_BATTLER_COORDS.player.y + 28;
+    const opponentShadowX = BATTLE_SINGLE_BATTLER_COORDS.opponent.x;
+    const opponentShadowY = BATTLE_SINGLE_BATTLER_COORDS.opponent.y + 29;
+
     this.ctx.fillStyle = palette.floor;
     this.ctx.beginPath();
-    this.ctx.ellipse(182, 92, 56, 18, 0, 0, Math.PI * 2);
-    this.ctx.fill();
-    this.ctx.beginPath();
-    this.ctx.ellipse(64, 102, 64, 22, 0, 0, Math.PI * 2);
+    this.ctx.ellipse(playerGroundX, playerGroundY, 48, 16, 0, 0, Math.PI * 2);
     this.ctx.fill();
     this.ctx.strokeStyle = palette.accent;
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
+
+    if (this.enemyMonShadow.complete && this.enemyMonShadow.naturalWidth > 0) {
+      this.ctx.drawImage(this.enemyMonShadow, opponentShadowX - 16, opponentShadowY - 4, 32, 8);
+    } else {
+      this.ctx.fillStyle = 'rgba(32, 48, 40, 0.35)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(opponentShadowX, opponentShadowY, 16, 4, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
 
     const tb = this.battleTextboxComposite;
     if (tb) {
@@ -1703,6 +1740,40 @@ export class CanvasRenderer {
       this.ctx.fillStyle = bottomColor;
       this.ctx.fillRect(x, y + 1, fillW, 2);
     }
+  }
+
+  private drawBattleHpBarGba(x: number, y: number, barW: number, hp: number, maxHp: number): void {
+    const level = this.partyHpBarLevel(hp, maxHp, Math.round(barW));
+    const fillW = maxHp > 0 ? Math.max(0, Math.min(barW, Math.round((hp * barW) / maxHp))) : 0;
+    const topColor = level === 'green' || level === 'full' ? '#58b838' : level === 'yellow' ? '#d8c628' : '#d84c34';
+    const midColor = level === 'green' || level === 'full' ? '#389028' : level === 'yellow' ? '#b0a020' : '#b83828';
+    const bottomColor = level === 'green' || level === 'full' ? '#206818' : level === 'yellow' ? '#7c6c10' : '#781810';
+    this.ctx.save();
+    this.ctx.fillStyle = '#203028';
+    this.ctx.fillRect(x, y, barW, 4);
+    if (fillW > 0) {
+      this.ctx.fillStyle = topColor;
+      this.ctx.fillRect(x, y, fillW, 1);
+      this.ctx.fillStyle = midColor;
+      this.ctx.fillRect(x, y + 1, fillW, 2);
+      this.ctx.fillStyle = bottomColor;
+      this.ctx.fillRect(x, y + 3, fillW, 1);
+    }
+    this.ctx.restore();
+  }
+
+  private drawBattleExpBarGba(x: number, y: number, barW: number, expProgress: number): void {
+    const fillW = Math.max(0, Math.min(barW, Math.round(barW * expProgress)));
+    this.ctx.save();
+    this.ctx.fillStyle = '#304040';
+    this.ctx.fillRect(x, y, barW, 2);
+    if (fillW > 0) {
+      this.ctx.fillStyle = '#58d8ff';
+      this.ctx.fillRect(x, y, fillW, 1);
+      this.ctx.fillStyle = '#1888d8';
+      this.ctx.fillRect(x, y + 1, fillW, 1);
+    }
+    this.ctx.restore();
   }
 
   private partyMemberAt(panel: PartyPanelState, slot: number) {

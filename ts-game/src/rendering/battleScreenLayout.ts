@@ -114,14 +114,19 @@ export function getBattlePpLineColors(currentPp: number, maxPp: number): { fg: s
 /** Text overlays relative to **OAM top-left** of the 128px-wide composite (`getSinglesHealthboxDrawRect`). */
 export const BATTLE_HEALTHBOX_OVERLAY = {
   opponent: {
-    species: { dx: 42, dy: 8 },
-    levelFromRight: 36,
+    species: { dx: 8, dy: 3 },
+    speciesWidth: 56,
+    levelFromRight: 41,
+    hpBar: { dx: 40, dy: 16, w: 48 },
     statusFromBottom: 10
   },
   player: {
-    species: { dx: 14, dy: 8 },
-    levelFromRight: 40,
-    hpText: { dx: 14, dy: 26 },
+    species: { dx: 16, dy: 3 },
+    speciesWidth: 52,
+    levelFromRight: 41,
+    hpBar: { dx: 48, dy: 16, w: 48 },
+    hpText: { dx: 60, dy: 21 },
+    expBar: { dx: 8, dy: 50, w: 64 },
     statusFromBottom: 10
   }
 } as const;

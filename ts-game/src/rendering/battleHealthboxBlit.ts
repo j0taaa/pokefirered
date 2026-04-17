@@ -21,15 +21,25 @@ import healthboxPalRaw from '../../../graphics/battle_interface/healthbox.pal?ra
 const healthboxPalette = parseJascPalette(healthboxPalRaw);
 
 /**
- * Decode ROM-linear 4bpp tiles to a canvas the same size as the singles PNG
- * sheet (128×32 foe, 128×64 player).
+ * Decode ROM-linear 4bpp tiles back into the two-sprite singles layout used by
+ * the healthbox art. The source assets are stored in sprite-tile order, not as
+ * a plain left-to-right bitmap, so we rebuild them as two side-by-side OBJ
+ * blocks:
+ * - opponent: two 64×32 sprites
+ * - player: two 64×64 sprites
  */
 export const buildPreparedSinglesHealthboxSheetFromTileBytes = (
   tileBytes: Uint8Array,
   widthPx: number,
-  heightPx: number
+  heightPx: number,
+  spriteWidthPx: number,
+  spriteHeightPx: number
 ): HTMLCanvasElement => {
-  const imgData = decodeGba4bppTilesToImageData(tileBytes, widthPx, heightPx, healthboxPalette);
+  const imgData = decodeGba4bppTilesToImageData(tileBytes, widthPx, heightPx, healthboxPalette, {
+    metatilesWide: widthPx / spriteWidthPx,
+    metatileWidth: spriteWidthPx / 8,
+    metatileHeight: spriteHeightPx / 8
+  });
   const out = document.createElement('canvas');
   out.width = widthPx;
   out.height = heightPx;

@@ -214,4 +214,11 @@ describe('battle vertical slice', () => {
     expect(battle.moves.some((move) => move.id === 'EMBER')).toBe(true);
     expect(battle.wildMoves.some((move) => move.id === 'TACKLE')).toBe(true);
   });
+
+  test('player snapshots preserve exp progress for the battle HUD', () => {
+    const battle = createBattleState();
+    expect(battle.playerMon.expProgress).toBeCloseTo(0.62);
+    expect(battle.party[1]?.expProgress).toBeCloseTo(0.34);
+    expect(battle.wildMon.expProgress).toBe(0);
+  });
 });

@@ -135,7 +135,7 @@ This phase exists only to support the core mechanics phases below. Do not treat 
 - [x] Add Professor Oak's Lab map, starter table events, NPCs, and tests.
 - [x] Add Viridian Pokémon Center map and healing workflow stub.
 - [x] Add Viridian Mart map and shop clerk workflow stub.
-- [ ] Add Viridian School map and signs.
+- [/] Add Viridian School map and signs.
 - [ ] Add Viridian House map and NPCs.
 - [ ] Add Viridian Gym map locked/unlocked behavior.
 - [ ] Add standard Pokémon Center template behavior for all centers.

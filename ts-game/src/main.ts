@@ -87,6 +87,7 @@ const snapshotToFieldPokemon = (member: BattlePokemonSnapshot) =>
   cloneFieldPokemon({
     species: member.species,
     level: member.level,
+    expProgress: member.expProgress,
     maxHp: member.maxHp,
     hp: member.hp,
     attack: member.attack,

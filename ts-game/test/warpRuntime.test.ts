@@ -19,6 +19,7 @@ import {
   loadViridianCityMap,
   loadViridianCityMartMap,
   loadViridianCityPokemonCenter1FMap,
+  loadViridianCitySchoolMap,
   mapFromCompactSource,
   parseCompactMapSource,
   type CompactMapSource
