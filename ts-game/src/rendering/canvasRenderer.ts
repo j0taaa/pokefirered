@@ -223,6 +223,7 @@ import {
   BATTLE_SINGLE_HEALTHBOX_COORDS,
   BATTLE_TYPE_BOX
 } from './battleScreenLayout';
+import { blitSinglesOpponentHealthbox, blitSinglesPlayerHealthbox } from './battleHealthboxBlit';
 import {
   buildBattleTextboxBackgroundCanvas,
   loadBattleTextboxTilemapBytes
@@ -744,9 +745,11 @@ export class CanvasRenderer {
 
     const hb = side === 'opponent' ? this.battleHealthboxOpponent : this.battleHealthboxPlayer;
     if (hb.complete && hb.naturalWidth > 0) {
-      const nw = hb.naturalWidth;
-      const nh = hb.naturalHeight;
-      this.ctx.drawImage(hb, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
+      if (side === 'opponent') {
+        blitSinglesOpponentHealthbox(this.ctx, hb, box.x, box.y, box.w, box.h);
+      } else {
+        blitSinglesPlayerHealthbox(this.ctx, hb, box.x, box.y, box.w, box.h);
+      }
     } else {
       const fallback =
         side === 'opponent'

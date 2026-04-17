@@ -1,3 +1,4 @@
+import fuchsiaCityMapJson from './maps/fuchsiaCity.json';
 import celadonCityMapJson from './maps/celadonCity.json';
 import ceruleanCityMapJson from './maps/ceruleanCity.json';
 import lavenderTownMapJson from './maps/lavenderTown.json';
@@ -717,6 +718,9 @@ export const loadCeladonCityMap = (): TileMap =>
 export const loadCeruleanCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(ceruleanCityMapJson));
 
+export const loadFuchsiaCityMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(fuchsiaCityMapJson));
+
 export const loadLavenderTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(lavenderTownMapJson));
 
@@ -792,6 +796,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadCeladonCityMap();
     case 'MAP_CERULEAN_CITY':
       return loadCeruleanCityMap();
+    case 'MAP_FUCHSIA_CITY':
+      return loadFuchsiaCityMap();
     case 'MAP_LAVENDER_TOWN':
       return loadLavenderTownMap();
     case 'MAP_PALLET_TOWN':

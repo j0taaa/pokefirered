@@ -4,6 +4,7 @@ import {
   loadMapById,
   loadCeladonCityMap,
   loadCeruleanCityMap,
+  loadFuchsiaCityMap,
   loadLavenderTownMap,
   loadPalletTownMap,
   loadPewterCityMap,
@@ -513,6 +514,26 @@ describe('map connections', () => {
 
   test('loads Saffron City through the shared map loader', () => {
     expect(loadMapById('MAP_SAFFRON_CITY')?.id).toBe('MAP_SAFFRON_CITY');
+  });
+
+  test('matches Fuchsia City decomp connection offsets', () => {
+    const fuchsia = loadFuchsiaCityMap();
+
+    expect(fuchsia.connections).toEqual([
+      { map: 'MAP_ROUTE19', offset: 12, direction: 'down' },
+      { map: 'MAP_ROUTE18', offset: 10, direction: 'left' },
+      { map: 'MAP_ROUTE15', offset: 10, direction: 'right' }
+    ]);
+  });
+
+  test('returns null for Fuchsia City edges because Route 15, Route 18, and Route 19 are still unloaded', () => {
+    expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 24, 39, 'down', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 0, 12, 'left', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 47, 12, 'right', loadMapById)).toBeNull();
+  });
+
+  test('loads Fuchsia City through the shared map loader', () => {
+    expect(loadMapById('MAP_FUCHSIA_CITY')?.id).toBe('MAP_FUCHSIA_CITY');
   });
 
   test('returns null for Celadon City left edge because Route 16 is still unloaded', () => {
