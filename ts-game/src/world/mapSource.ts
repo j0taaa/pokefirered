@@ -10,6 +10,7 @@ import oneIslandMapJson from './maps/oneIsland.json';
 import oneIslandKindleRoadMapJson from './maps/oneIslandKindleRoad.json';
 import oneIslandTreasureBeachMapJson from './maps/oneIslandTreasureBeach.json';
 import palletTownMapJson from './maps/palletTown.json';
+import palletTownProfessorOaksLabMapJson from './maps/palletTownProfessorOaksLab.json';
 import palletTownPlayersHouse1FMapJson from './maps/palletTownPlayersHouse1F.json';
 import palletTownPlayersHouse2FMapJson from './maps/palletTownPlayersHouse2F.json';
 import palletTownRivalsHouseMapJson from './maps/palletTownRivalsHouse.json';
@@ -763,6 +764,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
 export const loadPalletTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(palletTownMapJson));
 
+export const loadPalletTownProfessorOaksLabMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(palletTownProfessorOaksLabMapJson));
+
 export const loadPalletTownPlayersHouse1FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(palletTownPlayersHouse1FMapJson));
 
@@ -915,6 +919,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadOneIslandTreasureBeachMap();
     case 'MAP_PALLET_TOWN':
       return loadPalletTownMap();
+    case 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB':
+      return loadPalletTownProfessorOaksLabMap();
     case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F':
       return loadPalletTownPlayersHouse1FMap();
     case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F':

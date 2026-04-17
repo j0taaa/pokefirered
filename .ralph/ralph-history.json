@@ -116,21 +116,59 @@
         "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Pallet Town rival house front door warp into the loaded interior map",
         "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the rival house exit warp back to loaded Pallet Town"
       ]
+    },
+    {
+      "iteration": 5,
+      "startedAt": "2026-04-17T12:22:32.743Z",
+      "endedAt": "2026-04-17T12:32:57.178Z",
+      "durationMs": 534375,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/test/warpRuntime.test.ts",
+        "ts-game/src/world/maps/palletTownProfessorOaksLab.json",
+        "ts-game/test/palletTownProfessorOaksLabMap.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "❯ test/palletTownProfessorOaksLabMap.test.ts (3 tests | 2 failed) 150ms",
+        "❯ test/warpRuntime.test.ts (17 tests | 2 failed) 106ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/palletTownProfessorOaksLabMap.test.ts > Pallet Town Professor Oak's Lab compact map source > matches the decomp exporter output exactly",
+        "AssertionError: expected { …(15) } to deeply equal { …(16) }",
+        "FAIL  test/palletTownProfessorOaksLabMap.test.ts > Pallet Town Professor Oak's Lab compact map source > loads Professor Oak's Lab into the runtime tile map shape",
+        "AssertionError: expected { primaryTileset: 'building', …(3) } to deeply equal { primaryTileset: 'building', …(3) }",
+        "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Pallet Town Oak's Lab front door warp into the loaded interior map",
+        "AssertionError: expected { status: 'none' } to deeply equal { status: 'resolved', …(4) }",
+        "FAIL  test/warpRuntime.test.ts > warp runtime > resolves Oak's Lab exit warp back to loaded Pallet Town"
+      ]
     }
   ],
-  "totalDurationMs": 1787290,
+  "totalDurationMs": 2321665,
   "struggleIndicators": {
     "repeatedErrors": {
       "❯ test/palletTownRivalsHouseMap.test.ts (3 tests | 3 failed) 59ms": 1,
       "❯ test/warpRuntime.test.ts (15 tests | 2 failed) 28ms": 1,
       "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯": 1,
       "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > matches t": 1,
-      "AssertionError: expected { …(15) } to deeply equal { …(16) }": 1,
+      "AssertionError: expected { …(15) } to deeply equal { …(16) }": 2,
       "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > loads the": 1,
       "Error: Map source \"MAP_PALLET_TOWN_RIVALS_HOUSE\" visual.layerTypes must contain 130 integers.": 1,
       "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > validates": 1,
       "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Pallet Town rival house front door warp": 1,
-      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the rival house exit warp back to loaded Pa": 1
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the rival house exit warp back to loaded Pa": 1,
+      "❯ test/palletTownProfessorOaksLabMap.test.ts (3 tests | 2 failed) 150ms": 1,
+      "❯ test/warpRuntime.test.ts (17 tests | 2 failed) 106ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/palletTownProfessorOaksLabMap.test.ts > Pallet Town Professor Oak's Lab compact map sourc": 2,
+      "AssertionError: expected { primaryTileset: 'building', …(3) } to deeply equal { primaryTileset: 'bui": 1,
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Pallet Town Oak's Lab front door warp i": 1,
+      "AssertionError: expected { status: 'none' } to deeply equal { status: 'resolved', …(4) }": 1,
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves Oak's Lab exit warp back to loaded Pallet T": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

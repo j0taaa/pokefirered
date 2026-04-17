@@ -12,6 +12,7 @@ import {
   loadIndigoPlateauPokemonCenter1FMap,
   loadMapById,
   loadPalletTownMap,
+  loadPalletTownProfessorOaksLabMap,
   loadPalletTownPlayersHouse1FMap,
   loadPalletTownPlayersHouse2FMap,
   loadPalletTownRivalsHouseMap,
@@ -133,6 +134,21 @@ describe('warp runtime', () => {
     });
   });
 
+  test("resolves the Pallet Town Oak's Lab front door warp into the loaded interior map", () => {
+    const map = loadPalletTownMap();
+    const player = createPlayer();
+    player.position = vec2(16 * map.tileSize, 13 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 16, y: 13, elevation: 0, destMap: 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB', destWarpId: 0 },
+      destinationMap: loadPalletTownProfessorOaksLabMap(),
+      destinationWarp: { x: 6, y: 12, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 2 },
+      playerPosition: { x: 6 * 16, y: 12 * 16 }
+    });
+  });
+
   test('resolves the Players House 1F stair warp into the loaded 2F map', () => {
     const map = loadPalletTownPlayersHouse1FMap();
     const player = createPlayer();
@@ -190,6 +206,21 @@ describe('warp runtime', () => {
       destinationMap: loadPalletTownMap(),
       destinationWarp: { x: 15, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_RIVALS_HOUSE', destWarpId: 0 },
       playerPosition: { x: 15 * 16, y: 7 * 16 }
+    });
+  });
+
+  test("resolves Oak's Lab exit warp back to loaded Pallet Town", () => {
+    const map = loadPalletTownProfessorOaksLabMap();
+    const player = createPlayer();
+    player.position = vec2(6 * map.tileSize, 12 * map.tileSize);
+    player.facing = 'down';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 6, y: 12, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 2 },
+      destinationMap: loadPalletTownMap(),
+      destinationWarp: { x: 16, y: 13, elevation: 0, destMap: 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB', destWarpId: 0 },
+      playerPosition: { x: 16 * 16, y: 13 * 16 }
     });
   });
 
