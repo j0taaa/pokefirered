@@ -14,6 +14,7 @@ import {
   loadPalletTownMap,
   loadPalletTownPlayersHouse1FMap,
   loadPalletTownPlayersHouse2FMap,
+  loadPalletTownRivalsHouseMap,
   mapFromCompactSource,
   parseCompactMapSource,
   type CompactMapSource
@@ -117,6 +118,21 @@ describe('warp runtime', () => {
     });
   });
 
+  test('resolves the Pallet Town rival house front door warp into the loaded interior map', () => {
+    const map = loadPalletTownMap();
+    const player = createPlayer();
+    player.position = vec2(15 * map.tileSize, 7 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 15, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_RIVALS_HOUSE', destWarpId: 0 },
+      destinationMap: loadPalletTownRivalsHouseMap(),
+      destinationWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 1 },
+      playerPosition: { x: 4 * 16, y: 8 * 16 }
+    });
+  });
+
   test('resolves the Players House 1F stair warp into the loaded 2F map', () => {
     const map = loadPalletTownPlayersHouse1FMap();
     const player = createPlayer();
@@ -159,6 +175,21 @@ describe('warp runtime', () => {
       destinationMap: loadPalletTownMap(),
       destinationWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
       playerPosition: { x: 6 * 16, y: 7 * 16 }
+    });
+  });
+
+  test('resolves the rival house exit warp back to loaded Pallet Town', () => {
+    const map = loadPalletTownRivalsHouseMap();
+    const player = createPlayer();
+    player.position = vec2(4 * map.tileSize, 8 * map.tileSize);
+    player.facing = 'down';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 1 },
+      destinationMap: loadPalletTownMap(),
+      destinationWarp: { x: 15, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_RIVALS_HOUSE', destWarpId: 0 },
+      playerPosition: { x: 15 * 16, y: 7 * 16 }
     });
   });
 

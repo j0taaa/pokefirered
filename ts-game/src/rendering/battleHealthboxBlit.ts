@@ -1,74 +1,105 @@
 /**
- * Singles healthbox art (`healthbox_singles_*.png`) matches the decomp
- * `gHealthboxSingles*Gfx` sheets: **128×32** (opponent) or **128×64** (player),
- * i.e. the two OAM halves placed side by side (`CreateBattlerHealthboxSprites`
- * in `battle_interface.c`).
+ * Singles healthbox art mirrors `gHealthboxSingles*Gfx` + `CreateBattlerHealthboxSprites`
+ * (`battle_interface.c`): two OAM entries per box, each **64px wide** (64×32 foe,
+ * 64×64 player after `oam.shape` change), `tileNum` gap `32` / `64` tiles.
  *
- * The PNGs in-tree are exported for editing in normal raster order (same as
- * `%.4bpp: %.png` round-trips in the decomp toolchain). Do **not** apply GBA
- * 8×8 tile reordering here — that scrambles these sheets.
+ * With `DISPCNT_OBJ_1D_MAP` (`battle_bg.c`), character tiles are linear in VRAM, but
+ * each **64px-wide OBJ** still packs its 8×8 tiles in the hardware **2×2
+ * macro-block** order used by the GBA OBJ renderer (same reason two 64-wide
+ * halves are separate sprites). Raw `healthbox_singles_*.png` dumps match the
+ * sheet file order; we **transpose 2×2 within each 64px half** so pixels match
+ * what the PPU shows, then treat palette index 0 as transparent (OBJ treats
+ * index 0 as clear; PNG uses `#000000` without `tRNS`).
  *
- * Sprite **placement** still uses `CalcCenterToCornerVec` (`sprite.c`): ROM
- * `InitBattlerHealthboxCoords` sets `sprite->x/y`; OAM top-left is
- * `x + centerToCornerVecX`, `y + centerToCornerVecY` (see `battleScreenLayout`).
- *
- * **Transparency:** `graphics/battle_interface/healthbox.pal` index 0 is unused on
- * OBJ (treated as transparent in hardware). Indexed PNGs use RGB(0,0,0) for that
- * slot with no `tRNS` chunk, so browsers draw it opaque — we clear alpha for
- * exact `#000000` when preparing the blit source.
+ * OAM top-left: `InitBattlerHealthboxCoords` + `CalcCenterToCornerVec` (`sprite.c`)
+ * — see `battleScreenLayout.ts`.
  */
 
 import type { BattleHealthboxOamAnchor } from './battleScreenLayout';
 
-/**
- * Clone a loaded healthbox sheet into a canvas with OBJ-style transparency for
- * palette index 0 (`#000000` in exported PNGs).
- */
-export const buildHealthboxCanvasWithObjTransparency = (
-  img: HTMLImageElement | HTMLCanvasElement
-): HTMLCanvasElement => {
-  const w =
-    'naturalWidth' in img && img.naturalWidth > 0
-      ? img.naturalWidth
-      : (img as HTMLCanvasElement).width;
-  const h =
-    'naturalHeight' in img && img.naturalHeight > 0
-      ? img.naturalHeight
-      : (img as HTMLCanvasElement).height;
-  const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
-  const c = out.getContext('2d');
-  if (!c) {
-    throw new Error('2d context unavailable for healthbox prep');
-  }
-  c.imageSmoothingEnabled = false;
-  c.drawImage(img, 0, 0);
-  const data = c.getImageData(0, 0, w, h);
+const blitQuarter = (
+  ctx: CanvasRenderingContext2D,
+  img: CanvasImageSource,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number
+): void => {
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+};
+
+/** Transpose 2×2 grid inside [sx,sy,sx+rw,sy+rh] of `img` onto [dx,dy,dx+destW,dy+destH]. */
+const blitTranspose2x2InRect = (
+  ctx: CanvasRenderingContext2D,
+  img: CanvasImageSource,
+  sx: number,
+  sy: number,
+  rw: number,
+  rh: number,
+  dx: number,
+  dy: number,
+  destW: number,
+  destH: number
+): void => {
+  const qw = rw / 2;
+  const qh = rh / 2;
+  const dw = destW / 2;
+  const dh = destH / 2;
+
+  blitQuarter(ctx, img, sx, sy, qw, qh, dx, dy, dw, dh);
+  blitQuarter(ctx, img, sx, sy + qh, qw, qh, dx + dw, dy, dw, dh);
+  blitQuarter(ctx, img, sx + qw, sy, qw, qh, dx, dy + dh, dw, dh);
+  blitQuarter(ctx, img, sx + qw, sy + qh, qw, qh, dx + dw, dy + dh, dw, dh);
+};
+
+const applyObjPaletteZeroTransparency = (
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number
+): void => {
+  const data = ctx.getImageData(0, 0, w, h);
   const px = data.data;
   for (let i = 0; i < px.length; i += 4) {
     if (px[i] === 0 && px[i + 1] === 0 && px[i + 2] === 0) {
       px[i + 3] = 0;
     }
   }
-  c.putImageData(data, 0, 0);
-  return out;
+  ctx.putImageData(data, 0, 0);
 };
 
-/** Blit the full 128px-wide healthbox sheet to the battle canvas at OAM top-left. */
-export const blitSinglesHealthboxSheet = (
-  ctx: CanvasRenderingContext2D,
-  img: CanvasImageSource,
-  anchor: BattleHealthboxOamAnchor,
-  destW: number,
-  destH: number
-): void => {
-  const { oamX, oamY } = anchor;
-  const nw =
-    'naturalWidth' in img && typeof img.naturalWidth === 'number' ? img.naturalWidth : destW;
-  const nh =
-    'naturalHeight' in img && typeof img.naturalHeight === 'number' ? img.naturalHeight : destH;
-  ctx.drawImage(img, 0, 0, nw, nh, oamX, oamY, destW, destH);
+/**
+ * Build a 128×32 or 128×64 canvas: OBJ-style 2×2 transpose per 64px half, then
+ * clear alpha for palette slot 0 (`#000000`).
+ */
+export const buildPreparedSinglesHealthboxSheet = (
+  img: HTMLImageElement,
+  kind: 'opponent' | 'player'
+): HTMLCanvasElement => {
+  const w = img.naturalWidth;
+  const h = kind === 'opponent' ? 32 : 64;
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext('2d');
+  if (!ctx) {
+    throw new Error('2d context unavailable for healthbox prep');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  if (kind === 'opponent') {
+    blitTranspose2x2InRect(ctx, img, 0, 0, 64, 32, 0, 0, 64, 32);
+    blitTranspose2x2InRect(ctx, img, 64, 0, 64, 32, 64, 0, 64, 32);
+  } else {
+    blitTranspose2x2InRect(ctx, img, 0, 0, 64, 64, 0, 0, 64, 64);
+    blitTranspose2x2InRect(ctx, img, 64, 0, 64, 64, 64, 0, 64, 64);
+  }
+
+  applyObjPaletteZeroTransparency(ctx, w, h);
+  return out;
 };
 
 export const blitSinglesOpponentHealthbox = (
@@ -78,7 +109,23 @@ export const blitSinglesOpponentHealthbox = (
   destW: number,
   destH: number
 ): void => {
-  blitSinglesHealthboxSheet(ctx, img, anchor, destW, destH);
+  const { oamX, oamY } = anchor;
+  const halfDestW = destW / 2;
+  const halfDestH = destH;
+
+  blitTranspose2x2InRect(ctx, img, 0, 0, 64, 32, oamX, oamY, halfDestW, halfDestH);
+  blitTranspose2x2InRect(
+    ctx,
+    img,
+    64,
+    0,
+    64,
+    32,
+    oamX + halfDestW,
+    oamY,
+    halfDestW,
+    halfDestH
+  );
 };
 
 export const blitSinglesPlayerHealthbox = (
@@ -88,5 +135,21 @@ export const blitSinglesPlayerHealthbox = (
   destW: number,
   destH: number
 ): void => {
-  blitSinglesHealthboxSheet(ctx, img, anchor, destW, destH);
+  const { oamX, oamY } = anchor;
+  const halfDestW = destW / 2;
+  const halfDestH = destH;
+
+  blitTranspose2x2InRect(ctx, img, 0, 0, 64, 64, oamX, oamY, halfDestW, halfDestH);
+  blitTranspose2x2InRect(
+    ctx,
+    img,
+    64,
+    0,
+    64,
+    64,
+    oamX + halfDestW,
+    oamY,
+    halfDestW,
+    halfDestH
+  );
 };

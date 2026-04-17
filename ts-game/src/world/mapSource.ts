@@ -12,6 +12,7 @@ import oneIslandTreasureBeachMapJson from './maps/oneIslandTreasureBeach.json';
 import palletTownMapJson from './maps/palletTown.json';
 import palletTownPlayersHouse1FMapJson from './maps/palletTownPlayersHouse1F.json';
 import palletTownPlayersHouse2FMapJson from './maps/palletTownPlayersHouse2F.json';
+import palletTownRivalsHouseMapJson from './maps/palletTownRivalsHouse.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
 import route21NorthMapJson from './maps/route21North.json';
@@ -768,6 +769,9 @@ export const loadPalletTownPlayersHouse1FMap = (): TileMap =>
 export const loadPalletTownPlayersHouse2FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(palletTownPlayersHouse2FMapJson));
 
+export const loadPalletTownRivalsHouseMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(palletTownRivalsHouseMapJson));
+
 export const loadCeladonCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(celadonCityMapJson));
 
@@ -915,6 +919,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadPalletTownPlayersHouse1FMap();
     case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F':
       return loadPalletTownPlayersHouse2FMap();
+    case 'MAP_PALLET_TOWN_RIVALS_HOUSE':
+      return loadPalletTownRivalsHouseMap();
     case 'MAP_PEWTER_CITY':
       return loadPewterCityMap();
     case 'MAP_ROUTE2':

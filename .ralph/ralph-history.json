@@ -84,11 +84,54 @@
       "exitCode": 0,
       "completionDetected": false,
       "errors": []
+    },
+    {
+      "iteration": 4,
+      "startedAt": "2026-04-17T12:09:34.602Z",
+      "endedAt": "2026-04-17T12:21:04.242Z",
+      "durationMs": 604615,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "ts-game/src/rendering/battleHealthboxBlit.ts",
+        "ts-game/src/rendering/canvasRenderer.ts",
+        "ts-game/src/world/mapSource.ts",
+        "ts-game/test/warpRuntime.test.ts",
+        "ts-game/src/world/maps/palletTownRivalsHouse.json",
+        "ts-game/test/palletTownRivalsHouseMap.test.ts"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "❯ test/palletTownRivalsHouseMap.test.ts (3 tests | 3 failed) 59ms",
+        "❯ test/warpRuntime.test.ts (15 tests | 2 failed) 28ms",
+        "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯",
+        "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > matches the decomp exporter output exactly",
+        "AssertionError: expected { …(15) } to deeply equal { …(16) }",
+        "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > loads the rival house into the runtime tile map shape",
+        "Error: Map source \"MAP_PALLET_TOWN_RIVALS_HOUSE\" visual.layerTypes must contain 130 integers.",
+        "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > validates compact rows and preserves rival house warp, sign, and NPC parity",
+        "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Pallet Town rival house front door warp into the loaded interior map",
+        "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the rival house exit warp back to loaded Pallet Town"
+      ]
     }
   ],
-  "totalDurationMs": 1182675,
+  "totalDurationMs": 1787290,
   "struggleIndicators": {
-    "repeatedErrors": {},
+    "repeatedErrors": {
+      "❯ test/palletTownRivalsHouseMap.test.ts (3 tests | 3 failed) 59ms": 1,
+      "❯ test/warpRuntime.test.ts (15 tests | 2 failed) 28ms": 1,
+      "⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯": 1,
+      "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > matches t": 1,
+      "AssertionError: expected { …(15) } to deeply equal { …(16) }": 1,
+      "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > loads the": 1,
+      "Error: Map source \"MAP_PALLET_TOWN_RIVALS_HOUSE\" visual.layerTypes must contain 130 integers.": 1,
+      "FAIL  test/palletTownRivalsHouseMap.test.ts > Pallet Town rival house compact map source > validates": 1,
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the Pallet Town rival house front door warp": 1,
+      "FAIL  test/warpRuntime.test.ts > warp runtime > resolves the rival house exit warp back to loaded Pa": 1
+    },
     "noProgressIterations": 0,
     "shortIterations": 0
   }

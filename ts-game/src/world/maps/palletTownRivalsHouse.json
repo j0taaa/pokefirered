@@ -1,0 +1,168 @@
+{
+  "id": "MAP_PALLET_TOWN_RIVALS_HOUSE",
+  "metadata": {
+    "name": "PalletTown_RivalsHouse",
+    "layout": "LAYOUT_PALLET_TOWN_RIVALS_HOUSE",
+    "music": "MUS_PALLET",
+    "regionMapSection": "MAPSEC_PALLET_TOWN",
+    "weather": "WEATHER_NONE",
+    "mapType": "MAP_TYPE_INDOOR",
+    "allowCycling": false,
+    "allowEscaping": false,
+    "allowRunning": false,
+    "showMapName": false,
+    "battleScene": "MAP_BATTLE_SCENE_NORMAL",
+    "connections": null
+  },
+  "width": 13,
+  "height": 10,
+  "tileSize": 16,
+  "visual": {
+    "primaryTileset": "building",
+    "secondaryTileset": "generic_building_2",
+    "metatileIds": [
+      32, 32, 46, 47, 32, 45, 33, 34, 32, 388, 32, 43, 44,
+      49, 50, 54, 55, 40, 53, 41, 42, 40, 389, 40, 51, 52,
+      57, 58, 62, 63, 9, 61, 9, 9, 9, 9, 9, 59, 60,
+      9, 1, 1, 1, 67, 68, 68, 68, 68, 70, 1, 1, 1,
+      9, 1, 1, 1, 83, 75, 76, 77, 78, 86, 1, 1, 1,
+      9, 1, 1, 1, 83, 75, 84, 85, 78, 86, 1, 1, 1,
+      9, 1, 1, 1, 91, 92, 92, 92, 92, 94, 1, 1, 1,
+      87, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 71,
+      95, 1, 1, 18, 19, 20, 1, 1, 1, 1, 1, 1,
+      79, 8, 8, 8, 26, 27, 28, 8, 8, 8, 8, 8, 8,
+      8
+    ],
+    "layerTypes": [
+      0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1,
+      1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1,
+      1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1,
+      0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+      0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+      0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+      0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1,
+      0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0
+    ]
+  },
+  "collisionRows": [
+    "#############",
+    "#############",
+    ".............",
+    ".............",
+    "......##.....",
+    "......##.....",
+    ".............",
+    ".............",
+    "#...........#",
+    "#############"
+  ],
+  "encounterRows": [
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    "............."
+  ],
+  "behaviorRows": [
+    "00000000000000000000000000",
+    "8a8a89890086009d0094008181",
+    "00000000000000000000000000",
+    "00000000000000000000000000",
+    "00000000000000000000000000",
+    "00000000000000000000000000",
+    "00000000000000000000000000",
+    "00000000000000000000000000",
+    "00000000650000000000000000",
+    "00000000000000000000000000"
+  ],
+  "triggers": [
+    {
+      "id": "PalletTown_RivalsHouse_EventScript_Bookshelf",
+      "x": 12,
+      "y": 1,
+      "activation": "interact",
+      "scriptId": "PalletTown_RivalsHouse_EventScript_Bookshelf",
+      "facing": "any",
+      "once": false
+    },
+    {
+      "id": "PalletTown_RivalsHouse_EventScript_Bookshelf",
+      "x": 11,
+      "y": 1,
+      "activation": "interact",
+      "scriptId": "PalletTown_RivalsHouse_EventScript_Bookshelf",
+      "facing": "any",
+      "once": false
+    },
+    {
+      "id": "PalletTown_RivalsHouse_EventScript_Picture",
+      "x": 9,
+      "y": 1,
+      "activation": "interact",
+      "scriptId": "PalletTown_RivalsHouse_EventScript_Picture",
+      "facing": "any",
+      "once": false
+    }
+  ],
+  "warps": [
+    {
+      "x": 4,
+      "y": 8,
+      "elevation": 3,
+      "destMap": "MAP_PALLET_TOWN",
+      "destWarpId": 1
+    },
+    {
+      "x": 5,
+      "y": 8,
+      "elevation": 3,
+      "destMap": "MAP_PALLET_TOWN",
+      "destWarpId": 1
+    },
+    {
+      "x": 3,
+      "y": 8,
+      "elevation": 3,
+      "destMap": "MAP_PALLET_TOWN",
+      "destWarpId": 1
+    }
+  ],
+  "hiddenItems": [],
+  "berryTrees": [],
+  "cloneObjects": [],
+  "npcs": [
+    {
+      "id": "LOCALID_DAISY",
+      "x": 10,
+      "y": 6,
+      "graphicsId": "OBJ_EVENT_GFX_DAISY",
+      "movementType": "MOVEMENT_TYPE_WANDER_AROUND",
+      "movementRangeX": 1,
+      "movementRangeY": 3,
+      "trainerType": "TRAINER_TYPE_NONE",
+      "trainerSightOrBerryTreeId": 0,
+      "scriptId": "PalletTown_RivalsHouse_EventScript_Daisy",
+      "flag": "0"
+    },
+    {
+      "id": "LOCALID_TOWN_MAP",
+      "x": 6,
+      "y": 4,
+      "graphicsId": "OBJ_EVENT_GFX_TOWN_MAP",
+      "movementType": "MOVEMENT_TYPE_FACE_DOWN",
+      "movementRangeX": 1,
+      "movementRangeY": 1,
+      "trainerType": "TRAINER_TYPE_NONE",
+      "trainerSightOrBerryTreeId": 0,
+      "scriptId": "PalletTown_RivalsHouse_EventScript_TownMap",
+      "flag": "FLAG_HIDE_TOWN_MAP"
+    }
+  ]
+}
