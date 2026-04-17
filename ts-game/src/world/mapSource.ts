@@ -2,15 +2,21 @@ import ceruleanCityMapJson from './maps/ceruleanCity.json';
 import palletTownMapJson from './maps/palletTown.json';
 import pewterCityMapJson from './maps/pewterCity.json';
 import route2MapJson from './maps/route2.json';
-import route24MapJson from './maps/route24.json';
-import route25MapJson from './maps/route25.json';
-import route3MapJson from './maps/route3.json';
-import route4MapJson from './maps/route4.json';
-import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
-import route2ViridianForestSouthEntranceMapJson from './maps/route2ViridianForestSouthEntrance.json';
 import route21NorthMapJson from './maps/route21North.json';
 import route21SouthMapJson from './maps/route21South.json';
 import route22MapJson from './maps/route22.json';
+import route24MapJson from './maps/route24.json';
+import route25MapJson from './maps/route25.json';
+import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
+import route2ViridianForestSouthEntranceMapJson from './maps/route2ViridianForestSouthEntrance.json';
+import route3MapJson from './maps/route3.json';
+import route4MapJson from './maps/route4.json';
+import route5MapJson from './maps/route5.json';
+import route6MapJson from './maps/route6.json';
+import route7MapJson from './maps/route7.json';
+import route8MapJson from './maps/route8.json';
+import route9MapJson from './maps/route9.json';
+import route10MapJson from './maps/route10.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import type { TileMap } from './tileMap';
 
@@ -661,6 +667,24 @@ export const loadRoute3Map = (): TileMap =>
 export const loadRoute4Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route4MapJson));
 
+export const loadRoute5Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route5MapJson));
+
+export const loadRoute6Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route6MapJson));
+
+export const loadRoute7Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route7MapJson));
+
+export const loadRoute8Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route8MapJson));
+
+export const loadRoute9Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route9MapJson));
+
+export const loadRoute10Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route10MapJson));
+
 export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2ViridianForestNorthEntranceMapJson));
 
@@ -703,6 +727,22 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRoute24Map();
     case 'MAP_ROUTE25':
       return loadRoute25Map();
+    case 'MAP_ROUTE3':
+      return loadRoute3Map();
+    case 'MAP_ROUTE4':
+      return loadRoute4Map();
+    case 'MAP_ROUTE5':
+      return loadRoute5Map();
+    case 'MAP_ROUTE6':
+      return loadRoute6Map();
+    case 'MAP_ROUTE7':
+      return loadRoute7Map();
+    case 'MAP_ROUTE8':
+      return loadRoute8Map();
+    case 'MAP_ROUTE9':
+      return loadRoute9Map();
+    case 'MAP_ROUTE10':
+      return loadRoute10Map();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
     default:

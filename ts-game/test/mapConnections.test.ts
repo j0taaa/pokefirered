@@ -11,6 +11,12 @@ import {
   loadRoute22Map,
   loadRoute24Map,
   loadRoute25Map,
+  loadRoute5Map,
+  loadRoute6Map,
+  loadRoute7Map,
+  loadRoute8Map,
+  loadRoute9Map,
+  loadRoute10Map,
   loadViridianCityMap
 } from '../src/world/mapSource';
 
@@ -144,7 +150,7 @@ describe('map connections', () => {
   });
 
   test('returns null for unloaded destination maps', () => {
-    expect(resolveMapConnectionTransition(loadPewterCityMap(), 47, 20, 'right', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute6Map(), 12, 39, 'down', loadMapById)).toBeNull();
   });
 
   test('loads Route 22 through the shared map loader', () => {
@@ -231,5 +237,103 @@ describe('map connections', () => {
   test('loads Route 24 and Route 25 through the shared map loader', () => {
     expect(loadMapById('MAP_ROUTE24')?.id).toBe('MAP_ROUTE24');
     expect(loadMapById('MAP_ROUTE25')?.id).toBe('MAP_ROUTE25');
+  });
+
+  test('matches Route 5/6/7/8/9/10 decomp connection offsets', () => {
+    const route5 = loadRoute5Map();
+    const route6 = loadRoute6Map();
+    const route7 = loadRoute7Map();
+    const route8 = loadRoute8Map();
+    const route9 = loadRoute9Map();
+    const route10 = loadRoute10Map();
+
+    expect(route5.connections).toEqual([
+      { map: 'MAP_CERULEAN_CITY', offset: 0, direction: 'up' },
+      { map: 'MAP_SAFFRON_CITY_CONNECTION', offset: 0, direction: 'down' }
+    ]);
+    expect(route6.connections).toEqual([
+      { map: 'MAP_SAFFRON_CITY_CONNECTION', offset: 0, direction: 'up' },
+      { map: 'MAP_VERMILION_CITY', offset: -12, direction: 'down' }
+    ]);
+    expect(route7.connections).toEqual([
+      { map: 'MAP_CELADON_CITY', offset: -10, direction: 'left' },
+      { map: 'MAP_SAFFRON_CITY_CONNECTION', offset: -10, direction: 'right' }
+    ]);
+    expect(route8.connections).toEqual([
+      { map: 'MAP_SAFFRON_CITY_CONNECTION', offset: -10, direction: 'left' },
+      { map: 'MAP_LAVENDER_TOWN', offset: 0, direction: 'right' }
+    ]);
+    expect(route9.connections).toEqual([
+      { map: 'MAP_CERULEAN_CITY', offset: -10, direction: 'left' },
+      { map: 'MAP_ROUTE10', offset: 0, direction: 'right' }
+    ]);
+    expect(route10.connections).toEqual([
+      { map: 'MAP_LAVENDER_TOWN', offset: 0, direction: 'down' },
+      { map: 'MAP_ROUTE9', offset: 0, direction: 'left' }
+    ]);
+  });
+
+  test('transitions from Cerulean City south edge into Route 5 using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadCeruleanCityMap(), 15, 39, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE5');
+    expect(transition?.playerPosition).toEqual({ x: 15 * 16, y: 0 });
+  });
+
+  test('transitions from Route 5 north edge into Cerulean City using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute5Map(), 15, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_CERULEAN_CITY');
+    expect(transition?.playerPosition).toEqual({ x: 15 * 16, y: 39 * 16 });
+  });
+
+  test('transitions from Cerulean City east edge into Route 9 using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadCeruleanCityMap(), 47, 16, 'right', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE9');
+    expect(transition?.playerPosition).toEqual({ x: 0, y: 6 * 16 });
+  });
+
+  test('transitions from Route 9 west edge into Cerulean City using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute9Map(), 0, 6, 'left', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_CERULEAN_CITY');
+    expect(transition?.playerPosition).toEqual({ x: 47 * 16, y: 16 * 16 });
+  });
+
+  test('transitions from Route 9 east edge into Route 10 using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute9Map(), 71, 8, 'right', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE10');
+    expect(transition?.playerPosition).toEqual({ x: 0, y: 8 * 16 });
+  });
+
+  test('transitions from Route 10 west edge into Route 9 using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute10Map(), 0, 8, 'left', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE9');
+    expect(transition?.playerPosition).toEqual({ x: 71 * 16, y: 8 * 16 });
+  });
+
+  test('rejects Route 9/10 coordinates outside the connected overlap', () => {
+    expect(resolveMapConnectionTransition(loadCeruleanCityMap(), 47, 30, 'right', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute9Map(), 0, 2, 'left', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute9Map(), 71, 0, 'right', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadRoute10Map(), 0, 20, 'left', loadMapById)).toBeNull();
+  });
+
+  test('loads Route 5/6/7/8/9/10 through the shared map loader', () => {
+    expect(loadMapById('MAP_ROUTE5')?.id).toBe('MAP_ROUTE5');
+    expect(loadMapById('MAP_ROUTE6')?.id).toBe('MAP_ROUTE6');
+    expect(loadMapById('MAP_ROUTE7')?.id).toBe('MAP_ROUTE7');
+    expect(loadMapById('MAP_ROUTE8')?.id).toBe('MAP_ROUTE8');
+    expect(loadMapById('MAP_ROUTE9')?.id).toBe('MAP_ROUTE9');
+    expect(loadMapById('MAP_ROUTE10')?.id).toBe('MAP_ROUTE10');
   });
 });
