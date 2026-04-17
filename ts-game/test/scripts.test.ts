@@ -51,4 +51,32 @@ describe('script runtime helpers', () => {
     runScriptById('object.npc-lass-01.interact', { player, dialogue, runtime }, prototypeScriptRegistry);
     expect(dialogue.queue[1]).toContain('eastern wind');
   });
+
+  test('Viridian Pokemon Center nurse stub heals the current party', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runtime.party[0].hp = 1;
+    runtime.party[0].status = 'poison';
+    runtime.party[1].hp = 5;
+
+    expect(
+      runScriptById(
+        'ViridianCity_PokemonCenter_1F_EventScript_Nurse',
+        { player, dialogue, runtime },
+        prototypeScriptRegistry
+      )
+    ).toBe(true);
+
+    expect(runtime.party[0].hp).toBe(runtime.party[0].maxHp);
+    expect(runtime.party[0].status).toBe('none');
+    expect(runtime.party[1].hp).toBe(runtime.party[1].maxHp);
+    expect(dialogue.queue).toEqual([
+      'Welcome to our POKeMON CENTER! We heal your POKeMON back to perfect health.',
+      "Okay, I'll take your POKeMON for a few seconds.",
+      "We've restored your POKeMON to full health.",
+      'We hope to see you again!'
+    ]);
+  });
 });

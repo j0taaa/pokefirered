@@ -1,104 +1,44 @@
 /**
- * Singles healthbox art mirrors `gHealthboxSingles*Gfx` + `CreateBattlerHealthboxSprites`
- * (`battle_interface.c`): two OAM entries per box, each **64px wide** (64×32 foe,
- * 64×64 player after `oam.shape` change), `tileNum` gap `32` / `64` tiles.
+ * Singles healthbox art mirrors `gHealthboxSingles*Gfx` + `LoadSpriteSheet` /
+ * `CreateBattlerHealthboxSprites` (`battle_interface.c`): linear 4bpp tile
+ * bytes (same layout as `tools/gbagfx` `ConvertToTiles4Bpp`) are decoded with
+ * no 2×2 transpose — matching OBJ VRAM + `DISPCNT_OBJ_1D_MAP`.
  *
- * With `DISPCNT_OBJ_1D_MAP` (`battle_bg.c`), character tiles are linear in VRAM, but
- * each **64px-wide OBJ** still packs its 8×8 tiles in the hardware **2×2
- * macro-block** order used by the GBA OBJ renderer (same reason two 64-wide
- * halves are separate sprites). Raw `healthbox_singles_*.png` dumps match the
- * sheet file order; we **transpose 2×2 within each 64px half** so pixels match
- * what the PPU shows, then treat palette index 0 as transparent (OBJ treats
- * index 0 as clear; PNG uses `#000000` without `tRNS`).
+ * Palette: `graphics/battle_interface/healthbox.pal` (JASC); OBJ treats palette
+ * index 0 as transparent (`parseJascPalette` forces alpha 0 on index 0).
  *
- * OAM top-left: `InitBattlerHealthboxCoords` + `CalcCenterToCornerVec` (`sprite.c`)
- * — see `battleScreenLayout.ts`.
+ * Tile bytes are embedded as base64 in `healthboxSingles4bppB64.ts` (generated
+ * from the repo PNGs via `scripts/gen_healthbox_singles_tile_b64.py`).
+ *
+ * OAM top-left: `InitBattlerHealthboxCoords` + `CalcCenterToCornerVec` — see
+ * `battleScreenLayout.ts`.
  */
 
 import type { BattleHealthboxOamAnchor } from './battleScreenLayout';
+import { decodeGba4bppTilesToImageData, parseJascPalette } from './gbaTileDecode';
+import healthboxPalRaw from '../../../graphics/battle_interface/healthbox.pal?raw';
 
-const blitQuarter = (
-  ctx: CanvasRenderingContext2D,
-  img: CanvasImageSource,
-  sx: number,
-  sy: number,
-  sw: number,
-  sh: number,
-  dx: number,
-  dy: number,
-  dw: number,
-  dh: number
-): void => {
-  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
-};
-
-/** Transpose 2×2 grid inside [sx,sy,sx+rw,sy+rh] of `img` onto [dx,dy,dx+destW,dy+destH]. */
-const blitTranspose2x2InRect = (
-  ctx: CanvasRenderingContext2D,
-  img: CanvasImageSource,
-  sx: number,
-  sy: number,
-  rw: number,
-  rh: number,
-  dx: number,
-  dy: number,
-  destW: number,
-  destH: number
-): void => {
-  const qw = rw / 2;
-  const qh = rh / 2;
-  const dw = destW / 2;
-  const dh = destH / 2;
-
-  blitQuarter(ctx, img, sx, sy, qw, qh, dx, dy, dw, dh);
-  blitQuarter(ctx, img, sx, sy + qh, qw, qh, dx + dw, dy, dw, dh);
-  blitQuarter(ctx, img, sx + qw, sy, qw, qh, dx, dy + dh, dw, dh);
-  blitQuarter(ctx, img, sx + qw, sy + qh, qw, qh, dx + dw, dy + dh, dw, dh);
-};
-
-const applyObjPaletteZeroTransparency = (
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number
-): void => {
-  const data = ctx.getImageData(0, 0, w, h);
-  const px = data.data;
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i] === 0 && px[i + 1] === 0 && px[i + 2] === 0) {
-      px[i + 3] = 0;
-    }
-  }
-  ctx.putImageData(data, 0, 0);
-};
+const healthboxPalette = parseJascPalette(healthboxPalRaw);
 
 /**
- * Build a 128×32 or 128×64 canvas: OBJ-style 2×2 transpose per 64px half, then
- * clear alpha for palette slot 0 (`#000000`).
+ * Decode ROM-linear 4bpp tiles to a canvas the same size as the singles PNG
+ * sheet (128×32 foe, 128×64 player).
  */
-export const buildPreparedSinglesHealthboxSheet = (
-  img: HTMLImageElement,
-  kind: 'opponent' | 'player'
+export const buildPreparedSinglesHealthboxSheetFromTileBytes = (
+  tileBytes: Uint8Array,
+  widthPx: number,
+  heightPx: number
 ): HTMLCanvasElement => {
-  const w = img.naturalWidth;
-  const h = kind === 'opponent' ? 32 : 64;
+  const imgData = decodeGba4bppTilesToImageData(tileBytes, widthPx, heightPx, healthboxPalette);
   const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
+  out.width = widthPx;
+  out.height = heightPx;
   const ctx = out.getContext('2d');
   if (!ctx) {
     throw new Error('2d context unavailable for healthbox prep');
   }
   ctx.imageSmoothingEnabled = false;
-
-  if (kind === 'opponent') {
-    blitTranspose2x2InRect(ctx, img, 0, 0, 64, 32, 0, 0, 64, 32);
-    blitTranspose2x2InRect(ctx, img, 64, 0, 64, 32, 64, 0, 64, 32);
-  } else {
-    blitTranspose2x2InRect(ctx, img, 0, 0, 64, 64, 0, 0, 64, 64);
-    blitTranspose2x2InRect(ctx, img, 64, 0, 64, 64, 64, 0, 64, 64);
-  }
-
-  applyObjPaletteZeroTransparency(ctx, w, h);
+  ctx.putImageData(imgData, 0, 0);
   return out;
 };
 
@@ -111,21 +51,8 @@ export const blitSinglesOpponentHealthbox = (
 ): void => {
   const { oamX, oamY } = anchor;
   const halfDestW = destW / 2;
-  const halfDestH = destH;
-
-  blitTranspose2x2InRect(ctx, img, 0, 0, 64, 32, oamX, oamY, halfDestW, halfDestH);
-  blitTranspose2x2InRect(
-    ctx,
-    img,
-    64,
-    0,
-    64,
-    32,
-    oamX + halfDestW,
-    oamY,
-    halfDestW,
-    halfDestH
-  );
+  ctx.drawImage(img, 0, 0, 64, 32, oamX, oamY, halfDestW, destH);
+  ctx.drawImage(img, 64, 0, 64, 32, oamX + halfDestW, oamY, halfDestW, destH);
 };
 
 export const blitSinglesPlayerHealthbox = (
@@ -137,19 +64,6 @@ export const blitSinglesPlayerHealthbox = (
 ): void => {
   const { oamX, oamY } = anchor;
   const halfDestW = destW / 2;
-  const halfDestH = destH;
-
-  blitTranspose2x2InRect(ctx, img, 0, 0, 64, 64, oamX, oamY, halfDestW, halfDestH);
-  blitTranspose2x2InRect(
-    ctx,
-    img,
-    64,
-    0,
-    64,
-    64,
-    oamX + halfDestW,
-    oamY,
-    halfDestW,
-    halfDestH
-  );
+  ctx.drawImage(img, 0, 0, 64, 64, oamX, oamY, halfDestW, destH);
+  ctx.drawImage(img, 64, 0, 64, 64, oamX + halfDestW, oamY, halfDestW, destH);
 };

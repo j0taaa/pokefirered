@@ -111,3 +111,14 @@ export const addPokemonToParty = (party: FieldPokemon[], pokemon: FieldPokemon):
 
 export const getSpeciesDisplayName = (species: string): string =>
   normalizeSpecies(species).replace(/_/gu, ' ');
+
+export const healFieldPokemon = (pokemon: FieldPokemon): void => {
+  pokemon.hp = pokemon.maxHp;
+  pokemon.status = 'none';
+};
+
+export const healParty = (party: FieldPokemon[]): void => {
+  for (const pokemon of party) {
+    healFieldPokemon(pokemon);
+  }
+};
