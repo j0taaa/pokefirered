@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { resolveMapConnectionTransition } from '../src/game/mapConnections';
 import {
   loadMapById,
+  loadCeladonCityMap,
   loadCeruleanCityMap,
   loadLavenderTownMap,
   loadPalletTownMap,
@@ -244,6 +245,7 @@ describe('map connections', () => {
   });
 
   test('matches Route 5/6/7/8/9/10 decomp connection offsets', () => {
+    const celadon = loadCeladonCityMap();
     const route5 = loadRoute5Map();
     const route6 = loadRoute6Map();
     const route7 = loadRoute7Map();
@@ -251,6 +253,10 @@ describe('map connections', () => {
     const route9 = loadRoute9Map();
     const route10 = loadRoute10Map();
 
+    expect(celadon.connections).toEqual([
+      { map: 'MAP_ROUTE16', offset: 10, direction: 'left' },
+      { map: 'MAP_ROUTE7', offset: 10, direction: 'right' }
+    ]);
     expect(route5.connections).toEqual([
       { map: 'MAP_CERULEAN_CITY', offset: 0, direction: 'up' },
       { map: 'MAP_SAFFRON_CITY_CONNECTION', offset: 0, direction: 'down' }
@@ -317,6 +323,22 @@ describe('map connections', () => {
     expect(transition?.playerPosition).toEqual({ x: 0, y: 8 * 16 });
   });
 
+  test('transitions from Route 7 west edge into Celadon City using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute7Map(), 0, 2, 'left', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_CELADON_CITY');
+    expect(transition?.playerPosition).toEqual({ x: 59 * 16, y: 12 * 16 });
+  });
+
+  test('transitions from Celadon City east edge into Route 7 using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadCeladonCityMap(), 59, 12, 'right', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE7');
+    expect(transition?.playerPosition).toEqual({ x: 0, y: 2 * 16 });
+  });
+
   test('transitions from Route 10 west edge into Route 9 using the reciprocal offset', () => {
     const transition = resolveMapConnectionTransition(loadRoute10Map(), 0, 8, 'left', loadMapById);
 
@@ -326,6 +348,8 @@ describe('map connections', () => {
   });
 
   test('rejects Route 9/10 coordinates outside the connected overlap', () => {
+    expect(resolveMapConnectionTransition(loadCeladonCityMap(), 59, 9, 'right', loadMapById)).toBeNull();
+    expect(resolveMapConnectionTransition(loadCeladonCityMap(), 59, 30, 'right', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadCeruleanCityMap(), 47, 30, 'right', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute9Map(), 0, 2, 'left', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadRoute9Map(), 71, 0, 'right', loadMapById)).toBeNull();
@@ -333,6 +357,7 @@ describe('map connections', () => {
   });
 
   test('loads Route 5/6/7/8/9/10 through the shared map loader', () => {
+    expect(loadMapById('MAP_CELADON_CITY')?.id).toBe('MAP_CELADON_CITY');
     expect(loadMapById('MAP_ROUTE5')?.id).toBe('MAP_ROUTE5');
     expect(loadMapById('MAP_ROUTE6')?.id).toBe('MAP_ROUTE6');
     expect(loadMapById('MAP_ROUTE7')?.id).toBe('MAP_ROUTE7');
@@ -435,5 +460,9 @@ describe('map connections', () => {
 
   test('loads Lavender Town through the shared map loader', () => {
     expect(loadMapById('MAP_LAVENDER_TOWN')?.id).toBe('MAP_LAVENDER_TOWN');
+  });
+
+  test('returns null for Celadon City left edge because Route 16 is still unloaded', () => {
+    expect(resolveMapConnectionTransition(loadCeladonCityMap(), 0, 10, 'left', loadMapById)).toBeNull();
   });
 });

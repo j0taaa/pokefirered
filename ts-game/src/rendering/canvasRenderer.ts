@@ -36,6 +36,9 @@ import areaMarker5Url from '../../../graphics/pokedex/area_markers/marker_5.png'
 import areaMarker6Url from '../../../graphics/pokedex/area_markers/marker_6.png';
 import trainerLeafUrl from '../../../graphics/trainers/front_pics/leaf_front_pic.png';
 import trainerRedUrl from '../../../graphics/trainers/front_pics/red_front_pic.png';
+import battleHealthboxOpponentUrl from '../../../graphics/battle_interface/healthbox_singles_opponent.png';
+import battleHealthboxPlayerUrl from '../../../graphics/battle_interface/healthbox_singles_player.png';
+import battleTextboxTilesUrl from '../../../graphics/battle_interface/textbox.png';
 import partyBgTilesheetUrl from '../../../graphics/party_menu/bg.png';
 import partyPokeballUrl from '../../../graphics/party_menu/pokeball.png';
 import trainerCardBackBinUrl from '../../../graphics/trainer_card/back.bin?url';
@@ -206,6 +209,7 @@ import {
 import {
   BATTLE_ACTION_MENU_WINDOW,
   BATTLE_ACTION_PROMPT_WINDOW,
+  BATTLE_COMMAND_CHAR_ADVANCE,
   BATTLE_COMMAND_LABELS,
   BATTLE_GBA_HEIGHT,
   BATTLE_GBA_WIDTH,
@@ -218,6 +222,10 @@ import {
   BATTLE_SINGLE_HEALTHBOX_COORDS,
   BATTLE_TYPE_BOX
 } from './battleScreenLayout';
+import {
+  buildBattleTextboxBackgroundCanvas,
+  loadBattleTextboxTilemapBytes
+} from './battleTextboxBackground';
 import {
   BAG_CONTEXT_MENU_CURSOR_X,
   BAG_CONTEXT_MENU_FIRST_ROW_Y,
@@ -340,6 +348,12 @@ export class CanvasRenderer {
   ];
   private readonly itemIcons = this.loadItemIcons();
   private readonly pokemonIcons = this.loadPokemonIcons();
+  private readonly pokemonBattlePics = this.loadPokemonBattlePics();
+  private readonly battleTextboxTiles = this.loadImage(battleTextboxTilesUrl);
+  private readonly battleHealthboxOpponent = this.loadImage(battleHealthboxOpponentUrl);
+  private readonly battleHealthboxPlayer = this.loadImage(battleHealthboxPlayerUrl);
+  private battleTextboxComposite: HTMLCanvasElement | null = null;
+  private battleTextboxAssetsReady: Promise<void> | null = null;
   private activeFrameType = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -427,6 +441,35 @@ export class CanvasRenderer {
       });
     }
     return this.partyMenuAssetsReady;
+  }
+
+  private ensureBattleTextboxAssetsLoaded(): Promise<void> {
+    if (this.battleTextboxComposite) {
+      return Promise.resolve();
+    }
+    if (!this.battleTextboxAssetsReady) {
+      this.battleTextboxAssetsReady = (async () => {
+        try {
+          await this.waitForImageLoad(this.battleTextboxTiles);
+          const tilemap = await loadBattleTextboxTilemapBytes();
+          this.battleTextboxComposite = buildBattleTextboxBackgroundCanvas(this.battleTextboxTiles, tilemap);
+        } catch {
+          this.battleTextboxComposite = null;
+        }
+      })().finally(() => {
+        this.battleTextboxAssetsReady = null;
+      });
+    }
+    return this.battleTextboxAssetsReady;
+  }
+
+  /** Preload battle BG textbox + healthbox images before first battle frame (optional). */
+  preloadBattleUiAssets(): Promise<void> {
+    return Promise.all([
+      this.ensureBattleTextboxAssetsLoaded(),
+      this.waitForImageLoad(this.battleHealthboxOpponent),
+      this.waitForImageLoad(this.battleHealthboxPlayer)
+    ]).then(() => {});
   }
 
   resize(width: number, height: number): void {
@@ -543,6 +586,45 @@ export class CanvasRenderer {
     return icons;
   }
 
+  private loadPokemonBattlePics(): Map<string, { front: HTMLImageElement; back: HTMLImageElement }> {
+    const frontModules = import.meta.glob('../../../graphics/pokemon/**/front.png', {
+      eager: true,
+      import: 'default'
+    }) as Record<string, string>;
+    const backModules = import.meta.glob('../../../graphics/pokemon/**/back.png', {
+      eager: true,
+      import: 'default'
+    }) as Record<string, string>;
+
+    const byDir = new Map<string, { front?: HTMLImageElement; back?: HTMLImageElement }>();
+    for (const [modulePath, src] of Object.entries(frontModules)) {
+      const speciesDir = modulePath.split('/').at(-2);
+      if (!speciesDir) {
+        continue;
+      }
+      const row = byDir.get(speciesDir) ?? {};
+      row.front = this.loadImage(src);
+      byDir.set(speciesDir, row);
+    }
+    for (const [modulePath, src] of Object.entries(backModules)) {
+      const speciesDir = modulePath.split('/').at(-2);
+      if (!speciesDir) {
+        continue;
+      }
+      const row = byDir.get(speciesDir) ?? {};
+      row.back = this.loadImage(src);
+      byDir.set(speciesDir, row);
+    }
+
+    const out = new Map<string, { front: HTMLImageElement; back: HTMLImageElement }>();
+    for (const [speciesDir, pair] of byDir) {
+      if (pair.front && pair.back) {
+        out.set(speciesDir.toUpperCase(), { front: pair.front, back: pair.back });
+      }
+    }
+    return out;
+  }
+
   /** Map GBA X (0–239) to canvas pixels (`start_menu.c` uses 240-wide field BG). */
   private gbaX(px: number): number {
     return (px * this.canvas.width) / GBA_VIEW_WIDTH;
@@ -623,16 +705,24 @@ export class CanvasRenderer {
   }
 
   private drawBattleMonster(species: string, x: number, y: number, side: 'player' | 'opponent'): void {
-    const icon = this.pokemonIcons.get(species);
+    const key = species.toUpperCase();
+    const pics = this.pokemonBattlePics.get(key);
+    const pic = side === 'opponent' ? pics?.front : pics?.back;
+    const icon = this.pokemonIcons.get(key);
+    const img = pic?.complete && pic.naturalWidth > 0 ? pic : icon;
+
     this.ctx.save();
+    this.ctx.translate(x, y);
     if (side === 'player') {
-      this.ctx.translate(x, y);
       this.ctx.scale(-1, 1);
     }
 
-    if (icon?.complete && icon.naturalWidth > 0) {
-      const drawX = side === 'player' ? -16 : -16;
-      this.ctx.drawImage(icon, drawX, -16, 32, 32);
+    if (img && img.complete && img.naturalWidth > 0) {
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+      const dw = 64;
+      const dh = 64;
+      this.ctx.drawImage(img, 0, 0, nw, nh, -dw / 2, -dh / 2, dw, dh);
     } else {
       this.ctx.fillStyle = side === 'player' ? '#f7f7fb' : '#f4f4f4';
       this.ctx.beginPath();
@@ -651,9 +741,24 @@ export class CanvasRenderer {
     const pokemon = side === 'player' ? battle.playerMon : battle.wildMon;
     const box = side === 'player' ? BATTLE_SINGLE_HEALTHBOX_COORDS.player : BATTLE_SINGLE_HEALTHBOX_COORDS.opponent;
 
-    this.drawWindowFrame(box.x, box.y, box.w, box.h, 'std');
+    const hb = side === 'opponent' ? this.battleHealthboxOpponent : this.battleHealthboxPlayer;
+    if (hb.complete && hb.naturalWidth > 0) {
+      const nw = hb.naturalWidth;
+      const nh = hb.naturalHeight;
+      if (side === 'opponent') {
+        this.ctx.drawImage(hb, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
+      } else {
+        const destH = Math.round((box.h * 48) / 30);
+        const destY = box.y - (destH - box.h);
+        this.ctx.drawImage(hb, 0, 0, nw, nh, box.x - 12, destY, box.w + 24, destH);
+      }
+    } else {
+      this.drawWindowFrame(box.x, box.y, box.w, box.h, 'std');
+    }
+
     this.drawSmallText(side === 'player' ? pokemon.species : `FOE ${pokemon.species}`, box.x + 8, box.y + 6);
-    this.drawSmallText(`Lv${pokemon.level}`, box.x + box.w - 28, box.y + 6);
+    const lvStr = `Lv${pokemon.level}`;
+    this.drawSmallText(lvStr, box.x + box.w - 8 - this.measureSmallTextWidth(lvStr), box.y + 6);
     if (side === 'player') {
       this.drawSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + 8, box.y + 18);
       this.drawPartyHpBarGba(box.x + 34, box.y + 19, 34, pokemon.hp, pokemon.maxHp);
@@ -666,24 +771,48 @@ export class CanvasRenderer {
     }
   }
 
+  private battleTextboxLayerReady(): boolean {
+    const c = this.battleTextboxComposite;
+    return !!(c && c.width > 0);
+  }
+
+  private drawBattleMonoCommandLabel(text: string, x: number, y: number, fillStyle = '#20305f'): void {
+    this.ctx.save();
+    this.ctx.font = 'bold 10px "Trebuchet MS", sans-serif';
+    this.ctx.fillStyle = fillStyle;
+    this.ctx.textBaseline = 'top';
+    let cx = x;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i]!;
+      this.ctx.fillText(ch, cx, y);
+      cx += BATTLE_COMMAND_CHAR_ADVANCE;
+    }
+    this.ctx.restore();
+  }
+
   private drawBattleCommandMenu(battle: BattleState): void {
-    this.drawWindowFrame(
-      BATTLE_ACTION_PROMPT_WINDOW.x,
-      BATTLE_ACTION_PROMPT_WINDOW.y,
-      BATTLE_ACTION_PROMPT_WINDOW.w,
-      BATTLE_ACTION_PROMPT_WINDOW.h,
-      'std'
-    );
+    const tiled = this.battleTextboxLayerReady();
+    if (!tiled) {
+      this.drawWindowFrame(
+        BATTLE_ACTION_PROMPT_WINDOW.x,
+        BATTLE_ACTION_PROMPT_WINDOW.y,
+        BATTLE_ACTION_PROMPT_WINDOW.w,
+        BATTLE_ACTION_PROMPT_WINDOW.h,
+        'std'
+      );
+    }
     const promptLines = this.wrapMenuText(battle.turnSummary, BATTLE_ACTION_PROMPT_WINDOW.w - 12);
     this.drawTextLines(promptLines.slice(0, 2), BATTLE_ACTION_PROMPT_WINDOW.x + 6, BATTLE_ACTION_PROMPT_WINDOW.y + 6, 12);
 
-    this.drawWindowFrame(
-      BATTLE_ACTION_MENU_WINDOW.x,
-      BATTLE_ACTION_MENU_WINDOW.y,
-      BATTLE_ACTION_MENU_WINDOW.w,
-      BATTLE_ACTION_MENU_WINDOW.h,
-      'std'
-    );
+    if (!tiled) {
+      this.drawWindowFrame(
+        BATTLE_ACTION_MENU_WINDOW.x,
+        BATTLE_ACTION_MENU_WINDOW.y,
+        BATTLE_ACTION_MENU_WINDOW.w,
+        BATTLE_ACTION_MENU_WINDOW.h,
+        'std'
+      );
+    }
 
     BATTLE_COMMAND_LABELS.forEach((entry, index) => {
       if (battle.commands[index] === undefined) {
@@ -692,18 +821,20 @@ export class CanvasRenderer {
       if (index === battle.selectedCommandIndex) {
         this.drawCursor(entry.x - 8, entry.y - 2);
       }
-      this.drawMenuText(entry.command.toUpperCase(), entry.x, entry.y);
+      this.drawBattleMonoCommandLabel(entry.label, entry.x, entry.y);
     });
   }
 
   private drawBattleMoveMenu(battle: BattleState): void {
-    this.drawWindowFrame(
-      BATTLE_MOVE_MENU_WINDOW.x,
-      BATTLE_MOVE_MENU_WINDOW.y,
-      BATTLE_MOVE_MENU_WINDOW.w,
-      BATTLE_MOVE_MENU_WINDOW.h,
-      'std'
-    );
+    if (!this.battleTextboxLayerReady()) {
+      this.drawWindowFrame(
+        BATTLE_MOVE_MENU_WINDOW.x,
+        BATTLE_MOVE_MENU_WINDOW.y,
+        BATTLE_MOVE_MENU_WINDOW.w,
+        BATTLE_MOVE_MENU_WINDOW.h,
+        'std'
+      );
+    }
 
     BATTLE_MOVE_SLOTS.forEach((slot) => {
       const move = battle.moves[slot.index];
@@ -721,9 +852,13 @@ export class CanvasRenderer {
       return;
     }
 
-    this.drawWindowFrame(BATTLE_PP_BOX.x, BATTLE_PP_BOX.y, BATTLE_PP_BOX.w, BATTLE_PP_BOX.h, 'std');
+    if (!this.battleTextboxLayerReady()) {
+      this.drawWindowFrame(BATTLE_PP_BOX.x, BATTLE_PP_BOX.y, BATTLE_PP_BOX.w, BATTLE_PP_BOX.h, 'std');
+    }
     this.drawSmallText(`PP ${move.ppRemaining}/${move.pp}`, BATTLE_PP_BOX.x + 4, BATTLE_PP_BOX.y + 3);
-    this.drawWindowFrame(BATTLE_TYPE_BOX.x, BATTLE_TYPE_BOX.y, BATTLE_TYPE_BOX.w, BATTLE_TYPE_BOX.h, 'std');
+    if (!this.battleTextboxLayerReady()) {
+      this.drawWindowFrame(BATTLE_TYPE_BOX.x, BATTLE_TYPE_BOX.y, BATTLE_TYPE_BOX.w, BATTLE_TYPE_BOX.h, 'std');
+    }
     this.drawSmallText(move.type.toUpperCase(), BATTLE_TYPE_BOX.x + 4, BATTLE_TYPE_BOX.y + 1);
   }
 
@@ -749,12 +884,15 @@ export class CanvasRenderer {
   }
 
   private drawBattleMessageWindow(battle: BattleState): void {
-    this.drawWindowFrame(BATTLE_MESSAGE_WINDOW.x, BATTLE_MESSAGE_WINDOW.y, BATTLE_MESSAGE_WINDOW.w, BATTLE_MESSAGE_WINDOW.h, 'std');
+    if (!this.battleTextboxLayerReady()) {
+      this.drawWindowFrame(BATTLE_MESSAGE_WINDOW.x, BATTLE_MESSAGE_WINDOW.y, BATTLE_MESSAGE_WINDOW.w, BATTLE_MESSAGE_WINDOW.h, 'std');
+    }
     const lines = this.wrapMenuText(battle.turnSummary, BATTLE_MESSAGE_WINDOW.w - 12);
     this.drawTextLines(lines.slice(0, 2), BATTLE_MESSAGE_WINDOW.x + 6, BATTLE_MESSAGE_WINDOW.y + 6, 12);
   }
 
   private drawBattleScreen(battle: BattleState, runtime: ScriptRuntimeState, bag?: BagState): void {
+    void this.ensureBattleTextboxAssetsLoaded();
     this.activeFrameType = Math.max(0, Math.min(runtime.options.frameType ?? 0, this.stdWindowFrames.length - 1));
     const { end } = this.beginPartyScreenPixelSpace();
     const palette = this.getBattleTerrainColors(battle.terrain);
@@ -773,6 +911,11 @@ export class CanvasRenderer {
     this.ctx.strokeStyle = palette.accent;
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
+
+    const tb = this.battleTextboxComposite;
+    if (tb) {
+      this.ctx.drawImage(tb, 0, 0);
+    }
 
     this.drawBattleMonster(battle.wildMon.species, BATTLE_SINGLE_BATTLER_COORDS.opponent.x, BATTLE_SINGLE_BATTLER_COORDS.opponent.y, 'opponent');
     this.drawBattleMonster(battle.playerMon.species, BATTLE_SINGLE_BATTLER_COORDS.player.x, BATTLE_SINGLE_BATTLER_COORDS.player.y, 'player');

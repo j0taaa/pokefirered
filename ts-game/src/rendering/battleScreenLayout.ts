@@ -1,10 +1,10 @@
 /**
  * FireRed single-battle scene coordinates, kept in GBA pixels.
- * Battler and healthbox anchors mirror decomp values from `battle_anim_mons.c`
- * and `battle_interface.c::InitBattlerHealthboxCoords`.
+ * Battler anchors mirror `battle_anim_mons.c`; healthbox sprite roots mirror
+ * `battle_interface.c::InitBattlerHealthboxCoords`.
  *
- * Bottom text / prompt / PP / type panels use the **standard** window frame (`DrawStdWindowFrame`),
- * not the dialogue `menu_message` box — same as field menus in this port.
+ * Bottom panels use the battle textbox tile layer (`gBattleInterface_Textbox_*`) plus
+ * bitmap healthbox art — not the field `std.png` nine-slice.
  */
 
 export const BATTLE_GBA_WIDTH = 240;
@@ -26,11 +26,14 @@ export const BATTLE_ACTION_MENU_WINDOW = { x: 136, y: 120, w: 96, h: 32 } as con
 export const BATTLE_MOVE_MENU_WINDOW = { x: 8, y: 120, w: 224, h: 32 } as const;
 export const BATTLE_LIST_WINDOW = { x: 8, y: 100, w: 224, h: 52 } as const;
 
+/** Monospace-style advance for battle command text (avoids proportional-font overlap). */
+export const BATTLE_COMMAND_CHAR_ADVANCE = 7;
+
 export const BATTLE_COMMAND_LABELS = [
-  { command: 'fight', x: 152, y: 126 },
-  { command: 'bag', x: 192, y: 126 },
-  { command: 'pokemon', x: 152, y: 140 },
-  { command: 'run', x: 192, y: 140 }
+  { command: 'fight' as const, label: 'FIGHT', x: 140, y: 124 },
+  { command: 'bag' as const, label: 'BAG', x: 200, y: 124 },
+  { command: 'pokemon' as const, label: 'POKéMON', x: 136, y: 138 },
+  { command: 'run' as const, label: 'RUN', x: 204, y: 138 }
 ] as const;
 
 export const BATTLE_MOVE_SLOTS = [

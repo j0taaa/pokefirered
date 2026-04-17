@@ -1,3 +1,4 @@
+import celadonCityMapJson from './maps/celadonCity.json';
 import ceruleanCityMapJson from './maps/ceruleanCity.json';
 import lavenderTownMapJson from './maps/lavenderTown.json';
 import palletTownMapJson from './maps/palletTown.json';
@@ -709,6 +710,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
 export const loadPalletTownMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(palletTownMapJson));
 
+export const loadCeladonCityMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(celadonCityMapJson));
+
 export const loadCeruleanCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(ceruleanCityMapJson));
 
@@ -780,6 +784,8 @@ export const loadViridianCityMap = (): TileMap =>
 
 export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
+    case 'MAP_CELADON_CITY':
+      return loadCeladonCityMap();
     case 'MAP_CERULEAN_CITY':
       return loadCeruleanCityMap();
     case 'MAP_LAVENDER_TOWN':
