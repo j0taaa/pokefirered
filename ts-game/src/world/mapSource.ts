@@ -1,3 +1,4 @@
+import cinnabarIslandMapJson from './maps/cinnabarIsland.json';
 import fuchsiaCityMapJson from './maps/fuchsiaCity.json';
 import celadonCityMapJson from './maps/celadonCity.json';
 import ceruleanCityMapJson from './maps/ceruleanCity.json';
@@ -715,6 +716,9 @@ export const loadPalletTownMap = (): TileMap =>
 export const loadCeladonCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(celadonCityMapJson));
 
+export const loadCinnabarIslandMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(cinnabarIslandMapJson));
+
 export const loadCeruleanCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(ceruleanCityMapJson));
 
@@ -794,6 +798,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
   switch (mapId) {
     case 'MAP_CELADON_CITY':
       return loadCeladonCityMap();
+    case 'MAP_CINNABAR_ISLAND':
+      return loadCinnabarIslandMap();
     case 'MAP_CERULEAN_CITY':
       return loadCeruleanCityMap();
     case 'MAP_FUCHSIA_CITY':

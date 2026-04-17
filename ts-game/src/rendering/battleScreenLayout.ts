@@ -16,28 +16,35 @@ export const BATTLE_SINGLE_BATTLER_COORDS = {
 } as const;
 
 /**
- * Singles healthbox bitmaps match two OAM pieces side by side (`SpriteCB_HealthBoxOther`: +64px).
- * Opponent: `InitBattlerHealthboxCoords` is the top-left of the full 128×32 sheet.
- * Player: ROM x is the horizontal center of the 128×64 sheet (main + other 64×64 tiles).
+ * Healthbox placement: `InitBattlerHealthboxCoords` sets `sprite->x/y`; OAM
+ * top-left is `x + centerToCornerVec` (`CalcCenterToCornerVec` in `sprite.c`).
+ * - Opponent `SPRITE_SIZE_64x32` (horizontal, size 3): vec (−32, −16).
+ * - Player singles switches `oam.shape` to 64×64 **after** `CreateSprite` runs; the
+ *   sprite’s `centerToCornerVec` is still from the initial 64×32 template (−32, −16).
  */
-export const BATTLE_SINGLE_HEALTHBOX_COORDS = {
-  opponent: { x: 44, y: 30, w: 128, h: 32 },
-  player: { x: 158 - 64, y: 88, w: 128, h: 64 }
+export const BATTLE_HEALTHBOX_OAM_ANCHOR = {
+  opponent: { oamX: 44 - 32, oamY: 30 - 16 },
+  player: { oamX: 158 - 32, oamY: 88 - 16 }
 } as const;
 
-/** Text / HP bar overlay offsets relative to each sheet’s top-left (8px grid, tuned to PNG layout). */
+export type BattleHealthboxOamAnchor = (typeof BATTLE_HEALTHBOX_OAM_ANCHOR)[keyof typeof BATTLE_HEALTHBOX_OAM_ANCHOR];
+
+export const BATTLE_SINGLE_HEALTHBOX_DIM = {
+  opponent: { w: 128, h: 32 },
+  player: { w: 128, h: 64 }
+} as const;
+
+/** Text overlays relative to **OAM top-left** of the 128px-wide composite (`getSinglesHealthboxDrawRect`). */
 export const BATTLE_HEALTHBOX_OVERLAY = {
   opponent: {
-    species: { dx: 10, dy: 5 },
+    species: { dx: 42, dy: 8 },
     levelFromRight: 36,
-    hpBar: { dx: 56, dy: 16, w: 64 },
     statusFromBottom: 10
   },
   player: {
     species: { dx: 14, dy: 8 },
     levelFromRight: 40,
-    hpText: { dx: 14, dy: 24 },
-    hpBar: { dx: 44, dy: 38, w: 72 },
+    hpText: { dx: 14, dy: 26 },
     statusFromBottom: 10
   }
 } as const;

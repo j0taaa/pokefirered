@@ -213,6 +213,7 @@ import {
   BATTLE_COMMAND_LABELS,
   BATTLE_GBA_HEIGHT,
   BATTLE_GBA_WIDTH,
+  BATTLE_HEALTHBOX_OAM_ANCHOR,
   BATTLE_HEALTHBOX_OVERLAY,
   BATTLE_LIST_WINDOW,
   BATTLE_MESSAGE_WINDOW,
@@ -220,7 +221,7 @@ import {
   BATTLE_MOVE_SLOTS,
   BATTLE_PP_BOX,
   BATTLE_SINGLE_BATTLER_COORDS,
-  BATTLE_SINGLE_HEALTHBOX_COORDS,
+  BATTLE_SINGLE_HEALTHBOX_DIM,
   BATTLE_TYPE_BOX
 } from './battleScreenLayout';
 import { blitSinglesOpponentHealthbox, blitSinglesPlayerHealthbox } from './battleHealthboxBlit';
@@ -741,14 +742,16 @@ export class CanvasRenderer {
     side: 'player' | 'opponent'
   ): void {
     const pokemon = side === 'player' ? battle.playerMon : battle.wildMon;
-    const box = side === 'player' ? BATTLE_SINGLE_HEALTHBOX_COORDS.player : BATTLE_SINGLE_HEALTHBOX_COORDS.opponent;
+    const dim = side === 'player' ? BATTLE_SINGLE_HEALTHBOX_DIM.player : BATTLE_SINGLE_HEALTHBOX_DIM.opponent;
+    const anchor = BATTLE_HEALTHBOX_OAM_ANCHOR[side];
+    const box = { x: anchor.oamX, y: anchor.oamY, w: dim.w, h: dim.h };
 
     const hb = side === 'opponent' ? this.battleHealthboxOpponent : this.battleHealthboxPlayer;
     if (hb.complete && hb.naturalWidth > 0) {
       if (side === 'opponent') {
-        blitSinglesOpponentHealthbox(this.ctx, hb, box.x, box.y, box.w, box.h);
+        blitSinglesOpponentHealthbox(this.ctx, hb, anchor, dim.w, dim.h);
       } else {
-        blitSinglesPlayerHealthbox(this.ctx, hb, box.x, box.y, box.w, box.h);
+        blitSinglesPlayerHealthbox(this.ctx, hb, anchor, dim.w, dim.h);
       }
     } else {
       const fallback =
@@ -770,7 +773,6 @@ export class CanvasRenderer {
         speciesY
       );
       this.drawSmallText(`HP ${pokemon.hp}/${pokemon.maxHp}`, box.x + ov.hpText.dx, box.y + ov.hpText.dy);
-      this.drawPartyHpBarGba(box.x + ov.hpBar.dx, box.y + ov.hpBar.dy, ov.hpBar.w, pokemon.hp, pokemon.maxHp);
       if (pokemon.status !== 'none') {
         this.drawSmallText(
           pokemon.status.toUpperCase(),
@@ -790,7 +792,6 @@ export class CanvasRenderer {
         box.x + box.w - ov.levelFromRight - this.measureSmallTextWidth(lvStr),
         speciesY
       );
-      this.drawPartyHpBarGba(box.x + ov.hpBar.dx, box.y + ov.hpBar.dy, ov.hpBar.w, pokemon.hp, pokemon.maxHp);
       if (pokemon.status !== 'none') {
         this.drawSmallText(
           pokemon.status.toUpperCase(),

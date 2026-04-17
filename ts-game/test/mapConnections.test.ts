@@ -3,6 +3,7 @@ import { resolveMapConnectionTransition } from '../src/game/mapConnections';
 import {
   loadMapById,
   loadCeladonCityMap,
+  loadCinnabarIslandMap,
   loadCeruleanCityMap,
   loadFuchsiaCityMap,
   loadLavenderTownMap,
@@ -534,6 +535,39 @@ describe('map connections', () => {
 
   test('loads Fuchsia City through the shared map loader', () => {
     expect(loadMapById('MAP_FUCHSIA_CITY')?.id).toBe('MAP_FUCHSIA_CITY');
+  });
+
+  test('matches Cinnabar Island decomp connection offsets', () => {
+    const cinnabar = loadCinnabarIslandMap();
+
+    expect(cinnabar.connections).toEqual([
+      { map: 'MAP_ROUTE21_SOUTH', offset: 0, direction: 'up' },
+      { map: 'MAP_ROUTE20', offset: 0, direction: 'right' }
+    ]);
+  });
+
+  test('transitions from Route 21 South south edge into Cinnabar Island using the decomp offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute21SouthMap(), 12, 49, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_CINNABAR_ISLAND');
+    expect(transition?.playerPosition).toEqual({ x: 12 * 16, y: 0 });
+  });
+
+  test('transitions from Cinnabar Island north edge into Route 21 South using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadCinnabarIslandMap(), 8, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE21_SOUTH');
+    expect(transition?.playerPosition).toEqual({ x: 8 * 16, y: 49 * 16 });
+  });
+
+  test('returns null for Cinnabar Island right edge because Route 20 is still unloaded', () => {
+    expect(resolveMapConnectionTransition(loadCinnabarIslandMap(), 23, 7, 'right', loadMapById)).toBeNull();
+  });
+
+  test('loads Cinnabar Island through the shared map loader', () => {
+    expect(loadMapById('MAP_CINNABAR_ISLAND')?.id).toBe('MAP_CINNABAR_ISLAND');
   });
 
   test('returns null for Celadon City left edge because Route 16 is still unloaded', () => {
