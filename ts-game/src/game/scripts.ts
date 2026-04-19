@@ -299,6 +299,112 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'system',
       'SPEAROW\nName: SPEARY'
     );
+  },
+  ViridianCity_EventScript_GymDoorLocked: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'system', [
+      "VIRIDIAN GYM's doors are locked..."
+    ]);
+  },
+  ViridianCity_EventScript_GymDoor: ({ dialogue, runtime }) => {
+    if (getScriptVar(runtime, 'VAR_MAP_SCENE_VIRIDIAN_CITY_GYM_DOOR') === 1) {
+      return;
+    }
+    openScriptDialogue(
+      dialogue,
+      'system',
+      "VIRIDIAN GYM's doors are locked..."
+    );
+  },
+  ViridianCity_EventScript_GymSign: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'sign',
+      'VIRIDIAN CITY\nPOKeMON GYM'
+    );
+  },
+  ViridianCity_Gym_EventScript_GymStatue: ({ dialogue, runtime }) => {
+    const defeated = isScriptFlagSet(runtime, 'FLAG_BADGE08_GET');
+    openScriptDialogue(
+      dialogue,
+      'sign',
+      defeated
+        ? 'VIRIDIAN POKeMON GYM\nLEADER: GIOVANNI'
+        : 'VIRIDIAN POKeMON GYM\nLEADER: ?'
+    );
+  },
+  ViridianCity_Gym_EventScript_Giovanni: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_GIOVANNI')) {
+      openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_GIOVANNI', [
+        'Having lost, I cannot face my underlings!',
+        'TEAM ROCKET is done forever!',
+        'I will dedicate my life to the study of POKeMON!',
+        'Let us meet again some day. Farewell!'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_GIOVANNI', [
+      'So, I must say, you have finally arrived.',
+      "I am GIOVANNI, the leader of TEAM ROCKET. I am the VIRIDIAN GYM's LEADER.",
+      "I've waited a long time for a challenger like you.",
+      '(Giovanni battle stub — trainer battle pending script engine.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
+    const defeated = isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_GIOVANNI');
+    if (defeated) {
+      openScriptDialogue(
+        dialogue,
+        'ViridianCity_Gym_ObjectEvent_GymGuy',
+        'Blow me away! GIOVANNI was the GYM LEADER of VIRIDIAN?'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_GymGuy', [
+      'Yo! Champ in the making!',
+      "Even I don't know the VIRIDIAN LEADER's identity.",
+      "But one thing's certain. This will be the toughest of all the GYM LEADERS.",
+      'Also, I heard that the TRAINERS here like GROUND-type POKeMON.'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Takashi: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Takashi', [
+      '(Takashi trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Yuji: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Yuji', [
+      '(Yuji trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Atsushi: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Atsushi', [
+      '(Atsushi trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Jason: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Jason', [
+      '(Jason trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Cole: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Cole', [
+      '(Cole trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Kiyo: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Kiyo', [
+      '(Kiyo trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Samuel: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Samuel', [
+      '(Samuel trainer battle stub — pending battle system.)'
+    ]);
+  },
+  ViridianCity_Gym_EventScript_Warren: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Warren', [
+      '(Warren trainer battle stub — pending battle system.)'
+    ]);
   }
 };
 
@@ -316,3 +422,33 @@ export const runScriptById = (
   context.runtime.lastScriptId = scriptId;
   return true;
 };
+
+const VIRIDIAN_GYM_DOOR_VAR = 'VAR_MAP_SCENE_VIRIDIAN_CITY_GYM_DOOR';
+
+const VIRIDIAN_GYM_REQUIRED_BADGES = [
+  'FLAG_BADGE02_GET',
+  'FLAG_BADGE03_GET',
+  'FLAG_BADGE04_GET',
+  'FLAG_BADGE05_GET',
+  'FLAG_BADGE06_GET',
+  'FLAG_BADGE07_GET'
+] as const;
+
+export const viridianCityTryUnlockGym = (runtime: ScriptRuntimeState): boolean => {
+  if (getScriptVar(runtime, VIRIDIAN_GYM_DOOR_VAR) !== 0) {
+    return false;
+  }
+
+  const allBadgesSet = VIRIDIAN_GYM_REQUIRED_BADGES.every((flag) =>
+    isScriptFlagSet(runtime, flag)
+  );
+  if (!allBadgesSet) {
+    return false;
+  }
+
+  setScriptVar(runtime, VIRIDIAN_GYM_DOOR_VAR, 1);
+  return true;
+};
+
+export const isViridianGymLocked = (runtime: ScriptRuntimeState): boolean =>
+  getScriptVar(runtime, VIRIDIAN_GYM_DOOR_VAR) === 0;

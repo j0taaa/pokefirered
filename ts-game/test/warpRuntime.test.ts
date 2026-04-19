@@ -16,6 +16,7 @@ import {
   loadPalletTownPlayersHouse1FMap,
   loadPalletTownPlayersHouse2FMap,
   loadPalletTownRivalsHouseMap,
+  loadViridianCityGymMap,
   loadViridianCityHouseMap,
   loadViridianCityMap,
   loadViridianCityMartMap,
@@ -408,5 +409,39 @@ describe('warp runtime', () => {
       status: 'not_activatable',
       sourceWarp: map.warps[0]
     });
+  });
+
+  test('resolves the Viridian City gym door warp into the loaded gym map', () => {
+    const map = loadViridianCityMap();
+    const player = createPlayer();
+    player.position = vec2(36 * map.tileSize, 10 * map.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(map, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const gymMap = loadViridianCityGymMap();
+    expect(result.sourceWarp).toEqual({ x: 36, y: 10, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_GYM', destWarpId: 1 });
+    expect(result.destinationMap!.id).toBe(gymMap.id);
+    expect(result.destinationWarp).toEqual(gymMap.warps[1]);
+    expect(result.playerPosition).toEqual({ x: 17 * 16, y: 22 * 16 });
+  });
+
+  test('resolves the Viridian City Gym exit warp back to loaded Viridian City', () => {
+    const map = loadViridianCityGymMap();
+    const player = createPlayer();
+    player.position = vec2(17 * map.tileSize, 22 * map.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(map, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const viridianMap = loadViridianCityMap();
+    expect(result.sourceWarp).toEqual({ x: 17, y: 22, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 2 });
+    expect(result.destinationMap!.id).toBe(viridianMap.id);
+    expect(result.destinationWarp).toEqual(viridianMap.warps[2]);
+    expect(result.playerPosition).toEqual({ x: 36 * 16, y: 10 * 16 });
   });
 });

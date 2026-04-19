@@ -26,6 +26,18 @@ export interface BattleStatStages {
   evasion: number;
 }
 
+export interface BattleVolatileState {
+  confusionTurns: number;
+  flinched: boolean;
+  protected: boolean;
+  protectUses: number;
+}
+
+export interface BattleSideState {
+  reflectTurns: number;
+  lightScreenTurns: number;
+}
+
 export interface BattleMove {
   id: string;
   name: string;
@@ -55,8 +67,10 @@ export interface BattlePokemonSnapshot {
   catchRate: number;
   types: PokemonType[];
   status: StatusCondition;
+  statusTurns: number;
   moves: BattleMove[];
   statStages: BattleStatStages;
+  volatile: BattleVolatileState;
 }
 
 export interface BattleEncounterState {
@@ -67,6 +81,7 @@ export interface BattleEncounterState {
 
 export type BattleCommand = 'fight' | 'bag' | 'pokemon' | 'run';
 export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'partySelect' | 'bagSelect' | 'script' | 'resolved';
+export type BattleWeather = 'none' | 'rain' | 'sun' | 'sandstorm' | 'hail';
 
 export interface BattleControllerCommand {
   type: 'script' | 'message' | 'hp' | 'status';
@@ -86,6 +101,12 @@ export interface BattleState {
   wildMon: BattlePokemonSnapshot;
   moves: BattleMove[];
   wildMoves: BattleMove[];
+  sideState: {
+    player: BattleSideState;
+    opponent: BattleSideState;
+  };
+  weather: BattleWeather;
+  weatherTurns: number;
   selectedMoveIndex: number;
   selectedCommandIndex: number;
   commands: BattleCommand[];
@@ -217,6 +238,46 @@ const primaryStatusByEffect: Partial<Record<string, StatusCondition>> = {
   EFFECT_WILL_O_WISP: 'burn'
 };
 
+const secondaryStageEffectByEffect: Partial<Record<string, { target: 'self' | 'target'; stat: keyof BattleStatStages; delta: number }>> = {
+  EFFECT_ATTACK_DOWN_HIT: { target: 'target', stat: 'attack', delta: -1 },
+  EFFECT_DEFENSE_DOWN_HIT: { target: 'target', stat: 'defense', delta: -1 },
+  EFFECT_SPEED_DOWN_HIT: { target: 'target', stat: 'speed', delta: -1 },
+  EFFECT_SPECIAL_ATTACK_DOWN_HIT: { target: 'target', stat: 'spAttack', delta: -1 },
+  EFFECT_SPECIAL_DEFENSE_DOWN_HIT: { target: 'target', stat: 'spDefense', delta: -1 },
+  EFFECT_ACCURACY_DOWN_HIT: { target: 'target', stat: 'accuracy', delta: -1 },
+  EFFECT_EVASION_DOWN_HIT: { target: 'target', stat: 'evasion', delta: -1 },
+  EFFECT_DEFENSE_UP_HIT: { target: 'self', stat: 'defense', delta: 1 },
+  EFFECT_ATTACK_UP_HIT: { target: 'self', stat: 'attack', delta: 1 }
+};
+
+const weatherByEffect: Partial<Record<string, BattleWeather>> = {
+  EFFECT_RAIN_DANCE: 'rain',
+  EFFECT_SUNNY_DAY: 'sun',
+  EFFECT_SANDSTORM: 'sandstorm',
+  EFFECT_HAIL: 'hail'
+};
+
+const weatherStartMessages: Record<Exclude<BattleWeather, 'none'>, string> = {
+  rain: 'It started to rain!',
+  sun: 'The sunlight got bright!',
+  sandstorm: 'A sandstorm brewed!',
+  hail: 'It started to hail!'
+};
+
+const weatherContinueMessages: Record<Exclude<BattleWeather, 'none'>, string> = {
+  rain: 'Rain continues to fall.',
+  sun: 'The sunlight is strong.',
+  sandstorm: 'The sandstorm rages.',
+  hail: 'Hail continues to fall.'
+};
+
+const weatherEndMessages: Record<Exclude<BattleWeather, 'none'>, string> = {
+  rain: 'The rain stopped.',
+  sun: 'The sunlight faded.',
+  sandstorm: 'The sandstorm subsided.',
+  hail: 'The hail stopped.'
+};
+
 const clampDamage = (value: number): number => Math.max(1, Math.floor(value));
 
 const createStatStages = (): BattleStatStages => ({
@@ -229,13 +290,31 @@ const createStatStages = (): BattleStatStages => ({
   evasion: 0
 });
 
+const createVolatileState = (): BattleVolatileState => ({
+  confusionTurns: 0,
+  flinched: false,
+  protected: false,
+  protectUses: 0
+});
+
+const createSideState = (): BattleSideState => ({
+  reflectTurns: 0,
+  lightScreenTurns: 0
+});
+
+const resetBattlePokemonTransientState = (pokemon: BattlePokemonSnapshot): void => {
+  pokemon.statStages = createStatStages();
+  pokemon.volatile = createVolatileState();
+};
+
 const cloneMove = (move: BattleMove): BattleMove => ({ ...move });
 
 const cloneBattlePokemon = (pokemon: BattlePokemonSnapshot): BattlePokemonSnapshot => ({
   ...pokemon,
   types: [...pokemon.types],
   moves: pokemon.moves.map(cloneMove),
-  statStages: { ...pokemon.statStages }
+  statStages: { ...pokemon.statStages },
+  volatile: { ...pokemon.volatile }
 });
 
 const nextBattleRng = (state: BattleEncounterState): number => {
@@ -307,8 +386,10 @@ const createBattlePokemonFromSpecies = (
     catchRate: speciesInfo?.catchRate ?? 255,
     types: (speciesInfo?.types ?? ['normal']) as PokemonType[],
     status,
+    statusTurns: status === 'sleep' ? 2 : 0,
     moves: getKnownMovesForSpecies(normalizedSpecies, level),
-    statStages: createStatStages()
+    statStages: createStatStages(),
+    volatile: createVolatileState()
   };
 };
 
@@ -326,8 +407,10 @@ export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): Batt
   catchRate: pokemon.catchRate,
   types: [...pokemon.types] as PokemonType[],
   status: pokemon.status,
+  statusTurns: pokemon.status === 'sleep' ? 2 : 0,
   moves: getKnownMovesForSpecies(pokemon.species, pokemon.level),
-  statStages: createStatStages()
+  statStages: createStatStages(),
+  volatile: createVolatileState()
 });
 
 const getPromptSummary = (battle: BattleState): string => `What will ${battle.playerMon.species} do?`;
@@ -509,6 +592,8 @@ export const calculateDamagePreview = (
 };
 
 const calculateDamageRoll = (
+  battle: BattleState,
+  defenderSide: 'player' | 'opponent',
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
   move: BattleMove,
@@ -526,7 +611,26 @@ const calculateDamageRoll = (
 
   const baseDamage = calculateBaseDamage(attacker, defender, move, critical) * (critical ? 2 : 1);
   const stab = attacker.types.includes(move.type) ? 1.5 : 1;
-  const max = clampDamage(baseDamage * stab * typeBonus);
+  let max = clampDamage(baseDamage * stab * typeBonus);
+  if (!critical && !specialTypes.has(move.type) && battle.sideState[defenderSide].reflectTurns > 0) {
+    max = Math.max(1, Math.floor(max / 2));
+  }
+  if (!critical && specialTypes.has(move.type) && battle.sideState[defenderSide].lightScreenTurns > 0) {
+    max = Math.max(1, Math.floor(max / 2));
+  }
+  if (battle.weather === 'rain') {
+    if (move.type === 'water') {
+      max = Math.max(1, Math.floor((max * 15) / 10));
+    } else if (move.type === 'fire') {
+      max = Math.max(1, Math.floor(max / 2));
+    }
+  } else if (battle.weather === 'sun') {
+    if (move.type === 'fire') {
+      max = Math.max(1, Math.floor((max * 15) / 10));
+    } else if (move.type === 'water') {
+      max = Math.max(1, Math.floor(max / 2));
+    }
+  }
   const randomFactor = 217 + (nextBattleRng(encounterState) % 39);
   return clampDamage((max * randomFactor) / 255);
 };
@@ -614,7 +718,11 @@ const getPlayerTurnMove = (battle: BattleState): BattleMove | null => {
 const hasLivingBenchMon = (battle: BattleState): boolean =>
   battle.party.some((member) => member !== battle.playerMon && member.hp > 0);
 
-const applyStatusDamage = (pokemon: BattlePokemonSnapshot): string | null => {
+const applyStatusDamage = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot
+): string | null => {
   if (pokemon.hp <= 0) {
     return null;
   }
@@ -622,10 +730,88 @@ const applyStatusDamage = (pokemon: BattlePokemonSnapshot): string | null => {
   if (pokemon.status === 'poison' || pokemon.status === 'burn') {
     const damage = Math.max(1, Math.floor(pokemon.maxHp / 8));
     pokemon.hp = Math.max(0, pokemon.hp - damage);
+    applyQueuedDamage(battle, side, pokemon.hp);
     return `${pokemon.species} is hurt by ${pokemon.status}!`;
   }
 
   return null;
+};
+
+const weatherDamagesPokemon = (weather: BattleWeather, pokemon: BattlePokemonSnapshot): boolean => {
+  if (weather === 'sandstorm') {
+    return !pokemon.types.some((type) => type === 'rock' || type === 'ground' || type === 'steel');
+  }
+
+  if (weather === 'hail') {
+    return !pokemon.types.includes('ice');
+  }
+
+  return false;
+};
+
+const applyWeatherDamage = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  if (!weatherDamagesPokemon(battle.weather, pokemon) || pokemon.hp <= 0) {
+    return;
+  }
+
+  const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
+  pokemon.hp = Math.max(0, pokemon.hp - damage);
+  applyQueuedDamage(battle, side, pokemon.hp);
+  messages.push(`${pokemon.species} is buffeted by ${battle.weather === 'hail' ? 'hail' : 'the sandstorm'}!`);
+};
+
+const decrementSideConditions = (battle: BattleState, messages: string[]): void => {
+  for (const side of ['player', 'opponent'] as const) {
+    const sideState = battle.sideState[side];
+    const sideLabel = side === 'player' ? 'Your team' : "Foe's team";
+
+    if (sideState.reflectTurns > 0) {
+      sideState.reflectTurns -= 1;
+      if (sideState.reflectTurns === 0) {
+        messages.push(`${sideLabel}'s Reflect wore off!`);
+      }
+    }
+
+    if (sideState.lightScreenTurns > 0) {
+      sideState.lightScreenTurns -= 1;
+      if (sideState.lightScreenTurns === 0) {
+        messages.push(`${sideLabel}'s Light Screen wore off!`);
+      }
+    }
+  }
+};
+
+const resolveWeatherEndOfTurn = (battle: BattleState, messages: string[]): void => {
+  if (battle.weather === 'none') {
+    return;
+  }
+
+  const activeWeather = battle.weather;
+  if (activeWeather === 'sandstorm' || activeWeather === 'hail') {
+    messages.push(weatherContinueMessages[activeWeather]);
+    applyWeatherDamage(battle, 'opponent', battle.wildMon, messages);
+    applyWeatherDamage(battle, 'player', battle.playerMon, messages);
+  } else {
+    messages.push(weatherContinueMessages[activeWeather]);
+  }
+
+  if (battle.weatherTurns > 0) {
+    battle.weatherTurns -= 1;
+    if (battle.weatherTurns === 0) {
+      messages.push(weatherEndMessages[activeWeather]);
+      battle.weather = 'none';
+    }
+  }
+};
+
+const clearSingleTurnVolatiles = (battle: BattleState): void => {
+  battle.playerMon.volatile.protected = false;
+  battle.wildMon.volatile.protected = false;
 };
 
 const getStatusBonus = (status: StatusCondition): number => {
@@ -706,7 +892,8 @@ const applyStatusEffect = (
   status: StatusCondition,
   messages: string[],
   move?: BattleMove,
-  blockedMessage = 'But it failed!'
+  blockedMessage = 'But it failed!',
+  encounterState?: BattleEncounterState
 ): boolean => {
   if (target.status !== 'none') {
     messages.push(blockedMessage);
@@ -719,6 +906,9 @@ const applyStatusEffect = (
   }
 
   target.status = status;
+  target.statusTurns = status === 'sleep'
+    ? 2 + (encounterState ? (nextBattleRng(encounterState) & 3) : 0)
+    : 0;
   const appliedMessage = getStatusAppliedMessage(target, status);
   if (appliedMessage) {
     messages.push(appliedMessage);
@@ -765,7 +955,38 @@ const maybeApplySecondaryStatus = (
     return;
   }
 
-  applyStatusEffect(target, nextStatus, messages, move, '');
+  applyStatusEffect(target, nextStatus, messages, move, '', encounterState);
+};
+
+const maybeApplySecondaryStageEffect = (
+  move: BattleMove,
+  attacker: BattlePokemonSnapshot,
+  defender: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState,
+  messages: string[]
+): void => {
+  if (move.secondaryEffectChance <= 0) {
+    return;
+  }
+
+  if ((nextBattleRng(encounterState) % 100) >= move.secondaryEffectChance) {
+    return;
+  }
+
+  if (move.effect === 'EFFECT_ALL_STATS_UP_HIT') {
+    for (const stat of ['attack', 'defense', 'speed', 'spAttack', 'spDefense'] as Array<keyof BattleStatStages>) {
+      applyStageEffect(`EFFECT_${stat === 'spAttack' ? 'SPECIAL_ATTACK' : stat === 'spDefense' ? 'SPECIAL_DEFENSE' : stat.toUpperCase()}_UP`, attacker, defender, messages);
+    }
+    return;
+  }
+
+  const stageEffect = secondaryStageEffectByEffect[move.effect];
+  if (!stageEffect) {
+    return;
+  }
+
+  const effect = `EFFECT_${stageEffect.stat === 'spAttack' ? 'SPECIAL_ATTACK' : stageEffect.stat === 'spDefense' ? 'SPECIAL_DEFENSE' : stageEffect.stat.toUpperCase()}_${stageEffect.delta > 0 ? 'UP' : 'DOWN'}`;
+  applyStageEffect(effect, attacker, defender, messages);
 };
 
 const applyQueuedDamage = (
@@ -794,18 +1015,177 @@ const healBattler = (
   return true;
 };
 
+const applyConfusion = (
+  target: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState,
+  messages: string[]
+): boolean => {
+  if (target.volatile.confusionTurns > 0) {
+    messages.push(`${target.species} is already confused!`);
+    return false;
+  }
+
+  target.volatile.confusionTurns = 2 + (nextBattleRng(encounterState) % 4);
+  messages.push(`${target.species} became confused!`);
+  return true;
+};
+
+const maybeApplySecondaryConfusion = (
+  move: BattleMove,
+  target: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState,
+  messages: string[]
+): void => {
+  if (move.effect !== 'EFFECT_CONFUSE_HIT' || move.secondaryEffectChance <= 0 || target.volatile.confusionTurns > 0) {
+    return;
+  }
+
+  if ((nextBattleRng(encounterState) % 100) >= move.secondaryEffectChance) {
+    return;
+  }
+
+  applyConfusion(target, encounterState, messages);
+};
+
+const maybeApplyFlinch = (
+  move: BattleMove,
+  target: BattlePokemonSnapshot,
+  targetCanStillAct: boolean,
+  encounterState: BattleEncounterState
+): void => {
+  if (!targetCanStillAct || (move.effect !== 'EFFECT_FLINCH_HIT' && move.effect !== 'EFFECT_FLINCH_MINIMIZE_HIT')) {
+    return;
+  }
+
+  if (move.secondaryEffectChance > 0 && (nextBattleRng(encounterState) % 100) >= move.secondaryEffectChance) {
+    return;
+  }
+
+  target.volatile.flinched = true;
+};
+
+const applySideCondition = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  move: BattleMove,
+  messages: string[]
+): boolean => {
+  if (move.effect === 'EFFECT_REFLECT') {
+    if (battle.sideState[side].reflectTurns > 0) {
+      messages.push('But it failed!');
+      return true;
+    }
+    battle.sideState[side].reflectTurns = 5;
+    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became protected by Reflect!`);
+    return true;
+  }
+
+  if (move.effect === 'EFFECT_LIGHT_SCREEN') {
+    if (battle.sideState[side].lightScreenTurns > 0) {
+      messages.push('But it failed!');
+      return true;
+    }
+    battle.sideState[side].lightScreenTurns = 5;
+    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became protected by Light Screen!`);
+    return true;
+  }
+
+  return false;
+};
+
+const applyWeatherMove = (
+  battle: BattleState,
+  move: BattleMove,
+  messages: string[]
+): boolean => {
+  const nextWeather = weatherByEffect[move.effect];
+  if (!nextWeather) {
+    return false;
+  }
+
+  if (battle.weather === nextWeather) {
+    messages.push('But it failed!');
+    return true;
+  }
+
+  battle.weather = nextWeather;
+  battle.weatherTurns = 5;
+  messages.push(weatherStartMessages[nextWeather]);
+  return true;
+};
+
+const tryUseProtect = (
+  attacker: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState,
+  messages: string[]
+): boolean => {
+  const successThresholds = [0xffff, 0x7fff, 0x3fff, 0x1fff];
+  const protectIndex = Math.min(attacker.volatile.protectUses, successThresholds.length - 1);
+  const roll = nextBattleRng(encounterState) & 0xffff;
+  if (roll <= successThresholds[protectIndex]) {
+    attacker.volatile.protected = true;
+    attacker.volatile.protectUses += 1;
+    messages.push(`${attacker.species} protected itself!`);
+    return true;
+  }
+
+  attacker.volatile.protectUses = 0;
+  messages.push('But it failed!');
+  return true;
+};
+
+const isMoveBlockedByProtect = (move: BattleMove, defender: BattlePokemonSnapshot): boolean =>
+  defender.volatile.protected && move.target !== 'MOVE_TARGET_USER' && move.effect !== 'EFFECT_PROTECT';
+
 const getActorLabel = (side: 'player' | 'opponent', battle: BattleState): string =>
   side === 'player' ? battle.playerMon.species : `Foe ${battle.wildMon.species}`;
 
 const getFaintMessage = (side: 'player' | 'opponent', battle: BattleState): string =>
   side === 'player' ? `${battle.playerMon.species} fainted!` : `Foe ${battle.wildMon.species} fainted!`;
 
-const canMoveThisTurn = (pokemon: BattlePokemonSnapshot, encounterState: BattleEncounterState, messages: string[]): boolean => {
+const calculateConfusionDamage = (pokemon: BattlePokemonSnapshot): number => {
+  const confusionMove: BattleMove = {
+    id: 'CONFUSION_SELF_HIT',
+    name: 'CONFUSION_SELF_HIT',
+    power: 40,
+    type: 'normal',
+    accuracy: 0,
+    pp: 1,
+    ppRemaining: 1,
+    priority: 0,
+    effect: 'EFFECT_HIT',
+    effectScriptLabel: 'BattleScript_MoveUsedIsConfused',
+    target: 'MOVE_TARGET_USER',
+    secondaryEffectChance: 0
+  };
+  return calculateBaseDamage(pokemon, pokemon, confusionMove);
+};
+
+const canMoveThisTurn = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState,
+  messages: string[]
+): boolean => {
   if (pokemon.hp <= 0) {
     return false;
   }
 
+  if (pokemon.volatile.flinched) {
+    pokemon.volatile.flinched = false;
+    messages.push(`${pokemon.species} flinched!`);
+    return false;
+  }
+
   if (pokemon.status === 'sleep') {
+    pokemon.statusTurns = Math.max(0, pokemon.statusTurns - 1);
+    if (pokemon.statusTurns === 0) {
+      pokemon.status = 'none';
+      messages.push(`${pokemon.species} woke up!`);
+      return true;
+    }
+
     messages.push(`${pokemon.species} is fast asleep.`);
     return false;
   }
@@ -818,6 +1198,26 @@ const canMoveThisTurn = (pokemon: BattlePokemonSnapshot, encounterState: BattleE
   if (pokemon.status === 'paralysis' && (nextBattleRng(encounterState) % 4) === 0) {
     messages.push(`${pokemon.species} is paralyzed! It can't move!`);
     return false;
+  }
+
+  if (pokemon.volatile.confusionTurns > 0) {
+    pokemon.volatile.confusionTurns -= 1;
+    if (pokemon.volatile.confusionTurns === 0) {
+      messages.push(`${pokemon.species} snapped out of confusion!`);
+      return true;
+    }
+
+    messages.push(`${pokemon.species} is confused!`);
+    if ((nextBattleRng(encounterState) & 1) === 0) {
+      const damage = calculateConfusionDamage(pokemon);
+      pokemon.hp = Math.max(0, pokemon.hp - damage);
+      applyQueuedDamage(battle, side, pokemon.hp);
+      messages.push('It hurt itself in its confusion!');
+      if (pokemon.hp === 0) {
+        messages.push(getFaintMessage(side, battle));
+      }
+      return false;
+    }
   }
 
   return true;
@@ -846,11 +1246,39 @@ const isCriticalHit = (move: BattleMove, encounterState: BattleEncounterState): 
   return nextBattleRng(encounterState) % criticalHitDivisors[critStage] === 0;
 };
 
+const calculateFixedDamage = (
+  move: BattleMove,
+  attacker: BattlePokemonSnapshot,
+  defender: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState
+): number | null => {
+  switch (move.effect) {
+    case 'EFFECT_SONICBOOM':
+      return 20;
+    case 'EFFECT_DRAGON_RAGE':
+      return 40;
+    case 'EFFECT_LEVEL_DAMAGE':
+      return attacker.level;
+    case 'EFFECT_SUPER_FANG':
+      return Math.max(1, Math.floor(defender.hp / 2));
+    case 'EFFECT_PSYWAVE': {
+      let roll = nextBattleRng(encounterState) % 16;
+      while (roll > 10) {
+        roll = nextBattleRng(encounterState) % 16;
+      }
+      return Math.max(1, Math.floor((attacker.level * ((roll * 10) + 50)) / 100));
+    }
+    default:
+      return null;
+  }
+};
+
 const executeMove = (
   battle: BattleState,
   attackerSide: 'player' | 'opponent',
   move: BattleMove,
-  encounterState: BattleEncounterState
+  encounterState: BattleEncounterState,
+  defenderCanStillAct = false
 ): string[] => {
   const messages: string[] = [];
   const attacker = attackerSide === 'player' ? battle.playerMon : battle.wildMon;
@@ -860,8 +1288,12 @@ const executeMove = (
   battle.currentScriptLabel = move.effectScriptLabel;
   battle.queuedControllerCommands.push({ type: 'script', label: move.effectScriptLabel });
 
-  if (!canMoveThisTurn(attacker, encounterState, messages)) {
+  if (!canMoveThisTurn(battle, attackerSide, attacker, encounterState, messages)) {
     return messages;
+  }
+
+  if (move.effect !== 'EFFECT_PROTECT') {
+    attacker.volatile.protectUses = 0;
   }
 
   if (move.ppRemaining <= 0 && move.id !== 'STRUGGLE') {
@@ -875,6 +1307,16 @@ const executeMove = (
 
   pushMessage(messages, battle, `${getActorLabel(attackerSide, battle)} used ${move.name}!`);
 
+  if (move.effect === 'EFFECT_PROTECT') {
+    tryUseProtect(attacker, encounterState, messages);
+    return messages;
+  }
+
+  if (isMoveBlockedByProtect(move, defender)) {
+    pushMessage(messages, battle, `${defender.species} protected itself!`);
+    return messages;
+  }
+
   if (move.effect === 'EFFECT_DREAM_EATER' && defender.status !== 'sleep') {
     pushMessage(messages, battle, 'But it failed!');
     return messages;
@@ -884,7 +1326,7 @@ const executeMove = (
     pushMessage(messages, battle, 'The attack missed!');
     if (move.effect === 'EFFECT_RECOIL_IF_MISS' && calculateTypeEffectiveness(move.type, defender.types) !== 0) {
       const crashDamage = Math.min(
-        Math.max(1, Math.floor(calculateDamageRoll(attacker, defender, move, encounterState, false) / 2)),
+        Math.max(1, Math.floor(calculateDamageRoll(battle, defenderSide, attacker, defender, move, encounterState, false) / 2)),
         Math.max(1, Math.floor(defender.maxHp / 2))
       );
       attacker.hp = Math.max(0, attacker.hp - crashDamage);
@@ -894,7 +1336,17 @@ const executeMove = (
     return messages;
   }
 
-  if (move.power > 0) {
+  const fixedDamage = calculateFixedDamage(move, attacker, defender, encounterState);
+  if (fixedDamage !== null) {
+    const typeEffectiveness = calculateTypeEffectiveness(move.type, defender.types);
+    if (typeEffectiveness === 0) {
+      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
+      return messages;
+    }
+
+    defender.hp = Math.max(0, defender.hp - fixedDamage);
+    applyQueuedDamage(battle, defenderSide, defender.hp);
+  } else if (move.power > 0) {
     const typeEffectiveness = calculateTypeEffectiveness(move.type, defender.types);
     if (typeEffectiveness === 0) {
       pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
@@ -902,7 +1354,7 @@ const executeMove = (
     }
 
     const critical = isCriticalHit(move, encounterState);
-    const damage = calculateDamageRoll(attacker, defender, move, encounterState, critical);
+    const damage = calculateDamageRoll(battle, defenderSide, attacker, defender, move, encounterState, critical);
     defender.hp = Math.max(0, defender.hp - damage);
     applyQueuedDamage(battle, defenderSide, defender.hp);
 
@@ -917,6 +1369,9 @@ const executeMove = (
     }
 
     maybeApplySecondaryStatus(move, defender, encounterState, messages);
+    maybeApplySecondaryStageEffect(move, attacker, defender, encounterState, messages);
+    maybeApplySecondaryConfusion(move, defender, encounterState, messages);
+    maybeApplyFlinch(move, defender, defenderCanStillAct, encounterState);
 
     if (move.effect === 'EFFECT_RECOIL') {
       const recoil = Math.max(1, Math.floor(damage / 4));
@@ -934,7 +1389,13 @@ const executeMove = (
       healBattler(battle, attackerSide, attacker, Math.floor(damage / 2), messages);
     }
   } else if (primaryStatusByEffect[move.effect]) {
-    applyStatusEffect(defender, primaryStatusByEffect[move.effect], messages, move);
+    applyStatusEffect(defender, primaryStatusByEffect[move.effect], messages, move, 'But it failed!', encounterState);
+  } else if (move.effect === 'EFFECT_CONFUSE') {
+    applyConfusion(defender, encounterState, messages);
+  } else if (applySideCondition(battle, attackerSide, move, messages)) {
+    // Message already appended.
+  } else if (applyWeatherMove(battle, move, messages)) {
+    // Message already appended.
   } else if (move.effect === 'EFFECT_RESTORE_HP') {
     healBattler(battle, attackerSide, attacker, Math.floor(attacker.maxHp / 2), messages);
   } else if (move.effect === 'EFFECT_REST') {
@@ -981,12 +1442,15 @@ const getActionOrder = (
 
 const resolveEndOfTurn = (battle: BattleState): string[] => {
   const messages: string[] = [];
-  const enemyStatusMessage = applyStatusDamage(battle.wildMon);
+  decrementSideConditions(battle, messages);
+  resolveWeatherEndOfTurn(battle, messages);
+
+  const enemyStatusMessage = applyStatusDamage(battle, 'opponent', battle.wildMon);
   if (enemyStatusMessage) {
     messages.push(enemyStatusMessage);
   }
 
-  const playerStatusMessage = applyStatusDamage(battle.playerMon);
+  const playerStatusMessage = applyStatusDamage(battle, 'player', battle.playerMon);
   if (playerStatusMessage) {
     messages.push(playerStatusMessage);
   }
@@ -998,6 +1462,7 @@ const resolveEndOfTurn = (battle: BattleState): string[] => {
     messages.push(getFaintMessage('player', battle));
   }
 
+  clearSingleTurnVolatiles(battle);
   return messages;
 };
 
@@ -1042,6 +1507,8 @@ const resolvePlayerSwitchTurn = (
   voluntary: boolean
 ): void => {
   const previous = battle.playerMon;
+  resetBattlePokemonTransientState(previous);
+  resetBattlePokemonTransientState(target);
   battle.playerMon = target;
   refreshActiveMovePointers(battle);
   battle.currentScriptLabel = 'BattleScript_ActionSwitch';
@@ -1070,17 +1537,21 @@ const resolveSelectedMoveTurn = (battle: BattleState, encounterState: BattleEnco
 
   const messages: string[] = [];
   const order = getActionOrder(battle, playerMove, enemyMove, encounterState);
+  const pendingActors = new Set<'player' | 'opponent'>(order);
 
   for (const actor of order) {
     if (battle.playerMon.hp === 0 || battle.wildMon.hp === 0) {
       break;
     }
 
+    pendingActors.delete(actor);
+    const defenderSide = actor === 'player' ? 'opponent' : 'player';
     messages.push(...executeMove(
       battle,
       actor,
       actor === 'player' ? playerMove : enemyMove,
-      encounterState
+      encounterState,
+      pendingActors.has(defenderSide)
     ));
   }
 
@@ -1163,6 +1634,12 @@ export const createBattleState = (): BattleState => {
     wildMon,
     moves: playerMonA.moves,
     wildMoves: wildMon.moves,
+    sideState: {
+      player: createSideState(),
+      opponent: createSideState()
+    },
+    weather: 'none',
+    weatherTurns: 0,
     selectedMoveIndex: 0,
     selectedCommandIndex: 0,
     commands: ['fight', 'bag', 'pokemon', 'run'],
@@ -1210,6 +1687,16 @@ export const tryStartWildBattle = (
   battle.terrain = getBattleTerrainForScene(mapBattleScene, { mapId, encounterKind: 'land' });
   battle.wildMon.hp = battle.wildMon.maxHp;
   battle.wildMon.status = 'none';
+  resetBattlePokemonTransientState(battle.wildMon);
+  for (const partyMember of battle.party) {
+    resetBattlePokemonTransientState(partyMember);
+  }
+  battle.sideState = {
+    player: createSideState(),
+    opponent: createSideState()
+  };
+  battle.weather = 'none';
+  battle.weatherTurns = 0;
   battle.selectedMoveIndex = 0;
   battle.selectedCommandIndex = 0;
   battle.selectedPartyIndex = 0;
@@ -1387,6 +1874,16 @@ export const stepBattle = (
       battle.queuedMessages = [];
       battle.queuedControllerCommands = [];
       battle.currentScriptLabel = null;
+      battle.sideState = {
+        player: createSideState(),
+        opponent: createSideState()
+      };
+      battle.weather = 'none';
+      battle.weatherTurns = 0;
+      for (const partyMember of battle.party) {
+        resetBattlePokemonTransientState(partyMember);
+      }
+      resetBattlePokemonTransientState(battle.wildMon);
     }
     return;
   }
