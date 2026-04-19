@@ -16,6 +16,15 @@ import {
   loadPalletTownPlayersHouse1FMap,
   loadPalletTownPlayersHouse2FMap,
   loadPalletTownRivalsHouseMap,
+  loadPewterCityGymMap,
+  loadPewterCityHouse1Map,
+  loadPewterCityHouse2Map,
+  loadPewterCityMap,
+  loadPewterCityMartMap,
+  loadPewterCityMuseum1FMap,
+  loadPewterCityMuseum2FMap,
+  loadPewterCityPokemonCenter1FMap,
+  loadPewterCityPokemonCenter2FMap,
   loadViridianCityGymMap,
   loadViridianCityHouseMap,
   loadViridianCityMap,
@@ -443,5 +452,157 @@ describe('warp runtime', () => {
     expect(result.destinationMap!.id).toBe(viridianMap.id);
     expect(result.destinationWarp).toEqual(viridianMap.warps[2]);
     expect(result.playerPosition).toEqual({ x: 36 * 16, y: 10 * 16 });
+  });
+
+  test('resolves Pewter City Gym door warp into the loaded gym map', () => {
+    const pewterMap = loadPewterCityMap();
+    const player = createPlayer();
+    player.position = vec2(15 * pewterMap.tileSize, 16 * pewterMap.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(pewterMap, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const gymMap = loadPewterCityGymMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_GYM', destWarpId: 1 });
+    expect(result.destinationMap!.id).toBe(gymMap.id);
+    expect(result.destinationWarp).toEqual(gymMap.warps[1]);
+  });
+
+  test('resolves Pewter City Gym exit warp back to Pewter City', () => {
+    const gymMap = loadPewterCityGymMap();
+    const player = createPlayer();
+    player.position = vec2(6 * gymMap.tileSize, 14 * gymMap.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(gymMap, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const pewterMap = loadPewterCityMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY', destWarpId: 2 });
+    expect(result.destinationMap!.id).toBe(pewterMap.id);
+    expect(result.destinationWarp).toEqual(pewterMap.warps[2]);
+  });
+
+  test('resolves Pewter City Mart door warp into the loaded mart map', () => {
+    const pewterMap = loadPewterCityMap();
+    const player = createPlayer();
+    player.position = vec2(28 * pewterMap.tileSize, 18 * pewterMap.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(pewterMap, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const martMap = loadPewterCityMartMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_MART', destWarpId: 1 });
+    expect(result.destinationMap!.id).toBe(martMap.id);
+  });
+
+  test('resolves Pewter City Pokemon Center door warp into the loaded center', () => {
+    const pewterMap = loadPewterCityMap();
+    const player = createPlayer();
+    player.position = vec2(17 * pewterMap.tileSize, 25 * pewterMap.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(pewterMap, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const centerMap = loadPewterCityPokemonCenter1FMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_POKEMON_CENTER_1F', destWarpId: 1 });
+    expect(result.destinationMap!.id).toBe(centerMap.id);
+  });
+
+  test('resolves Pewter City Museum 1F to 2F stair warp', () => {
+    const museum1F = loadPewterCityMuseum1FMap();
+    const player = createPlayer();
+    player.position = vec2(8 * museum1F.tileSize, 8 * museum1F.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(museum1F, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const museum2F = loadPewterCityMuseum2FMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_MUSEUM_2F', destWarpId: 0 });
+    expect(result.destinationMap!.id).toBe(museum2F.id);
+  });
+
+  test('resolves Pewter City Museum 2F to 1F stair warp', () => {
+    const museum2F = loadPewterCityMuseum2FMap();
+    const player = createPlayer();
+    player.position = vec2(11 * museum2F.tileSize, 8 * museum2F.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(museum2F, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const museum1F = loadPewterCityMuseum1FMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_MUSEUM_1F', destWarpId: 5 });
+    expect(result.destinationMap!.id).toBe(museum1F.id);
+  });
+
+  test('resolves Pewter City House1 door warp', () => {
+    const pewterMap = loadPewterCityMap();
+    const player = createPlayer();
+    player.position = vec2(33 * pewterMap.tileSize, 11 * pewterMap.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(pewterMap, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const house1 = loadPewterCityHouse1Map();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_HOUSE1', destWarpId: 1 });
+    expect(result.destinationMap!.id).toBe(house1.id);
+  });
+
+  test('resolves Pewter City House2 door warp', () => {
+    const pewterMap = loadPewterCityMap();
+    const player = createPlayer();
+    player.position = vec2(9 * pewterMap.tileSize, 30 * pewterMap.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(pewterMap, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const house2 = loadPewterCityHouse2Map();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_HOUSE2', destWarpId: 1 });
+    expect(result.destinationMap!.id).toBe(house2.id);
+  });
+
+  test('resolves Pewter Center 1F to 2F stair warp', () => {
+    const center1F = loadPewterCityPokemonCenter1FMap();
+    const player = createPlayer();
+    player.position = vec2(1 * center1F.tileSize, 6 * center1F.tileSize);
+    player.facing = 'up';
+
+    const result = resolveWarpTransition(center1F, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const center2F = loadPewterCityPokemonCenter2FMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_POKEMON_CENTER_2F', destWarpId: 0 });
+    expect(result.destinationMap!.id).toBe(center2F.id);
+  });
+
+  test('resolves Pewter Center 2F to 1F stair warp', () => {
+    const center2F = loadPewterCityPokemonCenter2FMap();
+    const player = createPlayer();
+    player.position = vec2(1 * center2F.tileSize, 6 * center2F.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(center2F, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+
+    const center1F = loadPewterCityPokemonCenter1FMap();
+    expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_POKEMON_CENTER_1F', destWarpId: 3 });
+    expect(result.destinationMap!.id).toBe(center1F.id);
   });
 });

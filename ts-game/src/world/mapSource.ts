@@ -14,7 +14,15 @@ import palletTownProfessorOaksLabMapJson from './maps/palletTownProfessorOaksLab
 import palletTownPlayersHouse1FMapJson from './maps/palletTownPlayersHouse1F.json';
 import palletTownPlayersHouse2FMapJson from './maps/palletTownPlayersHouse2F.json';
 import palletTownRivalsHouseMapJson from './maps/palletTownRivalsHouse.json';
+import pewterCityGymMapJson from './maps/pewterCityGym.json';
+import pewterCityHouse1MapJson from './maps/pewterCityHouse1.json';
+import pewterCityHouse2MapJson from './maps/pewterCityHouse2.json';
 import pewterCityMapJson from './maps/pewterCity.json';
+import pewterCityMartMapJson from './maps/pewterCityMart.json';
+import pewterCityMuseum1FMapJson from './maps/pewterCityMuseum1F.json';
+import pewterCityMuseum2FMapJson from './maps/pewterCityMuseum2F.json';
+import pewterCityPokemonCenter1FMapJson from './maps/pewterCityPokemonCenter1F.json';
+import pewterCityPokemonCenter2FMapJson from './maps/pewterCityPokemonCenter2F.json';
 import route2MapJson from './maps/route2.json';
 import route21NorthMapJson from './maps/route21North.json';
 import route21SouthMapJson from './maps/route21South.json';
@@ -814,8 +822,32 @@ export const loadOneIslandKindleRoadMap = (): TileMap =>
 export const loadOneIslandTreasureBeachMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(oneIslandTreasureBeachMapJson));
 
+export const loadPewterCityGymMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityGymMapJson));
+
+export const loadPewterCityHouse1Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityHouse1MapJson));
+
+export const loadPewterCityHouse2Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityHouse2MapJson));
+
 export const loadPewterCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(pewterCityMapJson));
+
+export const loadPewterCityMartMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityMartMapJson));
+
+export const loadPewterCityMuseum1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityMuseum1FMapJson));
+
+export const loadPewterCityMuseum2FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityMuseum2FMapJson));
+
+export const loadPewterCityPokemonCenter1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityPokemonCenter1FMapJson));
+
+export const loadPewterCityPokemonCenter2FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(pewterCityPokemonCenter2FMapJson));
 
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
@@ -949,6 +981,22 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadPalletTownRivalsHouseMap();
     case 'MAP_PEWTER_CITY':
       return loadPewterCityMap();
+    case 'MAP_PEWTER_CITY_GYM':
+      return loadPewterCityGymMap();
+    case 'MAP_PEWTER_CITY_HOUSE1':
+      return loadPewterCityHouse1Map();
+    case 'MAP_PEWTER_CITY_HOUSE2':
+      return loadPewterCityHouse2Map();
+    case 'MAP_PEWTER_CITY_MART':
+      return loadPewterCityMartMap();
+    case 'MAP_PEWTER_CITY_MUSEUM_1F':
+      return loadPewterCityMuseum1FMap();
+    case 'MAP_PEWTER_CITY_MUSEUM_2F':
+      return loadPewterCityMuseum2FMap();
+    case 'MAP_PEWTER_CITY_POKEMON_CENTER_1F':
+      return loadPewterCityPokemonCenter1FMap();
+    case 'MAP_PEWTER_CITY_POKEMON_CENTER_2F':
+      return loadPewterCityPokemonCenter2FMap();
     case 'MAP_ROUTE2':
       return loadRoute2Map();
     case 'MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE':

@@ -359,6 +359,324 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Warren', [
       '(Warren trainer battle stub — pending battle system.)'
     ]);
+  },
+  PewterCity_Gym_EventScript_Brock: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_BROCK')) {
+      openDialogueSequence(dialogue, 'PewterCity_Gym_ObjectEvent_Brock', [
+        'There are all kinds of TRAINERS in this huge world of ours.',
+        'You appear to be very gifted as a POKéMON TRAINER.',
+        'So let me make a suggestion.',
+        'Go to the GYM in CERULEAN and test your abilities.'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'PewterCity_Gym_ObjectEvent_Brock', [
+      "So, you're here. I'm BROCK.",
+      "I'm PEWTER's GYM LEADER.",
+      'My rock-hard willpower is evident even in my POKéMON.',
+      "My POKéMON are all rock hard, and have true-grit determination.",
+      "That's right - my POKéMON are all the ROCK type!",
+      "Fuhaha! You're going to challenge me knowing that you'll lose?",
+      "That's the TRAINER's honor that compels you to challenge me.",
+      'Fine, then! Show me your best!',
+      '(Brock battle stub — trainer battle pending script engine.)'
+    ]);
+  },
+  PewterCity_Gym_EventScript_Liam: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_CAMPER_LIAM')) {
+      openScriptDialogue(
+        dialogue,
+        'PewterCity_Gym_ObjectEvent_Liam',
+        "You're pretty hot. …But not as hot as BROCK!"
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'PewterCity_Gym_ObjectEvent_Liam', [
+      "Stop right there, kid!",
+      "You're ten thousand light-years from facing BROCK!",
+      '(Liam trainer battle stub — pending battle system.)'
+    ]);
+  },
+  PewterCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
+    const defeated = isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_BROCK');
+    if (defeated) {
+      openScriptDialogue(
+        dialogue,
+        'PewterCity_Gym_ObjectEvent_GymGuy',
+        'You pulled it off! You beat BROCK! You must be dreaming about this. But keep dreaming, because the next challenge awaits!'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'PewterCity_Gym_ObjectEvent_GymGuy', [
+      'Yo! Champ in the making!',
+      "BROCK uses rock-type POKéMON.",
+      'The ROCK type is really durable against physical attacks.',
+      "If you can inflict Special damage, you'll have an edge.",
+      'Your POKéMON will need the right moves, though.'
+    ]);
+  },
+  PewterCity_Gym_EventScript_GymStatue: ({ dialogue, runtime }) => {
+    const defeated = isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_BROCK');
+    openScriptDialogue(
+      dialogue,
+      'sign',
+      defeated
+        ? 'PEWTER POKéMON GYM\nLEADER: BROCK'
+        : 'PEWTER POKéMON GYM\nLEADER: ?'
+    );
+  },
+  PewterCity_House1_EventScript_BaldingMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_House1_ObjectEvent_BaldingMan', [
+      "Our POKéMON's an outsider, so it's finicky and hard to handle.",
+      'An outsider is a POKéMON that you get in a trade.',
+      'It grows fast, but it may ignore an unskilled TRAINER in battle.',
+      'If only we had some BADGES…'
+    ]);
+  },
+  PewterCity_House1_EventScript_LittleBoy: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_House1_ObjectEvent_LittleBoy',
+      'NIDORAN, sit!'
+    );
+  },
+  PewterCity_House1_EventScript_Nidoran: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'LOCALID_PEWTER_HOUSE_NIDORAN',
+      'NIDORAN\u2642: Bowbow!'
+    );
+  },
+  PewterCity_House2_EventScript_OldMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_House2_ObjectEvent_OldMan', [
+      'POKéMON learn new techniques as they grow.',
+      'But some moves must be taught to them by people.'
+    ]);
+  },
+  PewterCity_House2_EventScript_LittleBoy: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_House2_ObjectEvent_LittleBoy', [
+      'A POKéMON becomes easier to catch if it has a status problem.',
+      'Sleep, poison, burn, or paralysis…',
+      "Those are all effective. But catching POKéMON is never a sure thing!"
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_Scientist1: ({ dialogue, runtime }) => {
+    const paid = getScriptVar(runtime, 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F') !== 0;
+    if (paid) {
+      openScriptDialogue(
+        dialogue,
+        'LOCALID_MUSEUM_SCIENTIST1',
+        'Please enjoy the exhibits!'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'LOCALID_MUSEUM_SCIENTIST1', [
+      "It's \u00a550 for a child's ticket.",
+      'Would you like to come in?',
+      '(Museum admission stub — yes/no choice pending script engine.)'
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_OldMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_Museum_1F_ObjectEvent_OldMan', [
+      'I should be grateful for my long life.',
+      'Never did I think I would get to see the bones of a dragon!'
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_OldAmberScientist: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_HIDE_OLD_AMBER')) {
+      openScriptDialogue(
+        dialogue,
+        'PewterCity_Museum_1F_ObjectEvent_OldAmberScientist',
+        'Take good care of that OLD AMBER!'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'PewterCity_Museum_1F_ObjectEvent_OldAmberScientist', [
+      'Ssh! Listen, I need to share a secret with someone.',
+      'I think that this chunk of AMBER contains POKéMON DNA!',
+      "I want you to get this examined at a POKéMON LAB somewhere.",
+      '(OLD AMBER give item stub — pending script engine.)'
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_OldAmber: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      "It's a piece of amber containing ancient POKéMON DNA."
+    );
+  },
+  PewterCity_Museum_1F_EventScript_Scientist2: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_Museum_1F_ObjectEvent_Scientist2', [
+      'We have two fossils of rare, prehistoric POKéMON on exhibit.'
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_SeismicTossTutor: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_Museum_1F_ObjectEvent_SeismicTossTutor', [
+      'The secrets of space… The mysteries of earth…',
+      '…The only thing you should toss…',
+      'Well, how about SEISMIC TOSS?',
+      'Should I teach that to a POKéMON?',
+      '(Seismic Toss tutor stub — pending move teaching system.)'
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_AerodactylFossil: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'AERODACTYL Fossil\nA primitive and rare POKéMON.'
+    );
+  },
+  PewterCity_Museum_1F_EventScript_KabutopsFossil: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'KABUTOPS Fossil\nA primitive and rare POKéMON.'
+    );
+  },
+  PewterCity_Museum_1F_EventScript_PokemonJournalBrock: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      "It's a POKéMON journal about BROCK. (Content stub pending script engine.)"
+    );
+  },
+  PewterCity_Museum_1F_EventScript_EntranceTriggerLeft: ({ dialogue, runtime }) => {
+    if (getScriptVar(runtime, 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F') !== 0) {
+      return;
+    }
+    openDialogueSequence(dialogue, 'LOCALID_MUSEUM_SCIENTIST1', [
+      "Come again, come again! You're always welcome!"
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_EntranceTriggerMid: ({ dialogue, runtime }) => {
+    if (getScriptVar(runtime, 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F') !== 0) {
+      return;
+    }
+    openDialogueSequence(dialogue, 'LOCALID_MUSEUM_SCIENTIST1', [
+      "Come again, come again! You're always welcome!"
+    ]);
+  },
+  PewterCity_Museum_1F_EventScript_EntranceTriggerRight: ({ dialogue, runtime }) => {
+    if (getScriptVar(runtime, 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F') !== 0) {
+      return;
+    }
+    openDialogueSequence(dialogue, 'LOCALID_MUSEUM_SCIENTIST1', [
+      "Come again, come again! You're always welcome!"
+    ]);
+  },
+  PewterCity_Museum_2F_EventScript_Scientist: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_Museum_2F_ObjectEvent_Scientist', [
+      'This month, we are running a space exhibit.'
+    ]);
+  },
+  PewterCity_Museum_2F_EventScript_Man: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_Museum_2F_ObjectEvent_Man', [
+      'July 20, 1969!',
+      "Humankind first set foot on the moon that day.",
+      'I bought a color TV just so I could watch that news.'
+    ]);
+  },
+  PewterCity_Museum_2F_EventScript_OldMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_Museum_2F_ObjectEvent_OldMan', [
+      'MOON STONE, huh?',
+      "What's so special about it?",
+      'Looks like an ordinary rock to me.'
+    ]);
+  },
+  PewterCity_Museum_2F_EventScript_LittleGirl: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_Museum_2F_ObjectEvent_LittleGirl',
+      'I want a PIKACHU! It is so cute! I asked my daddy to catch me one!'
+    );
+  },
+  PewterCity_Museum_2F_EventScript_BaldingMan: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_Museum_2F_ObjectEvent_BaldingMan',
+      'Yeah, a PIKACHU soon, I promise!'
+    );
+  },
+  PewterCity_Museum_2F_EventScript_MoonStone: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      "A meteorite that fell on MT. MOON.\nIt is thought to be a MOON STONE."
+    );
+  },
+  PewterCity_Museum_2F_EventScript_SpaceShuttle: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'Space Shuttle'
+    );
+  },
+  PewterCity_Mart_EventScript_Clerk: ({ dialogue }) => {
+    const pewterStock = getMartStockForMap('MAP_PEWTER_CITY_MART');
+    const items = pewterStock ? pewterStock.items : [];
+    const stockLine = `Shop UI stub: ${items
+      .map((itemId) => getItemDefinition(itemId).name.replace(/\u00e9/gu, 'e').toUpperCase())
+      .join(', ')}.`;
+    openDialogueSequence(dialogue, 'PewterCity_Mart_ObjectEvent_Clerk', [
+      'Hi, there!\nMay I help you?',
+      stockLine,
+      'Please come again!'
+    ]);
+  },
+  PewterCity_Mart_EventScript_Youngster: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_Mart_ObjectEvent_Youngster',
+      'You can buy things here that you cannot find elsewhere.'
+    );
+  },
+  PewterCity_Mart_EventScript_Boy: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_Mart_ObjectEvent_Boy',
+      'All POKéMON are different. Even the same type of POKéMON can have different moves.'
+    );
+  },
+  PewterCity_PokemonCenter_1F_EventScript_Jigglypuff: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_PokemonCenter_1F_ObjectEvent_Jigglypuff',
+      'JIGGLYPUFF: Puu pupuu!'
+    );
+  },
+  PewterCity_PokemonCenter_1F_EventScript_Gentleman: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_PokemonCenter_1F_ObjectEvent_Gentleman',
+      'I heard that there are many trainers with outstanding POKéMON in CERULEAN CITY.'
+    );
+  },
+  PewterCity_PokemonCenter_1F_EventScript_Youngster: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'PewterCity_PokemonCenter_1F_ObjectEvent_Youngster', [
+      'POKéMON LEAGUE registration is over at the reception desk.',
+      'If you want to enter, go over there.'
+    ]);
+  },
+  PewterCity_PokemonCenter_1F_EventScript_GBAKid1: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_PokemonCenter_1F_ObjectEvent_GBAKid1',
+      'You can trade POKéMON with your friends. (Link stub — pending connectivity.)'
+    );
+  },
+  PewterCity_PokemonCenter_1F_EventScript_GBAKid2: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'PewterCity_PokemonCenter_1F_ObjectEvent_GBAKid2',
+      'You can battle POKéMON with your friends. (Link stub — pending connectivity.)'
+    );
+  },
+  MysteryEventClub_EventScript_Woman: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'MysteryEventClub_ObjectEvent_Woman',
+      'Welcome to the MYSTERY EVENT CLUB! (Mystery event stub — pending connectivity.)'
+    );
   }
 };
 
