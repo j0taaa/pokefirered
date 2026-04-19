@@ -272,6 +272,33 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'system',
       "It's a POKeMON journal. (Content stub pending script engine.)"
     );
+  },
+  ViridianCity_House_EventScript_BaldingMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_House_ObjectEvent_BaldingMan', [
+      'Coming up with nicknames is fun,',
+      "but it's not so easy to do.",
+      'Clever names are nice, but simple',
+      'names are easier to remember.'
+    ]);
+  },
+  ViridianCity_House_EventScript_LittleGirl: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'ViridianCity_House_ObjectEvent_LittleGirl',
+      'My daddy loves POKéMON, too.'
+    );
+  },
+  ViridianCity_House_EventScript_Speary: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'ViridianCity_House_ObjectEvent_Speary', [
+      'SPEARY: Tetweet!'
+    ]);
+  },
+  ViridianCity_House_EventScript_NicknameSign: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'SPEAROW\nName: SPEARY'
+    );
   }
 };
 

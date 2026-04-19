@@ -44,6 +44,7 @@ import vermilionCityMapJson from './maps/vermilionCity.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import viridianCityMartMapJson from './maps/viridianCityMart.json';
 import viridianCityPokemonCenter1FMapJson from './maps/viridianCityPokemonCenter1F.json';
+import viridianCityHouseMapJson from './maps/viridianCityHouse.json';
 import viridianCitySchoolMapJson from './maps/viridianCitySchool.json';
 import type { TileMap } from './tileMap';
 
@@ -902,6 +903,9 @@ export const loadViridianCityMartMap = (): TileMap =>
 export const loadViridianCityPokemonCenter1FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityPokemonCenter1FMapJson));
 
+export const loadViridianCityHouseMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(viridianCityHouseMapJson));
+
 export const loadViridianCitySchoolMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCitySchoolMapJson));
 
@@ -995,6 +999,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadVermilionCityMap();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
+    case 'MAP_VIRIDIAN_CITY_HOUSE':
+      return loadViridianCityHouseMap();
     case 'MAP_VIRIDIAN_CITY_MART':
       return loadViridianCityMartMap();
     case 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F':

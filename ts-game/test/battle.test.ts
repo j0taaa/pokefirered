@@ -10,6 +10,7 @@ import {
   stepBattle,
   tryStartWildBattle
 } from '../src/game/battle';
+import type { BattleMove, PokemonType } from '../src/game/battle';
 import type { WildEncounterGroup } from '../src/world/mapSource';
 
 const neutralInput = {
@@ -38,6 +39,47 @@ const flushScriptMessages = (battle: ReturnType<typeof createBattleState>, encou
   }
 };
 
+const makeStatusMove = (
+  id: string,
+  effect: string,
+  type: PokemonType,
+  accuracy = 0
+): BattleMove => ({
+  id,
+  name: id.replace(/_/gu, ' '),
+  power: 0,
+  type,
+  accuracy,
+  pp: 20,
+  ppRemaining: 20,
+  priority: 0,
+  effect,
+  effectScriptLabel: `BattleScript_${effect}`,
+  target: 'MOVE_TARGET_SELECTED',
+  secondaryEffectChance: 0
+});
+
+const makeDamageMove = (
+  id: string,
+  effect: string,
+  type: PokemonType,
+  power = 40,
+  accuracy = 0
+): BattleMove => ({
+  id,
+  name: id.replace(/_/gu, ' '),
+  power,
+  type,
+  accuracy,
+  pp: 20,
+  ppRemaining: 20,
+  priority: 0,
+  effect,
+  effectScriptLabel: `BattleScript_${effect}`,
+  target: 'MOVE_TARGET_SELECTED',
+  secondaryEffectChance: 0
+});
+
 describe('battle vertical slice', () => {
   const routeLikeLandEncounters: WildEncounterGroup = {
     encounterRate: 21,
@@ -63,9 +105,296 @@ describe('battle vertical slice', () => {
     expect(preview).toEqual({ min: 25, max: 30 });
   });
 
+  test('burn halves physical attack damage but not special attack damage', () => {
+    const battle = createBattleState();
+    const tackle = battle.moves.find((entry) => entry.id === 'SCRATCH') ?? battle.moves.find((entry) => entry.power > 0 && entry.type === 'normal');
+    const ember = battle.moves.find((entry) => entry.id === 'EMBER');
+    expect(tackle).toBeTruthy();
+    expect(ember).toBeTruthy();
+
+    const normalPhysical = calculateDamagePreview(battle.playerMon, battle.wildMon, tackle!);
+    const normalSpecial = calculateDamagePreview(battle.playerMon, battle.wildMon, ember!);
+    battle.playerMon.status = 'burn';
+
+    expect(calculateDamagePreview(battle.playerMon, battle.wildMon, tackle!).max).toBeLessThan(normalPhysical.max);
+    expect(calculateDamagePreview(battle.playerMon, battle.wildMon, ember!).max).toBe(normalSpecial.max);
+  });
+
+  test('critical base damage doubles and ignores bad attacker / good defender stages', () => {
+    const battle = createBattleState();
+    const move = makeDamageMove('SLASH', 'EFFECT_HIGH_CRITICAL', 'normal', 70);
+    battle.playerMon.attack = 30;
+    battle.wildMon.defense = 10;
+    battle.playerMon.statStages.attack = -6;
+    battle.wildMon.statStages.defense = 6;
+
+    const normal = calculateBaseDamage(battle.playerMon, battle.wildMon, move, false);
+    const critical = calculateBaseDamage(battle.playerMon, battle.wildMon, move, true) * 2;
+
+    expect(critical).toBeGreaterThan(normal);
+  });
+
   test('applies multi-type effectiveness multiplication', () => {
     expect(calculateTypeEffectiveness('fire', ['grass', 'steel'])).toBe(4);
     expect(calculateTypeEffectiveness('normal', ['ghost'])).toBe(0);
+  });
+
+  test('treats decomp move accuracy as percent, so 100-accuracy moves do not randomly miss', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.selectedMoveIndex = battle.moves.findIndex((move) => move.power > 0 && move.accuracy === 100);
+    battle.wildMon.hp = battle.wildMon.maxHp;
+    const wildHp = battle.wildMon.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('used');
+    expect(battle.turnSummary).not.toContain('missed');
+    expect(battle.wildMon.hp).toBeLessThan(wildHp);
+  });
+
+  test('paralysis quarters speed for turn order', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 100;
+    battle.playerMon.status = 'paralysis';
+    battle.wildMon.speed = 30;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('Foe');
+    expect(battle.turnSummary).toContain('used');
+  });
+
+  test('critical hits are announced and deal extra damage during move execution', () => {
+    const criticalBattle = createBattleState();
+    const nonCriticalBattle = createBattleState();
+    const move = makeDamageMove('SLASH', 'EFFECT_HIGH_CRITICAL', 'normal', 70);
+    criticalBattle.active = true;
+    criticalBattle.phase = 'moveSelect';
+    criticalBattle.playerMon.speed = 99;
+    criticalBattle.moves = [{ ...move }];
+    criticalBattle.playerMon.moves = criticalBattle.moves;
+    nonCriticalBattle.active = true;
+    nonCriticalBattle.phase = 'moveSelect';
+    nonCriticalBattle.playerMon.speed = 99;
+    nonCriticalBattle.moves = [{ ...move }];
+    nonCriticalBattle.playerMon.moves = nonCriticalBattle.moves;
+
+    const criticalEncounter = createBattleEncounterState();
+    criticalEncounter.rngState = 0;
+    const nonCriticalEncounter = createBattleEncounterState();
+    nonCriticalEncounter.rngState = 1;
+
+    stepBattle(criticalBattle, confirmInput, criticalEncounter);
+    stepBattle(nonCriticalBattle, confirmInput, nonCriticalEncounter);
+
+    const criticalDamage = criticalBattle.wildMon.maxHp - criticalBattle.wildMon.hp;
+    const nonCriticalDamage = nonCriticalBattle.wildMon.maxHp - nonCriticalBattle.wildMon.hp;
+
+    expect([criticalBattle.turnSummary, ...criticalBattle.queuedMessages]).toContain('A critical hit!');
+    expect(criticalDamage).toBeGreaterThan(nonCriticalDamage);
+  });
+
+  test('Absorb-style moves restore half of dealt damage', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.hp = 10;
+    battle.playerMon.speed = 99;
+    battle.wildMon.hp = 1;
+    battle.moves = [makeDamageMove('ABSORB', 'EFFECT_ABSORB', 'grass', 40)];
+    battle.playerMon.moves = battle.moves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.playerMon.hp).toBeGreaterThan(10);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('regained health'))).toBe(true);
+  });
+
+  test('Double-Edge-style moves recoil by a third of damage', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.hp = battle.playerMon.maxHp;
+    battle.playerMon.speed = 99;
+    battle.wildMon.hp = 1;
+    battle.moves = [makeDamageMove('DOUBLE_EDGE', 'EFFECT_DOUBLE_EDGE', 'normal', 120)];
+    battle.playerMon.moves = battle.moves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.playerMon.hp).toBeLessThan(battle.playerMon.maxHp);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('recoil'))).toBe(true);
+  });
+
+  test('Jump Kick-style moves crash on ordinary accuracy misses', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.hp = battle.playerMon.maxHp;
+    battle.playerMon.speed = 99;
+    battle.moves = [makeDamageMove('JUMP_KICK', 'EFFECT_RECOIL_IF_MISS', 'fighting', 70, 1)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.playerMon.hp).toBeLessThan(battle.playerMon.maxHp);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('crashed'))).toBe(true);
+  });
+
+  test('Recover restores half max HP and Rest fully heals while sleeping', () => {
+    const recoverBattle = createBattleState();
+    const restBattle = createBattleState();
+    const encounter = createBattleEncounterState();
+    recoverBattle.active = true;
+    recoverBattle.phase = 'moveSelect';
+    recoverBattle.playerMon.hp = 5;
+    recoverBattle.playerMon.speed = 99;
+    recoverBattle.moves = [makeStatusMove('RECOVER', 'EFFECT_RESTORE_HP', 'normal')];
+    recoverBattle.playerMon.moves = recoverBattle.moves;
+
+    stepBattle(recoverBattle, confirmInput, encounter);
+
+    expect(recoverBattle.playerMon.hp).toBeGreaterThan(5);
+    expect([recoverBattle.turnSummary, ...recoverBattle.queuedMessages].some((message) => message.includes('regained health'))).toBe(true);
+
+    restBattle.active = true;
+    restBattle.phase = 'moveSelect';
+    restBattle.playerMon.hp = 5;
+    restBattle.playerMon.status = 'poison';
+    restBattle.playerMon.speed = 99;
+    restBattle.moves = [makeStatusMove('REST', 'EFFECT_REST', 'psychic')];
+    restBattle.playerMon.moves = restBattle.moves;
+    restBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    restBattle.wildMon.moves = restBattle.wildMoves;
+
+    stepBattle(restBattle, confirmInput, createBattleEncounterState());
+
+    expect(restBattle.playerMon.hp).toBe(restBattle.playerMon.maxHp);
+    expect(restBattle.playerMon.status).toBe('sleep');
+  });
+
+  test('Dream Eater fails unless the target is asleep', () => {
+    const failedBattle = createBattleState();
+    const successBattle = createBattleState();
+    failedBattle.active = true;
+    failedBattle.phase = 'moveSelect';
+    failedBattle.playerMon.speed = 99;
+    failedBattle.moves = [makeDamageMove('DREAM_EATER', 'EFFECT_DREAM_EATER', 'psychic', 100)];
+    failedBattle.playerMon.moves = failedBattle.moves;
+
+    stepBattle(failedBattle, confirmInput, createBattleEncounterState());
+
+    expect(failedBattle.wildMon.hp).toBe(failedBattle.wildMon.maxHp);
+    expect([failedBattle.turnSummary, ...failedBattle.queuedMessages]).toContain('But it failed!');
+
+    successBattle.active = true;
+    successBattle.phase = 'moveSelect';
+    successBattle.playerMon.hp = 5;
+    successBattle.playerMon.speed = 99;
+    successBattle.wildMon.status = 'sleep';
+    successBattle.moves = [makeDamageMove('DREAM_EATER', 'EFFECT_DREAM_EATER', 'psychic', 100)];
+    successBattle.playerMon.moves = successBattle.moves;
+
+    stepBattle(successBattle, confirmInput, createBattleEncounterState());
+
+    expect(successBattle.wildMon.hp).toBeLessThan(successBattle.wildMon.maxHp);
+    expect(successBattle.playerMon.hp).toBeGreaterThan(5);
+  });
+
+  test('primary status moves apply statuses like FireRed seteffectprimary scripts', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.moves = [makeStatusMove('SLEEP_POWDER', 'EFFECT_SLEEP', 'grass')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMon.status = 'none';
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('used SLEEP POWDER');
+    expect(battle.queuedMessages).toContain(`${battle.wildMon.species} fell asleep!`);
+    expect(battle.wildMon.status).toBe('sleep');
+  });
+
+  test('poison status moves do not affect poison or steel types', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.moves = [makeStatusMove('POISON_POWDER', 'EFFECT_POISON', 'poison')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMon.status = 'none';
+    battle.wildMon.types = ['poison'];
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.status).toBe('none');
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes("doesn't affect"))).toBe(true);
+  });
+
+  test('Thunder Wave respects Gen 3 type immunity through typecalc', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.moves = [makeStatusMove('THUNDER_WAVE', 'EFFECT_PARALYZE', 'electric')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMon.status = 'none';
+    battle.wildMon.types = ['ground'];
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.status).toBe('none');
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes("doesn't affect"))).toBe(true);
+  });
+
+  test('stat stage moves stop at FireRed stage caps', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.moves = [makeStatusMove('GROWL', 'EFFECT_ATTACK_DOWN', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMon.statStages.attack = -6;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.statStages.attack).toBe(-6);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes("won't go lower"))).toBe(true);
+  });
+
+  test('Will-O-Wisp does not burn Fire types', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.moves = [makeStatusMove('WILL_O_WISP', 'EFFECT_WILL_O_WISP', 'fire')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMon.status = 'none';
+    battle.wildMon.types = ['fire'];
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.status).toBe('none');
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes("doesn't affect"))).toBe(true);
   });
 
   test('starts a wild battle once cooldown threshold is reached', () => {
@@ -285,6 +614,62 @@ describe('battle vertical slice', () => {
 
     flushScriptMessages(battle, encounter);
     expect(battle.phase).toBe('command');
+  });
+
+  test('blocks selecting a move with no PP while another move is usable', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.selectedMoveIndex = 0;
+    battle.moves[0]!.ppRemaining = 0;
+    battle.moves[1]!.ppRemaining = Math.max(1, battle.moves[1]!.ppRemaining);
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('moveSelect');
+    expect(battle.turnSummary).toContain("There's no PP left");
+    expect(battle.moves[0]!.ppRemaining).toBe(0);
+  });
+
+  test('uses Struggle when the player has no move PP left', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.moves.forEach((move) => {
+      move.ppRemaining = 0;
+    });
+    const playerHp = battle.playerMon.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('used STRUGGLE');
+    expect(battle.moves.every((move) => move.ppRemaining === 0)).toBe(true);
+    expect(battle.playerMon.hp).toBeLessThan(playerHp);
+  });
+
+  test('wild battler uses Struggle when it has no move PP left', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.wildMoves.forEach((move) => {
+      move.ppRemaining = 0;
+    });
+    const wildHp = battle.wildMon.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('Foe');
+    expect(battle.turnSummary).toContain('used STRUGGLE');
+    expect(battle.wildMoves.every((move) => move.ppRemaining === 0)).toBe(true);
+    expect(battle.wildMon.hp).toBeLessThan(wildHp);
   });
 
   test('battle state seeds active and wild moves from decomp learnsets', () => {

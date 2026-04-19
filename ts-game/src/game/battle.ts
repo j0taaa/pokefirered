@@ -170,6 +170,8 @@ const TYPE_CHART: Partial<Record<PokemonType, Partial<Record<PokemonType, number
 };
 
 const specialTypes = new Set<PokemonType>(['fire', 'water', 'grass', 'electric', 'ice', 'psychic', 'dragon', 'dark']);
+const highCriticalEffects = new Set<string>(['EFFECT_HIGH_CRITICAL', 'EFFECT_SKY_ATTACK', 'EFFECT_BLAZE_KICK', 'EFFECT_POISON_TAIL']);
+const criticalHitDivisors = [16, 8, 4, 3, 2];
 
 const stageEffectTable: Partial<Record<string, { target: 'self' | 'target'; stat: keyof BattleStatStages; delta: number }>> = {
   EFFECT_ATTACK_UP: { target: 'self', stat: 'attack', delta: 1 },
@@ -200,11 +202,19 @@ const stageEffectTable: Partial<Record<string, { target: 'self' | 'target'; stat
 
 const secondaryStatusByEffect: Partial<Record<string, StatusCondition>> = {
   EFFECT_POISON_HIT: 'poison',
+  EFFECT_POISON_FANG: 'poison',
+  EFFECT_POISON_TAIL: 'poison',
   EFFECT_BURN_HIT: 'burn',
   EFFECT_PARALYZE_HIT: 'paralysis',
   EFFECT_FREEZE_HIT: 'freeze',
+};
+
+const primaryStatusByEffect: Partial<Record<string, StatusCondition>> = {
+  EFFECT_POISON: 'poison',
+  EFFECT_PARALYZE: 'paralysis',
   EFFECT_SLEEP: 'sleep',
-  EFFECT_TOXIC: 'poison'
+  EFFECT_TOXIC: 'poison',
+  EFFECT_WILL_O_WISP: 'burn'
 };
 
 const clampDamage = (value: number): number => Math.max(1, Math.floor(value));
@@ -404,34 +414,77 @@ const getStageMultiplier = (stage: number): number => {
 const getModifiedStat = (value: number, stage: number): number => Math.max(1, Math.floor(value * getStageMultiplier(stage)));
 
 const getAccuracyAdjustedValue = (moveAccuracy: number, attackerStage: number, defenderStage: number): number =>
-  Math.max(1, Math.min(255, Math.floor(moveAccuracy * (getStageMultiplier(attackerStage) / getStageMultiplier(defenderStage)))));
+  Math.max(1, Math.floor(moveAccuracy * getAccuracyStageMultiplier(attackerStage - defenderStage)));
 
-const getOffenseStat = (pokemon: BattlePokemonSnapshot, move: BattleMove): number =>
-  specialTypes.has(move.type)
-    ? getModifiedStat(pokemon.spAttack, pokemon.statStages.spAttack)
-    : getModifiedStat(pokemon.attack, pokemon.statStages.attack);
+const accuracyStageRatios: Array<[number, number]> = [
+  [33, 100],
+  [36, 100],
+  [43, 100],
+  [50, 100],
+  [60, 100],
+  [75, 100],
+  [1, 1],
+  [133, 100],
+  [166, 100],
+  [2, 1],
+  [233, 100],
+  [133, 50],
+  [3, 1]
+];
 
-const getDefenseStat = (pokemon: BattlePokemonSnapshot, move: BattleMove): number =>
-  specialTypes.has(move.type)
-    ? getModifiedStat(pokemon.spDefense, pokemon.statStages.spDefense)
-    : getModifiedStat(pokemon.defense, pokemon.statStages.defense);
+const getAccuracyStageMultiplier = (stage: number): number => {
+  const clamped = Math.max(-6, Math.min(6, stage));
+  const [dividend, divisor] = accuracyStageRatios[clamped + 6] ?? [1, 1];
+  return dividend / divisor;
+};
+
+const getOffenseStat = (pokemon: BattlePokemonSnapshot, move: BattleMove, critical = false): number => {
+  const isSpecial = specialTypes.has(move.type);
+  const stage = isSpecial ? pokemon.statStages.spAttack : pokemon.statStages.attack;
+  const effectiveStage = critical && stage < 0 ? 0 : stage;
+  return isSpecial
+    ? getModifiedStat(pokemon.spAttack, effectiveStage)
+    : getModifiedStat(pokemon.attack, effectiveStage);
+};
+
+const getDefenseStat = (pokemon: BattlePokemonSnapshot, move: BattleMove, critical = false): number => {
+  const isSpecial = specialTypes.has(move.type);
+  const stage = isSpecial ? pokemon.statStages.spDefense : pokemon.statStages.defense;
+  const effectiveStage = critical && stage > 0 ? 0 : stage;
+  return isSpecial
+    ? getModifiedStat(pokemon.spDefense, effectiveStage)
+    : getModifiedStat(pokemon.defense, effectiveStage);
+};
+
+const getTurnOrderSpeed = (pokemon: BattlePokemonSnapshot): number => {
+  const speed = getModifiedStat(pokemon.speed, pokemon.statStages.speed);
+  return pokemon.status === 'paralysis' ? Math.max(1, Math.floor(speed / 4)) : speed;
+};
 
 export const calculateBaseDamage = (
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
-  move: BattleMove
+  move: BattleMove,
+  critical = false
 ): number => {
   if (move.power <= 0) {
     return 0;
   }
 
-  const attackStat = getOffenseStat(attacker, move);
-  const defenseStat = getDefenseStat(defender, move);
+  const attackStat = getOffenseStat(attacker, move, critical);
+  const defenseStat = getDefenseStat(defender, move, critical);
   const levelTerm = Math.floor((2 * attacker.level) / 5) + 2;
   const numerator = levelTerm * move.power * attackStat;
   const denominator = Math.max(1, defenseStat);
   const scaled = Math.floor(numerator / denominator);
-  return Math.floor(scaled / 50) + 2;
+  let damage = Math.floor(scaled / 50);
+  if (!specialTypes.has(move.type) && attacker.status === 'burn') {
+    damage = Math.floor(damage / 2);
+  }
+  if (damage === 0) {
+    damage = 1;
+  }
+  return damage + 2;
 };
 
 export const calculateDamagePreview = (
@@ -459,15 +512,23 @@ const calculateDamageRoll = (
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
   move: BattleMove,
-  encounterState: BattleEncounterState
+  encounterState: BattleEncounterState,
+  critical = false
 ): number => {
-  const preview = calculateDamagePreview(attacker, defender, move);
-  if (preview.max === 0) {
+  if (move.power <= 0) {
     return 0;
   }
 
+  const typeBonus = calculateTypeEffectiveness(move.type, defender.types);
+  if (typeBonus === 0) {
+    return 0;
+  }
+
+  const baseDamage = calculateBaseDamage(attacker, defender, move, critical) * (critical ? 2 : 1);
+  const stab = attacker.types.includes(move.type) ? 1.5 : 1;
+  const max = clampDamage(baseDamage * stab * typeBonus);
   const randomFactor = 217 + (nextBattleRng(encounterState) % 39);
-  return clampDamage((preview.max * randomFactor) / 255);
+  return clampDamage((max * randomFactor) / 255);
 };
 
 const getMapBaseEncounterCooldown = (encounterRate: number): number => {
@@ -507,8 +568,8 @@ const tryRunFromBattle = (
   runAttempts: number,
   encounter: BattleEncounterState
 ): boolean => {
-  const playerSpeed = getModifiedStat(player.speed, player.statStages.speed);
-  const enemySpeed = getModifiedStat(enemy.speed, enemy.statStages.speed);
+  const playerSpeed = getTurnOrderSpeed(player);
+  const enemySpeed = getTurnOrderSpeed(enemy);
   if (playerSpeed >= enemySpeed) {
     return true;
   }
@@ -606,6 +667,65 @@ const pushMessage = (messages: string[], battle: BattleState, text: string): voi
   battle.queuedControllerCommands.push({ type: 'message', text });
 };
 
+const getStatusAppliedMessage = (pokemon: BattlePokemonSnapshot, status: StatusCondition): string | null => {
+  switch (status) {
+    case 'poison':
+      return `${pokemon.species} was poisoned!`;
+    case 'burn':
+      return `${pokemon.species} was burned!`;
+    case 'paralysis':
+      return `${pokemon.species} is paralyzed! It may be unable to move!`;
+    case 'sleep':
+      return `${pokemon.species} fell asleep!`;
+    case 'freeze':
+      return `${pokemon.species} was frozen solid!`;
+    default:
+      return null;
+  }
+};
+
+const isStatusTypeBlocked = (
+  status: StatusCondition,
+  target: BattlePokemonSnapshot,
+  move?: BattleMove
+): boolean => {
+  if (status === 'poison') {
+    return target.types.includes('poison') || target.types.includes('steel');
+  }
+  if (status === 'burn') {
+    return target.types.includes('fire');
+  }
+  if (status === 'freeze') {
+    return target.types.includes('ice');
+  }
+  return status === 'paralysis' && move?.type === 'electric' && calculateTypeEffectiveness(move.type, target.types) === 0;
+};
+
+const applyStatusEffect = (
+  target: BattlePokemonSnapshot,
+  status: StatusCondition,
+  messages: string[],
+  move?: BattleMove,
+  blockedMessage = 'But it failed!'
+): boolean => {
+  if (target.status !== 'none') {
+    messages.push(blockedMessage);
+    return false;
+  }
+
+  if (isStatusTypeBlocked(status, target, move)) {
+    messages.push(`It doesn't affect ${target.species}...`);
+    return false;
+  }
+
+  target.status = status;
+  const appliedMessage = getStatusAppliedMessage(target, status);
+  if (appliedMessage) {
+    messages.push(appliedMessage);
+  }
+  return true;
+};
+
 const applyStageEffect = (
   effect: string,
   attacker: BattlePokemonSnapshot,
@@ -620,6 +740,11 @@ const applyStageEffect = (
   const recipient = stageEffect.target === 'self' ? attacker : defender;
   const previous = recipient.statStages[stageEffect.stat];
   const next = Math.max(-6, Math.min(6, previous + stageEffect.delta));
+  if (next === previous) {
+    messages.push(`${recipient.species}'s ${formatStatLabel(stageEffect.stat)} won't go ${stageEffect.delta > 0 ? 'higher' : 'lower'}!`);
+    return true;
+  }
+
   recipient.statStages[stageEffect.stat] = next;
   messages.push(`${recipient.species}'s ${formatStatLabel(stageEffect.stat)} ${lowerOrRaiseText(stageEffect.delta)}`);
   return true;
@@ -640,26 +765,7 @@ const maybeApplySecondaryStatus = (
     return;
   }
 
-  target.status = nextStatus;
-  switch (nextStatus) {
-    case 'poison':
-      messages.push(`${target.species} was poisoned!`);
-      break;
-    case 'burn':
-      messages.push(`${target.species} was burned!`);
-      break;
-    case 'paralysis':
-      messages.push(`${target.species} is paralyzed! It may be unable to move!`);
-      break;
-    case 'sleep':
-      messages.push(`${target.species} fell asleep!`);
-      break;
-    case 'freeze':
-      messages.push(`${target.species} was frozen solid!`);
-      break;
-    default:
-      break;
-  }
+  applyStatusEffect(target, nextStatus, messages, move, '');
 };
 
 const applyQueuedDamage = (
@@ -668,6 +774,24 @@ const applyQueuedDamage = (
   nextHp: number
 ): void => {
   battle.queuedControllerCommands.push({ type: 'hp', battler, value: nextHp });
+};
+
+const healBattler = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  amount: number,
+  messages: string[]
+): boolean => {
+  if (pokemon.hp >= pokemon.maxHp) {
+    messages.push(`${pokemon.species}'s HP is full!`);
+    return false;
+  }
+
+  pokemon.hp = Math.min(pokemon.maxHp, pokemon.hp + Math.max(1, amount));
+  applyQueuedDamage(battle, side, pokemon.hp);
+  messages.push(`${pokemon.species} regained health!`);
+  return true;
 };
 
 const getActorLabel = (side: 'player' | 'opponent', battle: BattleState): string =>
@@ -714,7 +838,12 @@ const attemptAccuracy = (
     attacker.statStages.accuracy,
     defender.statStages.evasion
   );
-  return (nextBattleRng(encounterState) & 0xff) < accuracyValue;
+  return (nextBattleRng(encounterState) % 100) + 1 <= accuracyValue;
+};
+
+const isCriticalHit = (move: BattleMove, encounterState: BattleEncounterState): boolean => {
+  const critStage = Math.min(criticalHitDivisors.length - 1, highCriticalEffects.has(move.effect) ? 1 : 0);
+  return nextBattleRng(encounterState) % criticalHitDivisors[critStage] === 0;
 };
 
 const executeMove = (
@@ -746,8 +875,22 @@ const executeMove = (
 
   pushMessage(messages, battle, `${getActorLabel(attackerSide, battle)} used ${move.name}!`);
 
+  if (move.effect === 'EFFECT_DREAM_EATER' && defender.status !== 'sleep') {
+    pushMessage(messages, battle, 'But it failed!');
+    return messages;
+  }
+
   if (!attemptAccuracy(attacker, defender, move, encounterState)) {
     pushMessage(messages, battle, 'The attack missed!');
+    if (move.effect === 'EFFECT_RECOIL_IF_MISS' && calculateTypeEffectiveness(move.type, defender.types) !== 0) {
+      const crashDamage = Math.min(
+        Math.max(1, Math.floor(calculateDamageRoll(attacker, defender, move, encounterState, false) / 2)),
+        Math.max(1, Math.floor(defender.maxHp / 2))
+      );
+      attacker.hp = Math.max(0, attacker.hp - crashDamage);
+      applyQueuedDamage(battle, attackerSide, attacker.hp);
+      pushMessage(messages, battle, `${attacker.species} kept going and crashed!`);
+    }
     return messages;
   }
 
@@ -758,9 +901,14 @@ const executeMove = (
       return messages;
     }
 
-    const damage = calculateDamageRoll(attacker, defender, move, encounterState);
+    const critical = isCriticalHit(move, encounterState);
+    const damage = calculateDamageRoll(attacker, defender, move, encounterState, critical);
     defender.hp = Math.max(0, defender.hp - damage);
     applyQueuedDamage(battle, defenderSide, defender.hp);
+
+    if (critical) {
+      pushMessage(messages, battle, 'A critical hit!');
+    }
 
     if (typeEffectiveness > 1) {
       pushMessage(messages, battle, "It's super effective!");
@@ -775,6 +923,28 @@ const executeMove = (
       attacker.hp = Math.max(0, attacker.hp - recoil);
       applyQueuedDamage(battle, attackerSide, attacker.hp);
       pushMessage(messages, battle, `${attacker.species} is hit with recoil!`);
+    } else if (move.effect === 'EFFECT_DOUBLE_EDGE') {
+      const recoil = Math.max(1, Math.floor(damage / 3));
+      attacker.hp = Math.max(0, attacker.hp - recoil);
+      applyQueuedDamage(battle, attackerSide, attacker.hp);
+      pushMessage(messages, battle, `${attacker.species} is hit with recoil!`);
+    }
+
+    if (move.effect === 'EFFECT_ABSORB' || move.effect === 'EFFECT_DREAM_EATER') {
+      healBattler(battle, attackerSide, attacker, Math.floor(damage / 2), messages);
+    }
+  } else if (primaryStatusByEffect[move.effect]) {
+    applyStatusEffect(defender, primaryStatusByEffect[move.effect], messages, move);
+  } else if (move.effect === 'EFFECT_RESTORE_HP') {
+    healBattler(battle, attackerSide, attacker, Math.floor(attacker.maxHp / 2), messages);
+  } else if (move.effect === 'EFFECT_REST') {
+    if (attacker.hp >= attacker.maxHp || attacker.status === 'sleep') {
+      messages.push('But it failed!');
+    } else {
+      attacker.hp = attacker.maxHp;
+      attacker.status = 'sleep';
+      applyQueuedDamage(battle, attackerSide, attacker.hp);
+      messages.push(`${attacker.species} went to sleep and became healthy!`);
     }
   } else if (!applyStageEffect(move.effect, attacker, defender, messages)) {
     pushMessage(messages, battle, 'But nothing happened!');
@@ -800,8 +970,8 @@ const getActionOrder = (
     return playerMove.priority > enemyMove.priority ? ['player', 'opponent'] : ['opponent', 'player'];
   }
 
-  const playerSpeed = getModifiedStat(battle.playerMon.speed, battle.playerMon.statStages.speed);
-  const enemySpeed = getModifiedStat(battle.wildMon.speed, battle.wildMon.statStages.speed);
+  const playerSpeed = getTurnOrderSpeed(battle.playerMon);
+  const enemySpeed = getTurnOrderSpeed(battle.wildMon);
   if (playerSpeed !== enemySpeed) {
     return playerSpeed > enemySpeed ? ['player', 'opponent'] : ['opponent', 'player'];
   }
