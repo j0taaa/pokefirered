@@ -378,7 +378,7 @@ describe('integration with prototypeScriptRegistry', () => {
     expect(dialogue.queue).toContain('Champ in the making!');
   });
 
-  test('Indigo Plateau Clerk dialogue works through global registry', () => {
+  test('Indigo Plateau Clerk is handled by mart template', () => {
     const runtime = createScriptRuntimeState();
     const dialogue = createDialogueState();
     const player = createPlayer();
@@ -388,7 +388,10 @@ describe('integration with prototypeScriptRegistry', () => {
       dialogue,
       runtime
     });
-    expect(dialogue.queue).toContain('May I help you?');
+    const joined = dialogue.queue.join(' ');
+    expect(joined).toContain('May I help you?');
+    expect(joined).toContain('ULTRA BALL');
+    expect(joined).toContain('Please come again');
   });
 
   test('Pewter center Jigglypuff dialogue works', () => {

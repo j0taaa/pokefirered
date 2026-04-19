@@ -94,7 +94,7 @@ describe('script runtime helpers', () => {
     ).toBe(true);
 
     expect(dialogue.queue).toEqual([
-      'May I help you?',
+      'Hi, there!\nMay I help you?',
       'Shop UI stub: POKE BALL, POTION, ANTIDOTE, PARLYZ HEAL.',
       'Please come again!'
     ]);

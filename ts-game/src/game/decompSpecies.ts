@@ -29,6 +29,7 @@ export interface DecompSpeciesInfo {
   baseSpDefense: number;
   catchRate: number;
   types: DecompTypeId[];
+  abilities: string[];
 }
 
 const normalizeSpecies = (species: string): string => species.replace(/^SPECIES_/u, '').toUpperCase();
@@ -64,6 +65,9 @@ const parseSpeciesInfo = (source: string): Map<string, DecompSpeciesInfo> => {
     const typeA = typesMatch ? typeMap[typesMatch[1]] : 'normal';
     const typeB = typesMatch ? typeMap[typesMatch[2]] : typeA;
     const types = typeA === typeB ? [typeA] : [typeA, typeB];
+    const abilities = (block.match(/\.abilities = \{(ABILITY_\w+), (ABILITY_\w+)\}/u)?.slice(1) ?? ['ABILITY_NONE', 'ABILITY_NONE'])
+      .map((ability) => ability.replace(/^ABILITY_/u, ''))
+      .filter((ability) => ability !== 'NONE');
 
     entries.set(species, {
       species,
@@ -74,7 +78,8 @@ const parseSpeciesInfo = (source: string): Map<string, DecompSpeciesInfo> => {
       baseSpAttack: Number.parseInt(block.match(/\.baseSpAttack = (\d+)/u)?.[1] ?? '1', 10),
       baseSpDefense: Number.parseInt(block.match(/\.baseSpDefense = (\d+)/u)?.[1] ?? '1', 10),
       catchRate: Number.parseInt(block.match(/\.catchRate = (\d+)/u)?.[1] ?? '255', 10),
-      types
+      types,
+      abilities
     });
   }
 

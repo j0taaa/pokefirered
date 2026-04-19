@@ -18,6 +18,7 @@ export interface DecompBattleMove {
   priority: number;
   target: string;
   secondaryEffectChance: number;
+  flags: string[];
   displayName: string;
 }
 
@@ -103,6 +104,10 @@ const parseBattleMoves = (
     const block = match[2];
     const effect = block.match(/\.effect = (EFFECT_\w+)/u)?.[1] ?? 'EFFECT_HIT';
     const typeToken = block.match(/\.type = (TYPE_\w+)/u)?.[1] ?? 'TYPE_NORMAL';
+    const flags = (block.match(/\.flags = ([^,\n]+)/u)?.[1] ?? '0')
+      .split('|')
+      .map((flag) => flag.trim())
+      .filter((flag) => flag.length > 0 && flag !== '0');
 
     moves.set(id, {
       id,
@@ -116,6 +121,7 @@ const parseBattleMoves = (
       priority: Number.parseInt(block.match(/\.priority = (-?\d+)/u)?.[1] ?? '0', 10),
       target: block.match(/\.target = (MOVE_TARGET_\w+)/u)?.[1] ?? 'MOVE_TARGET_SELECTED',
       secondaryEffectChance: Number.parseInt(block.match(/\.secondaryEffectChance = (\d+)/u)?.[1] ?? '0', 10),
+      flags,
       displayName: formatDisplayName(id)
     });
   }
@@ -182,6 +188,9 @@ const mapSceneTerrainMapping = parseMapSceneTerrainMapping(battleBgSource);
 
 export const getDecompBattleMove = (moveId: string): DecompBattleMove | null =>
   decompBattleMoves.get(normalizeMove(moveId)) ?? null;
+
+export const getAllDecompBattleMoves = (): DecompBattleMove[] =>
+  [...decompBattleMoves.values()];
 
 export const getDecompLevelUpMoves = (species: string, level: number): DecompBattleMove[] => {
   const pointer = learnsetPointers.get(normalizeSpecies(species));

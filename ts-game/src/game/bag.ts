@@ -28,6 +28,8 @@ export interface ItemDefinition {
   itemId: string;
   name: string;
   description: string;
+  holdEffect: string;
+  holdEffectParam: number;
   pocket: string;
   importance: number;
   registrability: number;
@@ -80,6 +82,8 @@ interface RawItemDefinition {
   english: string;
   itemId: string;
   price: number;
+  holdEffect: string;
+  holdEffectParam: number;
   description_english: string;
   importance: number;
   registrability: number;
@@ -124,6 +128,8 @@ const itemDefinitions = new Map<string, ItemDefinition>(
       itemId: item.itemId,
       name: item.english,
       description: normalizeDescription(item.description_english),
+      holdEffect: item.holdEffect,
+      holdEffectParam: item.holdEffectParam,
       pocket: item.pocket,
       importance: item.importance,
       registrability: item.registrability,
@@ -171,6 +177,8 @@ export const getItemDefinition = (itemId: string): ItemDefinition => itemDefinit
   itemId,
   name: itemId.replace(/^ITEM_/u, '').replace(/_/gu, ' '),
   description: 'No description available.',
+  holdEffect: 'HOLD_EFFECT_NONE',
+  holdEffectParam: 0,
   pocket: 'POCKET_ITEMS',
   importance: 0,
   registrability: 0,

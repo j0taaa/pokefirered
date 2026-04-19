@@ -8,6 +8,7 @@ import {
   type PokedexState
 } from './pokemonStorage';
 import { getAllCenterScriptHandlers } from './pokemonCenterTemplate';
+import { getAllMartScriptHandlers, getMartStockForMap } from './martTemplate';
 
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
@@ -106,19 +107,7 @@ export const openScriptDialogue = (
   openDialogueSequence(dialogue, speakerId, [text]);
 };
 
-const VIRIDIAN_MART_STOCK = [
-  'ITEM_POKE_BALL',
-  'ITEM_POTION',
-  'ITEM_ANTIDOTE',
-  'ITEM_PARALYZE_HEAL'
-] as const;
 
-const viridianMartStockLine = (): string =>
-  `Shop UI stub: ${VIRIDIAN_MART_STOCK
-    .map((itemId) => getItemDefinition(itemId).name.replace('é', 'e').toUpperCase())
-    .join(', ')}.`;
-
-// Script callbacks are intentionally registry-based, mirroring how the original
 // engine resolves script pointers from events in field_control_avatar.c.
 export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
   'sign.route-tips': ({ dialogue }) => {
@@ -193,23 +182,15 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       return;
     }
 
+    const viridianStock = getMartStockForMap('MAP_VIRIDIAN_CITY_MART');
+    const items = viridianStock ? viridianStock.items : [];
+    const stockLine = `Shop UI stub: ${items
+      .map((itemId) => getItemDefinition(itemId).name.replace(/\u00e9/gu, 'e').toUpperCase())
+      .join(', ')}.`;
     openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_MART_CLERK', [
-      'May I help you?',
-      viridianMartStockLine(),
+      'Hi, there!\nMay I help you?',
+      stockLine,
       'Please come again!'
-    ]);
-  },
-  ViridianCity_Mart_EventScript_Woman: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Mart_ObjectEvent_Woman', [
-      "This shop does good business in",
-      "ANTIDOTES, I've heard."
-    ]);
-  },
-  ViridianCity_Mart_EventScript_Youngster: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Mart_ObjectEvent_Youngster', [
-      "I've got to buy some POTIONS.",
-      'You never know when your POKeMON',
-      'will need quick healing.'
     ]);
   },
   ViridianCity_School_EventScript_Woman: ({ dialogue }) => {
@@ -436,3 +417,14 @@ export const registerCenterScripts = (): void => {
 };
 
 registerCenterScripts();
+
+export const registerMartScripts = (): void => {
+  const martScripts = getAllMartScriptHandlers();
+  for (const [key, handler] of Object.entries(martScripts)) {
+    if (!prototypeScriptRegistry[key]) {
+      prototypeScriptRegistry[key] = handler;
+    }
+  }
+};
+
+registerMartScripts();

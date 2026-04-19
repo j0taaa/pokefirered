@@ -666,16 +666,6 @@ export const CENTER_NPC_DIALOGUES: CenterNpcDialogue[] = [
     ]
   },
   {
-    scriptId: 'IndigoPlateau_PokemonCenter_1F_EventScript_Clerk',
-    speakerId: 'IndigoPlateau_PokemonCenter_1F_ObjectEvent_Clerk',
-    lines: [
-      'Hi, there!',
-      'May I help you?',
-      'Shop UI stub: ULTRA BALL, GREAT BALL, FULL RESTORE, MAX POTION, REVIVE, FULL HEAL, MAX REPEL.',
-      'Please come again!'
-    ]
-  },
-  {
     scriptId: 'IndigoPlateau_PokemonCenter_1F_EventScript_BlackBelt',
     speakerId: 'IndigoPlateau_PokemonCenter_1F_ObjectEvent_BlackBelt',
     lines: [
