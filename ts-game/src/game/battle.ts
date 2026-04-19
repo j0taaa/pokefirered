@@ -2,6 +2,7 @@ import type { InputSnapshot } from '../input/inputState';
 import { getBagQuantity, type BagState } from './bag';
 import type { DecompTypeId } from './decompSpecies';
 import { getDecompSpeciesInfo } from './decompSpecies';
+import { getDecompPokedexEntry } from './decompPokedex';
 import {
   getBattleTerrainForScene,
   getDecompBattleMove,
@@ -14,7 +15,7 @@ import type { FieldPokemon } from './pokemonStorage';
 import type { WildEncounterGroup } from '../world/mapSource';
 
 export type PokemonType = DecompTypeId;
-export type StatusCondition = 'none' | 'poison' | 'burn' | 'paralysis' | 'sleep' | 'freeze';
+export type StatusCondition = 'none' | 'poison' | 'badPoison' | 'burn' | 'paralysis' | 'sleep' | 'freeze';
 
 export interface BattleStatStages {
   attack: number;
@@ -31,11 +32,32 @@ export interface BattleVolatileState {
   flinched: boolean;
   protected: boolean;
   protectUses: number;
+  substituteHp: number;
+  leechSeededBy: 'player' | 'opponent' | null;
+  focusEnergy: boolean;
+  enduring: boolean;
+  rechargeTurns: number;
+  trapTurns: number;
+  trappedBy: 'player' | 'opponent' | null;
+  yawnTurns: number;
+  nightmare: boolean;
+  perishTurns: number;
+  tookDamageThisTurn: boolean;
+  minimized: boolean;
+  defenseCurl: boolean;
+  tauntTurns: number;
+  furyCutterCounter: number;
+  rolloutCounter: number;
+  toxicCounter: number;
 }
 
 export interface BattleSideState {
   reflectTurns: number;
   lightScreenTurns: number;
+  safeguardTurns: number;
+  mistTurns: number;
+  wishTurns: number;
+  wishHp: number;
 }
 
 export interface BattleMove {
@@ -218,7 +240,8 @@ const stageEffectTable: Partial<Record<string, { target: 'self' | 'target'; stat
   EFFECT_DEFENSE_DOWN_2: { target: 'target', stat: 'defense', delta: -2 },
   EFFECT_SPEED_DOWN_2: { target: 'target', stat: 'speed', delta: -2 },
   EFFECT_ACCURACY_DOWN_2: { target: 'target', stat: 'accuracy', delta: -2 },
-  EFFECT_EVASION_DOWN_2: { target: 'target', stat: 'evasion', delta: -2 }
+  EFFECT_EVASION_DOWN_2: { target: 'target', stat: 'evasion', delta: -2 },
+  EFFECT_TICKLE: { target: 'target', stat: 'attack', delta: -1 }
 };
 
 const secondaryStatusByEffect: Partial<Record<string, StatusCondition>> = {
@@ -234,7 +257,7 @@ const primaryStatusByEffect: Partial<Record<string, StatusCondition>> = {
   EFFECT_POISON: 'poison',
   EFFECT_PARALYZE: 'paralysis',
   EFFECT_SLEEP: 'sleep',
-  EFFECT_TOXIC: 'poison',
+  EFFECT_TOXIC: 'badPoison',
   EFFECT_WILL_O_WISP: 'burn'
 };
 
@@ -294,12 +317,33 @@ const createVolatileState = (): BattleVolatileState => ({
   confusionTurns: 0,
   flinched: false,
   protected: false,
-  protectUses: 0
+  protectUses: 0,
+  substituteHp: 0,
+  leechSeededBy: null,
+  focusEnergy: false,
+  enduring: false,
+  rechargeTurns: 0,
+  trapTurns: 0,
+  trappedBy: null,
+  yawnTurns: 0,
+  nightmare: false,
+  perishTurns: 0,
+  tookDamageThisTurn: false,
+  minimized: false,
+  defenseCurl: false,
+  tauntTurns: 0,
+  furyCutterCounter: 0,
+  rolloutCounter: 0,
+  toxicCounter: 0
 });
 
 const createSideState = (): BattleSideState => ({
   reflectTurns: 0,
-  lightScreenTurns: 0
+  lightScreenTurns: 0,
+  safeguardTurns: 0,
+  mistTurns: 0,
+  wishTurns: 0,
+  wishHp: 0
 });
 
 const resetBattlePokemonTransientState = (pokemon: BattlePokemonSnapshot): void => {
@@ -407,7 +451,7 @@ export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): Batt
   catchRate: pokemon.catchRate,
   types: [...pokemon.types] as PokemonType[],
   status: pokemon.status,
-  statusTurns: pokemon.status === 'sleep' ? 2 : 0,
+  statusTurns: 0,
   moves: getKnownMovesForSpecies(pokemon.species, pokemon.level),
   statStages: createStatStages(),
   volatile: createVolatileState()
@@ -727,11 +771,16 @@ const applyStatusDamage = (
     return null;
   }
 
-  if (pokemon.status === 'poison' || pokemon.status === 'burn') {
-    const damage = Math.max(1, Math.floor(pokemon.maxHp / 8));
+  if (pokemon.status === 'poison' || pokemon.status === 'badPoison' || pokemon.status === 'burn') {
+    if (pokemon.status === 'badPoison') {
+      pokemon.volatile.toxicCounter = Math.min(15, pokemon.volatile.toxicCounter + 1);
+    }
+    const damage = pokemon.status === 'badPoison'
+      ? Math.max(1, Math.floor((pokemon.maxHp * pokemon.volatile.toxicCounter) / 16))
+      : Math.max(1, Math.floor(pokemon.maxHp / 8));
     pokemon.hp = Math.max(0, pokemon.hp - damage);
     applyQueuedDamage(battle, side, pokemon.hp);
-    return `${pokemon.species} is hurt by ${pokemon.status}!`;
+    return `${pokemon.species} is hurt by ${pokemon.status === 'burn' ? 'burn' : 'poison'}!`;
   }
 
   return null;
@@ -765,6 +814,156 @@ const applyWeatherDamage = (
   messages.push(`${pokemon.species} is buffeted by ${battle.weather === 'hail' ? 'hail' : 'the sandstorm'}!`);
 };
 
+const applyLeechSeedDrain = (
+  battle: BattleState,
+  seededSide: 'player' | 'opponent',
+  seeded: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  const receiverSide = seeded.volatile.leechSeededBy;
+  if (!receiverSide || seeded.hp <= 0) {
+    return;
+  }
+
+  const receiver = receiverSide === 'player' ? battle.playerMon : battle.wildMon;
+  if (receiver.hp <= 0) {
+    return;
+  }
+
+  const damage = Math.max(1, Math.floor(seeded.maxHp / 8));
+  seeded.hp = Math.max(0, seeded.hp - damage);
+  applyQueuedDamage(battle, seededSide, seeded.hp);
+  const healed = Math.min(receiver.maxHp - receiver.hp, damage);
+  if (healed > 0) {
+    receiver.hp += healed;
+    applyQueuedDamage(battle, receiverSide, receiver.hp);
+  }
+  messages.push(`${seeded.species}'s health was sapped by Leech Seed!`);
+};
+
+const applyTrapDamage = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  if (pokemon.volatile.trapTurns <= 0 || pokemon.hp <= 0) {
+    return;
+  }
+
+  pokemon.volatile.trapTurns -= 1;
+  if (pokemon.volatile.trapTurns > 0) {
+    const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
+    pokemon.hp = Math.max(0, pokemon.hp - damage);
+    applyQueuedDamage(battle, side, pokemon.hp);
+    messages.push(`${pokemon.species} is hurt by the trap!`);
+    return;
+  }
+
+  pokemon.volatile.trappedBy = null;
+  messages.push(`${pokemon.species} was freed from the trap!`);
+};
+
+const applyNightmareDamage = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  if (!pokemon.volatile.nightmare || pokemon.hp <= 0) {
+    return;
+  }
+
+  if (pokemon.status !== 'sleep') {
+    pokemon.volatile.nightmare = false;
+    return;
+  }
+
+  const damage = Math.max(1, Math.floor(pokemon.maxHp / 4));
+  pokemon.hp = Math.max(0, pokemon.hp - damage);
+  applyQueuedDamage(battle, side, pokemon.hp);
+  messages.push(`${pokemon.species} is locked in a nightmare!`);
+};
+
+const applyYawn = (
+  target: BattlePokemonSnapshot,
+  targetSide: 'player' | 'opponent',
+  battle: BattleState,
+  messages: string[]
+): boolean => {
+  if (target.status !== 'none' || target.volatile.yawnTurns > 0 || target.volatile.substituteHp > 0) {
+    messages.push('But it failed!');
+    return true;
+  }
+
+  if (battle.sideState[targetSide].safeguardTurns > 0) {
+    messages.push(`${target.species}'s team is protected by Safeguard!`);
+    return true;
+  }
+
+  target.volatile.yawnTurns = 2;
+  messages.push(`${target.species} grew drowsy!`);
+  return true;
+};
+
+const decrementYawn = (
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  if (pokemon.volatile.yawnTurns <= 0 || pokemon.hp <= 0) {
+    return;
+  }
+
+  pokemon.volatile.yawnTurns -= 1;
+  if (pokemon.volatile.yawnTurns === 0 && pokemon.status === 'none') {
+    pokemon.status = 'sleep';
+    pokemon.statusTurns = 2;
+    messages.push(`${pokemon.species} fell asleep!`);
+  }
+};
+
+const decrementTaunt = (pokemon: BattlePokemonSnapshot): void => {
+  if (pokemon.volatile.tauntTurns > 0 && pokemon.hp > 0) {
+    pokemon.volatile.tauntTurns -= 1;
+  }
+};
+
+const decrementPerishSong = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  if (pokemon.volatile.perishTurns <= 0 || pokemon.hp <= 0) {
+    return;
+  }
+
+  pokemon.volatile.perishTurns -= 1;
+  messages.push(`${pokemon.species}'s perish count fell to ${pokemon.volatile.perishTurns}!`);
+  if (pokemon.volatile.perishTurns === 0) {
+    pokemon.hp = 0;
+    applyQueuedDamage(battle, side, 0);
+  }
+};
+
+const resolveWish = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): void => {
+  const sideState = battle.sideState[side];
+  if (sideState.wishTurns <= 0 || pokemon.hp <= 0) {
+    return;
+  }
+
+  sideState.wishTurns -= 1;
+  if (sideState.wishTurns === 0) {
+    healBattler(battle, side, pokemon, sideState.wishHp, messages);
+    sideState.wishHp = 0;
+  }
+};
+
 const decrementSideConditions = (battle: BattleState, messages: string[]): void => {
   for (const side of ['player', 'opponent'] as const) {
     const sideState = battle.sideState[side];
@@ -781,6 +980,20 @@ const decrementSideConditions = (battle: BattleState, messages: string[]): void 
       sideState.lightScreenTurns -= 1;
       if (sideState.lightScreenTurns === 0) {
         messages.push(`${sideLabel}'s Light Screen wore off!`);
+      }
+    }
+
+    if (sideState.safeguardTurns > 0) {
+      sideState.safeguardTurns -= 1;
+      if (sideState.safeguardTurns === 0) {
+        messages.push(`${sideLabel} is no longer protected by Safeguard!`);
+      }
+    }
+
+    if (sideState.mistTurns > 0) {
+      sideState.mistTurns -= 1;
+      if (sideState.mistTurns === 0) {
+        messages.push(`${sideLabel}'s Mist faded!`);
       }
     }
   }
@@ -812,6 +1025,10 @@ const resolveWeatherEndOfTurn = (battle: BattleState, messages: string[]): void 
 const clearSingleTurnVolatiles = (battle: BattleState): void => {
   battle.playerMon.volatile.protected = false;
   battle.wildMon.volatile.protected = false;
+  battle.playerMon.volatile.enduring = false;
+  battle.wildMon.volatile.enduring = false;
+  battle.playerMon.volatile.tookDamageThisTurn = false;
+  battle.wildMon.volatile.tookDamageThisTurn = false;
 };
 
 const getStatusBonus = (status: StatusCondition): number => {
@@ -857,6 +1074,8 @@ const getStatusAppliedMessage = (pokemon: BattlePokemonSnapshot, status: StatusC
   switch (status) {
     case 'poison':
       return `${pokemon.species} was poisoned!`;
+    case 'badPoison':
+      return `${pokemon.species} was badly poisoned!`;
     case 'burn':
       return `${pokemon.species} was burned!`;
     case 'paralysis':
@@ -875,7 +1094,7 @@ const isStatusTypeBlocked = (
   target: BattlePokemonSnapshot,
   move?: BattleMove
 ): boolean => {
-  if (status === 'poison') {
+  if (status === 'poison' || status === 'badPoison') {
     return target.types.includes('poison') || target.types.includes('steel');
   }
   if (status === 'burn') {
@@ -893,10 +1112,17 @@ const applyStatusEffect = (
   messages: string[],
   move?: BattleMove,
   blockedMessage = 'But it failed!',
-  encounterState?: BattleEncounterState
+  encounterState?: BattleEncounterState,
+  battle?: BattleState,
+  targetSide?: 'player' | 'opponent'
 ): boolean => {
   if (target.status !== 'none') {
     messages.push(blockedMessage);
+    return false;
+  }
+
+  if (battle && targetSide && battle.sideState[targetSide].safeguardTurns > 0) {
+    messages.push(`${target.species}'s team is protected by Safeguard!`);
     return false;
   }
 
@@ -906,6 +1132,7 @@ const applyStatusEffect = (
   }
 
   target.status = status;
+  target.volatile.toxicCounter = 0;
   target.statusTurns = status === 'sleep'
     ? 2 + (encounterState ? (nextBattleRng(encounterState) & 3) : 0)
     : 0;
@@ -920,7 +1147,10 @@ const applyStageEffect = (
   effect: string,
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
-  messages: string[]
+  messages: string[],
+  battle?: BattleState,
+  attackerSide?: 'player' | 'opponent',
+  defenderSide?: 'player' | 'opponent'
 ): boolean => {
   const stageEffect = stageEffectTable[effect];
   if (!stageEffect) {
@@ -928,6 +1158,12 @@ const applyStageEffect = (
   }
 
   const recipient = stageEffect.target === 'self' ? attacker : defender;
+  const recipientSide = stageEffect.target === 'self' ? attackerSide : defenderSide;
+  if (battle && recipientSide && stageEffect.delta < 0 && battle.sideState[recipientSide].mistTurns > 0) {
+    messages.push(`${recipient.species} is protected by Mist!`);
+    return true;
+  }
+
   const previous = recipient.statStages[stageEffect.stat];
   const next = Math.max(-6, Math.min(6, previous + stageEffect.delta));
   if (next === previous) {
@@ -940,9 +1176,28 @@ const applyStageEffect = (
   return true;
 };
 
+const applyDirectStageChange = (
+  pokemon: BattlePokemonSnapshot,
+  stat: keyof BattleStatStages,
+  delta: number,
+  messages: string[]
+): void => {
+  const previous = pokemon.statStages[stat];
+  const next = Math.max(-6, Math.min(6, previous + delta));
+  if (next === previous) {
+    messages.push(`${pokemon.species}'s ${formatStatLabel(stat)} won't go ${delta > 0 ? 'higher' : 'lower'}!`);
+    return;
+  }
+
+  pokemon.statStages[stat] = next;
+  messages.push(`${pokemon.species}'s ${formatStatLabel(stat)} ${lowerOrRaiseText(delta)}`);
+};
+
 const maybeApplySecondaryStatus = (
   move: BattleMove,
   target: BattlePokemonSnapshot,
+  targetSide: 'player' | 'opponent',
+  battle: BattleState,
   encounterState: BattleEncounterState,
   messages: string[]
 ): void => {
@@ -955,13 +1210,16 @@ const maybeApplySecondaryStatus = (
     return;
   }
 
-  applyStatusEffect(target, nextStatus, messages, move, '', encounterState);
+  applyStatusEffect(target, nextStatus, messages, move, '', encounterState, battle, targetSide);
 };
 
 const maybeApplySecondaryStageEffect = (
   move: BattleMove,
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
+  attackerSide: 'player' | 'opponent',
+  defenderSide: 'player' | 'opponent',
+  battle: BattleState,
   encounterState: BattleEncounterState,
   messages: string[]
 ): void => {
@@ -975,7 +1233,15 @@ const maybeApplySecondaryStageEffect = (
 
   if (move.effect === 'EFFECT_ALL_STATS_UP_HIT') {
     for (const stat of ['attack', 'defense', 'speed', 'spAttack', 'spDefense'] as Array<keyof BattleStatStages>) {
-      applyStageEffect(`EFFECT_${stat === 'spAttack' ? 'SPECIAL_ATTACK' : stat === 'spDefense' ? 'SPECIAL_DEFENSE' : stat.toUpperCase()}_UP`, attacker, defender, messages);
+      applyStageEffect(
+        `EFFECT_${stat === 'spAttack' ? 'SPECIAL_ATTACK' : stat === 'spDefense' ? 'SPECIAL_DEFENSE' : stat.toUpperCase()}_UP`,
+        attacker,
+        defender,
+        messages,
+        battle,
+        attackerSide,
+        defenderSide
+      );
     }
     return;
   }
@@ -986,7 +1252,7 @@ const maybeApplySecondaryStageEffect = (
   }
 
   const effect = `EFFECT_${stageEffect.stat === 'spAttack' ? 'SPECIAL_ATTACK' : stageEffect.stat === 'spDefense' ? 'SPECIAL_DEFENSE' : stageEffect.stat.toUpperCase()}_${stageEffect.delta > 0 ? 'UP' : 'DOWN'}`;
-  applyStageEffect(effect, attacker, defender, messages);
+  applyStageEffect(effect, attacker, defender, messages, battle, attackerSide, defenderSide);
 };
 
 const applyQueuedDamage = (
@@ -1090,6 +1356,26 @@ const applySideCondition = (
     return true;
   }
 
+  if (move.effect === 'EFFECT_SAFEGUARD') {
+    if (battle.sideState[side].safeguardTurns > 0) {
+      messages.push('But it failed!');
+      return true;
+    }
+    battle.sideState[side].safeguardTurns = 5;
+    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became protected by Safeguard!`);
+    return true;
+  }
+
+  if (move.effect === 'EFFECT_MIST') {
+    if (battle.sideState[side].mistTurns > 0) {
+      messages.push('But it failed!');
+      return true;
+    }
+    battle.sideState[side].mistTurns = 5;
+    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became shrouded in Mist!`);
+    return true;
+  }
+
   return false;
 };
 
@@ -1098,7 +1384,7 @@ const applyWeatherMove = (
   move: BattleMove,
   messages: string[]
 ): boolean => {
-  const nextWeather = weatherByEffect[move.effect];
+  const nextWeather = weatherByEffect[move.effect] as Exclude<BattleWeather, 'none'> | undefined;
   if (!nextWeather) {
     return false;
   }
@@ -1117,25 +1403,324 @@ const applyWeatherMove = (
 const tryUseProtect = (
   attacker: BattlePokemonSnapshot,
   encounterState: BattleEncounterState,
-  messages: string[]
+  messages: string[],
+  canBlockThisTurn = true,
+  successMessage = `${attacker.species} protected itself!`
 ): boolean => {
+  if (!canBlockThisTurn) {
+    attacker.volatile.protectUses = 0;
+    messages.push('But it failed!');
+    return false;
+  }
+
   const successThresholds = [0xffff, 0x7fff, 0x3fff, 0x1fff];
   const protectIndex = Math.min(attacker.volatile.protectUses, successThresholds.length - 1);
   const roll = nextBattleRng(encounterState) & 0xffff;
   if (roll <= successThresholds[protectIndex]) {
     attacker.volatile.protected = true;
     attacker.volatile.protectUses += 1;
-    messages.push(`${attacker.species} protected itself!`);
+    messages.push(successMessage);
     return true;
   }
 
   attacker.volatile.protectUses = 0;
   messages.push('But it failed!');
-  return true;
+  return false;
 };
 
 const isMoveBlockedByProtect = (move: BattleMove, defender: BattlePokemonSnapshot): boolean =>
   defender.volatile.protected && move.target !== 'MOVE_TARGET_USER' && move.effect !== 'EFFECT_PROTECT';
+
+const isMoveBlockedBySubstitute = (move: BattleMove, defender: BattlePokemonSnapshot): boolean =>
+  defender.volatile.substituteHp > 0
+  && move.target !== 'MOVE_TARGET_USER'
+  && move.effect !== 'EFFECT_MEMENTO'
+  && move.effect !== 'EFFECT_HIT'
+  && move.power === 0;
+
+const getMagnitudePower = (encounterState: BattleEncounterState): { magnitude: number; power: number } => {
+  const roll = nextBattleRng(encounterState) % 100;
+  if (roll < 5) {
+    return { magnitude: 4, power: 10 };
+  }
+  if (roll < 15) {
+    return { magnitude: 5, power: 30 };
+  }
+  if (roll < 35) {
+    return { magnitude: 6, power: 50 };
+  }
+  if (roll < 65) {
+    return { magnitude: 7, power: 70 };
+  }
+  if (roll < 85) {
+    return { magnitude: 8, power: 90 };
+  }
+  if (roll < 95) {
+    return { magnitude: 9, power: 110 };
+  }
+  return { magnitude: 10, power: 150 };
+};
+
+const getMoveWithDynamicPower = (
+  move: BattleMove,
+  attacker: BattlePokemonSnapshot,
+  defender: BattlePokemonSnapshot,
+  battle: BattleState,
+  encounterState: BattleEncounterState,
+  messages: string[]
+): BattleMove => {
+  if (move.effect === 'EFFECT_FACADE' && ['poison', 'badPoison', 'burn', 'paralysis'].includes(attacker.status)) {
+    return { ...move, power: move.power * 2 };
+  }
+
+  if (move.effect === 'EFFECT_ERUPTION') {
+    return { ...move, power: Math.max(1, Math.floor((move.power * attacker.hp) / Math.max(1, attacker.maxHp))) };
+  }
+
+  if (move.effect === 'EFFECT_FLAIL') {
+    const hpFraction = Math.floor((attacker.hp * 48) / Math.max(1, attacker.maxHp));
+    if (hpFraction <= 1) {
+      return { ...move, power: 200 };
+    }
+    if (hpFraction <= 4) {
+      return { ...move, power: 150 };
+    }
+    if (hpFraction <= 9) {
+      return { ...move, power: 100 };
+    }
+    if (hpFraction <= 16) {
+      return { ...move, power: 80 };
+    }
+    if (hpFraction <= 32) {
+      return { ...move, power: 40 };
+    }
+    return { ...move, power: 20 };
+  }
+
+  if (move.effect === 'EFFECT_LOW_KICK') {
+    const weightHg = getDecompPokedexEntry(defender.species)?.weightHg ?? 0;
+    if (weightHg < 100) {
+      return { ...move, power: 20 };
+    }
+    if (weightHg < 250) {
+      return { ...move, power: 40 };
+    }
+    if (weightHg < 500) {
+      return { ...move, power: 60 };
+    }
+    if (weightHg < 1000) {
+      return { ...move, power: 80 };
+    }
+    if (weightHg < 2000) {
+      return { ...move, power: 100 };
+    }
+    return { ...move, power: 120 };
+  }
+
+  if (move.effect === 'EFFECT_MAGNITUDE') {
+    const magnitude = getMagnitudePower(encounterState);
+    messages.push(`Magnitude ${magnitude.magnitude}!`);
+    return { ...move, power: magnitude.power };
+  }
+
+  if (move.effect === 'EFFECT_WEATHER_BALL' && battle.weather !== 'none') {
+    const weatherType: Record<Exclude<BattleWeather, 'none'>, PokemonType> = {
+      rain: 'water',
+      sun: 'fire',
+      sandstorm: 'rock',
+      hail: 'ice'
+    };
+    return { ...move, type: weatherType[battle.weather], power: move.power * 2 };
+  }
+
+  if (move.effect === 'EFFECT_REVENGE' && attacker.volatile.tookDamageThisTurn) {
+    return { ...move, power: move.power * 2 };
+  }
+
+  if (move.effect === 'EFFECT_SMELLINGSALT' && defender.status === 'paralysis') {
+    return { ...move, power: move.power * 2 };
+  }
+
+  if (move.effect === 'EFFECT_FURY_CUTTER') {
+    return { ...move, power: move.power * (2 ** attacker.volatile.furyCutterCounter) };
+  }
+
+  if (move.effect === 'EFFECT_ROLLOUT') {
+    const defenseCurlMultiplier = attacker.volatile.defenseCurl ? 2 : 1;
+    return { ...move, power: move.power * (2 ** attacker.volatile.rolloutCounter) * defenseCurlMultiplier };
+  }
+
+  return move;
+};
+
+const damageBattler = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  damage: number,
+  move: BattleMove,
+  messages: string[]
+): number => {
+  const boundedDamage = move.effect === 'EFFECT_FALSE_SWIPE' && pokemon.hp > 1
+    ? Math.min(damage, pokemon.hp - 1)
+    : damage;
+
+  if (pokemon.volatile.substituteHp > 0 && move.id !== 'STRUGGLE') {
+    const substituteDamage = Math.min(pokemon.volatile.substituteHp, boundedDamage);
+    pokemon.volatile.substituteHp -= substituteDamage;
+    messages.push(`${pokemon.species}'s substitute took the damage!`);
+    if (pokemon.volatile.substituteHp === 0) {
+      messages.push(`${pokemon.species}'s substitute faded!`);
+    }
+    return substituteDamage;
+  }
+
+  pokemon.hp = Math.max(0, pokemon.hp - boundedDamage);
+  if (pokemon.volatile.enduring && pokemon.hp === 0 && boundedDamage > 0) {
+    pokemon.hp = 1;
+    messages.push(`${pokemon.species} endured the hit!`);
+  }
+  applyQueuedDamage(battle, side, pokemon.hp);
+  if (boundedDamage > 0) {
+    pokemon.volatile.tookDamageThisTurn = true;
+  }
+  return boundedDamage;
+};
+
+const useSubstitute = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): boolean => {
+  if (pokemon.volatile.substituteHp > 0) {
+    messages.push(`${pokemon.species} already has a substitute!`);
+    return true;
+  }
+
+  const hpCost = Math.max(1, Math.floor(pokemon.maxHp / 4));
+  if (pokemon.hp <= hpCost) {
+    messages.push('But it failed!');
+    return true;
+  }
+
+  pokemon.hp -= hpCost;
+  pokemon.volatile.substituteHp = hpCost;
+  applyQueuedDamage(battle, side, pokemon.hp);
+  messages.push(`${pokemon.species} put in a substitute!`);
+  return true;
+};
+
+const applyLeechSeed = (
+  attackerSide: 'player' | 'opponent',
+  defender: BattlePokemonSnapshot,
+  messages: string[]
+): boolean => {
+  if (defender.volatile.substituteHp > 0 || defender.volatile.leechSeededBy !== null) {
+    messages.push('But it failed!');
+    return true;
+  }
+
+  if (defender.types.includes('grass')) {
+    messages.push(`It doesn't affect ${defender.species}...`);
+    return true;
+  }
+
+  defender.volatile.leechSeededBy = attackerSide;
+  messages.push(`${defender.species} was seeded!`);
+  return true;
+};
+
+const clearAllStatStages = (battle: BattleState, messages: string[]): void => {
+  battle.playerMon.statStages = createStatStages();
+  battle.wildMon.statStages = createStatStages();
+  messages.push('All stat changes were eliminated!');
+};
+
+const useFocusEnergy = (pokemon: BattlePokemonSnapshot, messages: string[]): boolean => {
+  if (pokemon.volatile.focusEnergy) {
+    messages.push('But it failed!');
+    return true;
+  }
+
+  pokemon.volatile.focusEnergy = true;
+  messages.push(`${pokemon.species} is getting pumped!`);
+  return true;
+};
+
+const useBellyDrum = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot,
+  messages: string[]
+): boolean => {
+  const hpCost = Math.floor(pokemon.maxHp / 2);
+  if (pokemon.hp <= hpCost || pokemon.statStages.attack >= 6) {
+    messages.push('But it failed!');
+    return true;
+  }
+
+  pokemon.hp -= hpCost;
+  pokemon.statStages.attack = 6;
+  applyQueuedDamage(battle, side, pokemon.hp);
+  messages.push(`${pokemon.species} cut its HP and maximized ATTACK!`);
+  return true;
+};
+
+const applyComboStageMove = (
+  move: BattleMove,
+  battle: BattleState,
+  attackerSide: 'player' | 'opponent',
+  defenderSide: 'player' | 'opponent',
+  attacker: BattlePokemonSnapshot,
+  defender: BattlePokemonSnapshot,
+  messages: string[]
+): boolean => {
+  const effectsByMove: Partial<Record<string, string[]>> = {
+    EFFECT_BULK_UP: ['EFFECT_ATTACK_UP', 'EFFECT_DEFENSE_UP'],
+    EFFECT_CALM_MIND: ['EFFECT_SPECIAL_ATTACK_UP', 'EFFECT_SPECIAL_DEFENSE_UP'],
+    EFFECT_COSMIC_POWER: ['EFFECT_DEFENSE_UP', 'EFFECT_SPECIAL_DEFENSE_UP'],
+    EFFECT_DRAGON_DANCE: ['EFFECT_ATTACK_UP', 'EFFECT_SPEED_UP'],
+    EFFECT_TICKLE: ['EFFECT_ATTACK_DOWN', 'EFFECT_DEFENSE_DOWN']
+  };
+
+  const effects = effectsByMove[move.effect];
+  if (!effects) {
+    return false;
+  }
+
+  for (const effect of effects) {
+    applyStageEffect(effect, attacker, defender, messages, battle, attackerSide, defenderSide);
+  }
+  return true;
+};
+
+const getMultiHitCount = (move: BattleMove, encounterState: BattleEncounterState): number => {
+  if (move.effect === 'EFFECT_DOUBLE_HIT' || move.effect === 'EFFECT_TWINEEDLE') {
+    return 2;
+  }
+  if (move.effect === 'EFFECT_TRIPLE_KICK') {
+    return 3;
+  }
+
+  const roll = nextBattleRng(encounterState) % 100;
+  if (roll < 35) {
+    return 2;
+  }
+  if (roll < 70) {
+    return 3;
+  }
+  if (roll < 85) {
+    return 4;
+  }
+  return 5;
+};
+
+const isMultiHitMove = (move: BattleMove): boolean =>
+  move.effect === 'EFFECT_MULTI_HIT'
+  || move.effect === 'EFFECT_DOUBLE_HIT'
+  || move.effect === 'EFFECT_TWINEEDLE'
+  || move.effect === 'EFFECT_TRIPLE_KICK';
 
 const getActorLabel = (side: 'player' | 'opponent', battle: BattleState): string =>
   side === 'player' ? battle.playerMon.species : `Foe ${battle.wildMon.species}`;
@@ -1165,6 +1750,7 @@ const canMoveThisTurn = (
   battle: BattleState,
   side: 'player' | 'opponent',
   pokemon: BattlePokemonSnapshot,
+  move: BattleMove,
   encounterState: BattleEncounterState,
   messages: string[]
 ): boolean => {
@@ -1175,6 +1761,17 @@ const canMoveThisTurn = (
   if (pokemon.volatile.flinched) {
     pokemon.volatile.flinched = false;
     messages.push(`${pokemon.species} flinched!`);
+    return false;
+  }
+
+  if (pokemon.volatile.rechargeTurns > 0) {
+    pokemon.volatile.rechargeTurns -= 1;
+    messages.push(`${pokemon.species} must recharge!`);
+    return false;
+  }
+
+  if (pokemon.volatile.tauntTurns > 0 && move.power === 0) {
+    messages.push(`${pokemon.species} can't use ${move.name} after the taunt!`);
     return false;
   }
 
@@ -1224,11 +1821,20 @@ const canMoveThisTurn = (
 };
 
 const attemptAccuracy = (
+  battle: BattleState,
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
   move: BattleMove,
   encounterState: BattleEncounterState
 ): boolean => {
+  if (move.effect === 'EFFECT_ALWAYS_HIT' || (move.effect === 'EFFECT_THUNDER' && battle.weather === 'rain')) {
+    return true;
+  }
+
+  if (move.effect === 'EFFECT_THUNDER' && battle.weather === 'sun') {
+    return (nextBattleRng(encounterState) % 100) + 1 <= 50;
+  }
+
   if (move.accuracy === 0) {
     return true;
   }
@@ -1241,8 +1847,11 @@ const attemptAccuracy = (
   return (nextBattleRng(encounterState) % 100) + 1 <= accuracyValue;
 };
 
-const isCriticalHit = (move: BattleMove, encounterState: BattleEncounterState): boolean => {
-  const critStage = Math.min(criticalHitDivisors.length - 1, highCriticalEffects.has(move.effect) ? 1 : 0);
+const isCriticalHit = (move: BattleMove, attacker: BattlePokemonSnapshot, encounterState: BattleEncounterState): boolean => {
+  const critStage = Math.min(
+    criticalHitDivisors.length - 1,
+    (highCriticalEffects.has(move.effect) ? 1 : 0) + (attacker.volatile.focusEnergy ? 2 : 0)
+  );
   return nextBattleRng(encounterState) % criticalHitDivisors[critStage] === 0;
 };
 
@@ -1288,7 +1897,7 @@ const executeMove = (
   battle.currentScriptLabel = move.effectScriptLabel;
   battle.queuedControllerCommands.push({ type: 'script', label: move.effectScriptLabel });
 
-  if (!canMoveThisTurn(battle, attackerSide, attacker, encounterState, messages)) {
+  if (!canMoveThisTurn(battle, attackerSide, attacker, move, encounterState, messages)) {
     return messages;
   }
 
@@ -1308,7 +1917,7 @@ const executeMove = (
   pushMessage(messages, battle, `${getActorLabel(attackerSide, battle)} used ${move.name}!`);
 
   if (move.effect === 'EFFECT_PROTECT') {
-    tryUseProtect(attacker, encounterState, messages);
+    tryUseProtect(attacker, encounterState, messages, defenderCanStillAct);
     return messages;
   }
 
@@ -1317,13 +1926,23 @@ const executeMove = (
     return messages;
   }
 
+  if (isMoveBlockedBySubstitute(move, defender)) {
+    pushMessage(messages, battle, 'But it failed!');
+    return messages;
+  }
+
   if (move.effect === 'EFFECT_DREAM_EATER' && defender.status !== 'sleep') {
     pushMessage(messages, battle, 'But it failed!');
     return messages;
   }
 
-  if (!attemptAccuracy(attacker, defender, move, encounterState)) {
+  if (!attemptAccuracy(battle, attacker, defender, move, encounterState)) {
     pushMessage(messages, battle, 'The attack missed!');
+    if (move.effect === 'EFFECT_FURY_CUTTER') {
+      attacker.volatile.furyCutterCounter = 0;
+    } else if (move.effect === 'EFFECT_ROLLOUT') {
+      attacker.volatile.rolloutCounter = 0;
+    }
     if (move.effect === 'EFFECT_RECOIL_IF_MISS' && calculateTypeEffectiveness(move.type, defender.types) !== 0) {
       const crashDamage = Math.min(
         Math.max(1, Math.floor(calculateDamageRoll(battle, defenderSide, attacker, defender, move, encounterState, false) / 2)),
@@ -1336,27 +1955,97 @@ const executeMove = (
     return messages;
   }
 
-  const fixedDamage = calculateFixedDamage(move, attacker, defender, encounterState);
-  if (fixedDamage !== null) {
-    const typeEffectiveness = calculateTypeEffectiveness(move.type, defender.types);
+  if (move.effect === 'EFFECT_OHKO') {
+    if (attacker.level < defender.level) {
+      pushMessage(messages, battle, 'But it failed!');
+      return messages;
+    }
+    if (calculateTypeEffectiveness(move.type, defender.types) === 0) {
+      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
+      return messages;
+    }
+    damageBattler(battle, defenderSide, defender, defender.hp, move, messages);
+    pushMessage(messages, battle, "It's a one-hit KO!");
+    pushMessage(messages, battle, getFaintMessage(defenderSide, battle));
+    return messages;
+  }
+
+  const effectiveMove = getMoveWithDynamicPower(move, attacker, defender, battle, encounterState, messages);
+  if (move.effect === 'EFFECT_BRICK_BREAK') {
+    const targetSideState = battle.sideState[defenderSide];
+    if (targetSideState.reflectTurns > 0 || targetSideState.lightScreenTurns > 0) {
+      targetSideState.reflectTurns = 0;
+      targetSideState.lightScreenTurns = 0;
+      messages.push(`${defender.species}'s barriers were shattered!`);
+    }
+  }
+
+  const fixedDamage = calculateFixedDamage(effectiveMove, attacker, defender, encounterState);
+  if (move.effect === 'EFFECT_ENDEAVOR') {
+    const typeEffectiveness = calculateTypeEffectiveness(effectiveMove.type, defender.types);
     if (typeEffectiveness === 0) {
       pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
       return messages;
     }
 
-    defender.hp = Math.max(0, defender.hp - fixedDamage);
-    applyQueuedDamage(battle, defenderSide, defender.hp);
-  } else if (move.power > 0) {
-    const typeEffectiveness = calculateTypeEffectiveness(move.type, defender.types);
+    if (defender.hp <= attacker.hp) {
+      pushMessage(messages, battle, 'But it failed!');
+      return messages;
+    }
+
+    damageBattler(battle, defenderSide, defender, defender.hp - attacker.hp, effectiveMove, messages);
+  } else if (fixedDamage !== null) {
+    const typeEffectiveness = calculateTypeEffectiveness(effectiveMove.type, defender.types);
+    if (typeEffectiveness === 0) {
+      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
+      if (move.effect === 'EFFECT_FURY_CUTTER') {
+        attacker.volatile.furyCutterCounter = 0;
+      } else if (move.effect === 'EFFECT_ROLLOUT') {
+        attacker.volatile.rolloutCounter = 0;
+      }
+      return messages;
+    }
+
+    damageBattler(battle, defenderSide, defender, fixedDamage, effectiveMove, messages);
+  } else if (effectiveMove.power > 0) {
+    const typeEffectiveness = calculateTypeEffectiveness(effectiveMove.type, defender.types);
     if (typeEffectiveness === 0) {
       pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
       return messages;
     }
 
-    const critical = isCriticalHit(move, encounterState);
-    const damage = calculateDamageRoll(battle, defenderSide, attacker, defender, move, encounterState, critical);
-    defender.hp = Math.max(0, defender.hp - damage);
-    applyQueuedDamage(battle, defenderSide, defender.hp);
+    let damage = 0;
+    let critical = false;
+    const hitSubstitute = defender.volatile.substituteHp > 0 && effectiveMove.id !== 'STRUGGLE';
+    const hitCount = isMultiHitMove(effectiveMove) ? getMultiHitCount(effectiveMove, encounterState) : 1;
+    let hitsLanded = 0;
+
+    for (let hitIndex = 0; hitIndex < hitCount; hitIndex += 1) {
+      if (defender.hp <= 0) {
+        break;
+      }
+      const hitMove = effectiveMove.effect === 'EFFECT_TRIPLE_KICK'
+        ? { ...effectiveMove, power: effectiveMove.power * (hitIndex + 1) }
+        : effectiveMove;
+      const hitCritical = isCriticalHit(hitMove, attacker, encounterState);
+      critical ||= hitCritical;
+      damage += damageBattler(
+        battle,
+        defenderSide,
+        defender,
+        calculateDamageRoll(battle, defenderSide, attacker, defender, hitMove, encounterState, hitCritical),
+        hitMove,
+        messages
+      );
+      hitsLanded += 1;
+      if (defender.volatile.substituteHp === 0 && hitSubstitute) {
+        break;
+      }
+    }
+
+    if (hitsLanded > 1) {
+      pushMessage(messages, battle, `Hit ${hitsLanded} times!`);
+    }
 
     if (critical) {
       pushMessage(messages, battle, 'A critical hit!');
@@ -1368,10 +2057,43 @@ const executeMove = (
       pushMessage(messages, battle, "It's not very effective...");
     }
 
-    maybeApplySecondaryStatus(move, defender, encounterState, messages);
-    maybeApplySecondaryStageEffect(move, attacker, defender, encounterState, messages);
-    maybeApplySecondaryConfusion(move, defender, encounterState, messages);
-    maybeApplyFlinch(move, defender, defenderCanStillAct, encounterState);
+    if (!hitSubstitute) {
+      maybeApplySecondaryStatus(move, defender, defenderSide, battle, encounterState, messages);
+      maybeApplySecondaryStageEffect(move, attacker, defender, attackerSide, defenderSide, battle, encounterState, messages);
+      maybeApplySecondaryConfusion(move, defender, encounterState, messages);
+      maybeApplyFlinch(move, defender, defenderCanStillAct, encounterState);
+    }
+
+    if (damage > 0 && move.effect === 'EFFECT_FURY_CUTTER') {
+      attacker.volatile.furyCutterCounter = Math.min(5, attacker.volatile.furyCutterCounter + 1);
+    } else if (damage > 0 && move.effect === 'EFFECT_ROLLOUT') {
+      attacker.volatile.rolloutCounter = attacker.volatile.rolloutCounter >= 4 ? 0 : attacker.volatile.rolloutCounter + 1;
+    }
+
+    if (damage > 0 && move.effect === 'EFFECT_SUPERPOWER') {
+      applyDirectStageChange(attacker, 'attack', -1, messages);
+      applyDirectStageChange(attacker, 'defense', -1, messages);
+    } else if (damage > 0 && move.effect === 'EFFECT_OVERHEAT') {
+      applyDirectStageChange(attacker, 'spAttack', -2, messages);
+    } else if (damage > 0 && move.effect === 'EFFECT_TWINEEDLE') {
+      applyStatusEffect(defender, 'poison', messages, move, '', encounterState, battle, defenderSide);
+    } else if (damage > 0 && move.effect === 'EFFECT_SMELLINGSALT' && defender.status === 'paralysis') {
+      defender.status = 'none';
+      defender.statusTurns = 0;
+      defender.volatile.toxicCounter = 0;
+      messages.push(`${defender.species}'s paralysis was cured!`);
+    } else if (damage > 0 && move.effect === 'EFFECT_RAPID_SPIN') {
+      attacker.volatile.trapTurns = 0;
+      attacker.volatile.trappedBy = null;
+      attacker.volatile.leechSeededBy = null;
+      messages.push(`${attacker.species} was freed from binding effects!`);
+    } else if (damage > 0 && move.effect === 'EFFECT_TRAP' && defender.volatile.trapTurns <= 0) {
+      defender.volatile.trapTurns = 3 + (nextBattleRng(encounterState) & 3);
+      defender.volatile.trappedBy = attackerSide;
+      messages.push(`${defender.species} was trapped!`);
+    } else if (damage > 0 && move.effect === 'EFFECT_RECHARGE') {
+      attacker.volatile.rechargeTurns = 1;
+    }
 
     if (move.effect === 'EFFECT_RECOIL') {
       const recoil = Math.max(1, Math.floor(damage / 4));
@@ -1383,20 +2105,140 @@ const executeMove = (
       attacker.hp = Math.max(0, attacker.hp - recoil);
       applyQueuedDamage(battle, attackerSide, attacker.hp);
       pushMessage(messages, battle, `${attacker.species} is hit with recoil!`);
+    } else if (move.effect === 'EFFECT_EXPLOSION') {
+      attacker.hp = 0;
+      applyQueuedDamage(battle, attackerSide, attacker.hp);
     }
 
-    if (move.effect === 'EFFECT_ABSORB' || move.effect === 'EFFECT_DREAM_EATER') {
+    if (!hitSubstitute && (move.effect === 'EFFECT_ABSORB' || move.effect === 'EFFECT_DREAM_EATER')) {
       healBattler(battle, attackerSide, attacker, Math.floor(damage / 2), messages);
     }
   } else if (primaryStatusByEffect[move.effect]) {
-    applyStatusEffect(defender, primaryStatusByEffect[move.effect], messages, move, 'But it failed!', encounterState);
+    const primaryStatus = primaryStatusByEffect[move.effect];
+    if (primaryStatus) {
+      applyStatusEffect(defender, primaryStatus, messages, move, 'But it failed!', encounterState, battle, defenderSide);
+    }
   } else if (move.effect === 'EFFECT_CONFUSE') {
     applyConfusion(defender, encounterState, messages);
   } else if (applySideCondition(battle, attackerSide, move, messages)) {
     // Message already appended.
   } else if (applyWeatherMove(battle, move, messages)) {
     // Message already appended.
+  } else if (move.effect === 'EFFECT_SUBSTITUTE') {
+    useSubstitute(battle, attackerSide, attacker, messages);
+  } else if (move.effect === 'EFFECT_LEECH_SEED') {
+    applyLeechSeed(attackerSide, defender, messages);
+  } else if (move.effect === 'EFFECT_HAZE') {
+    clearAllStatStages(battle, messages);
+  } else if (move.effect === 'EFFECT_FOCUS_ENERGY') {
+    useFocusEnergy(attacker, messages);
+  } else if (move.effect === 'EFFECT_MINIMIZE') {
+    attacker.volatile.minimized = true;
+    applyDirectStageChange(attacker, 'evasion', 1, messages);
+  } else if (move.effect === 'EFFECT_DEFENSE_CURL') {
+    attacker.volatile.defenseCurl = true;
+    applyDirectStageChange(attacker, 'defense', 1, messages);
+  } else if (move.effect === 'EFFECT_PSYCH_UP') {
+    attacker.statStages = { ...defender.statStages };
+    messages.push(`${attacker.species} copied the foe's stat changes!`);
+  } else if (move.effect === 'EFFECT_SWAGGER' || move.effect === 'EFFECT_FLATTER') {
+    applyDirectStageChange(defender, move.effect === 'EFFECT_SWAGGER' ? 'attack' : 'spAttack', move.effect === 'EFFECT_SWAGGER' ? 2 : 1, messages);
+    if (battle.sideState[defenderSide].safeguardTurns > 0) {
+      messages.push(`${defender.species}'s team is protected by Safeguard!`);
+    } else {
+      applyConfusion(defender, encounterState, messages);
+    }
+  } else if (move.effect === 'EFFECT_MEMENTO') {
+    if (defender.statStages.attack <= -6 && defender.statStages.spAttack <= -6 && defender.volatile.substituteHp <= 0) {
+      messages.push('But it failed!');
+    } else {
+      attacker.hp = 0;
+      applyQueuedDamage(battle, attackerSide, attacker.hp);
+      if (defender.volatile.substituteHp > 0) {
+        messages.push('But it had no effect!');
+      } else {
+        applyDirectStageChange(defender, 'attack', -2, messages);
+        applyDirectStageChange(defender, 'spAttack', -2, messages);
+      }
+    }
+  } else if (move.effect === 'EFFECT_TAUNT') {
+    if (defender.volatile.tauntTurns > 0) {
+      messages.push('But it failed!');
+    } else {
+      defender.volatile.tauntTurns = 2;
+      messages.push(`${defender.species} fell for the taunt!`);
+    }
+  } else if (move.effect === 'EFFECT_ENDURE') {
+    const endured = tryUseProtect(attacker, encounterState, messages, defenderCanStillAct, `${attacker.species} braced itself!`);
+    attacker.volatile.protected = false;
+    attacker.volatile.enduring = endured;
+  } else if (move.effect === 'EFFECT_BELLY_DRUM') {
+    useBellyDrum(battle, attackerSide, attacker, messages);
+  } else if (applyComboStageMove(move, battle, attackerSide, defenderSide, attacker, defender, messages)) {
+    // Message already appended.
+  } else if (move.effect === 'EFFECT_YAWN') {
+    applyYawn(defender, defenderSide, battle, messages);
+  } else if (move.effect === 'EFFECT_NIGHTMARE') {
+    if (defender.status !== 'sleep' || defender.volatile.nightmare) {
+      messages.push('But it failed!');
+    } else {
+      defender.volatile.nightmare = true;
+      messages.push(`${defender.species} fell into a nightmare!`);
+    }
+  } else if (move.effect === 'EFFECT_PERISH_SONG') {
+    let affected = false;
+    for (const pokemon of [battle.playerMon, battle.wildMon]) {
+      if (pokemon.volatile.perishTurns === 0) {
+        pokemon.volatile.perishTurns = 3;
+        affected = true;
+      }
+    }
+    messages.push(affected ? 'All Pokémon hearing the song will faint in three turns!' : 'But it failed!');
+  } else if (move.effect === 'EFFECT_REFRESH') {
+    if (['poison', 'badPoison', 'burn', 'paralysis'].includes(attacker.status)) {
+      attacker.status = 'none';
+      attacker.statusTurns = 0;
+      attacker.volatile.toxicCounter = 0;
+      messages.push(`${attacker.species} became healthy!`);
+    } else {
+      messages.push('But it failed!');
+    }
+  } else if (move.effect === 'EFFECT_HEAL_BELL') {
+    for (const pokemon of battle.party) {
+      pokemon.status = 'none';
+      pokemon.statusTurns = 0;
+      pokemon.volatile.toxicCounter = 0;
+    }
+    battle.playerMon.status = 'none';
+    battle.playerMon.statusTurns = 0;
+    battle.playerMon.volatile.toxicCounter = 0;
+    messages.push('A bell chimed and cured status problems!');
+  } else if (move.effect === 'EFFECT_PAIN_SPLIT') {
+    const sharedHp = Math.floor((attacker.hp + defender.hp) / 2);
+    attacker.hp = Math.min(attacker.maxHp, sharedHp);
+    defender.hp = Math.min(defender.maxHp, sharedHp);
+    applyQueuedDamage(battle, attackerSide, attacker.hp);
+    applyQueuedDamage(battle, defenderSide, defender.hp);
+    messages.push('The battlers shared their pain!');
+  } else if (move.effect === 'EFFECT_WISH') {
+    const sideState = battle.sideState[attackerSide];
+    if (sideState.wishTurns > 0) {
+      messages.push('But it failed!');
+    } else {
+      sideState.wishTurns = 2;
+      sideState.wishHp = Math.max(1, Math.floor(attacker.maxHp / 2));
+      messages.push(`${attacker.species} made a wish!`);
+    }
   } else if (move.effect === 'EFFECT_RESTORE_HP') {
+    healBattler(battle, attackerSide, attacker, Math.floor(attacker.maxHp / 2), messages);
+  } else if (move.effect === 'EFFECT_MORNING_SUN' || move.effect === 'EFFECT_SYNTHESIS' || move.effect === 'EFFECT_MOONLIGHT') {
+    const amount = battle.weather === 'sun'
+      ? Math.max(1, Math.floor((attacker.maxHp * 2) / 3))
+      : battle.weather === 'none'
+        ? Math.max(1, Math.floor(attacker.maxHp / 2))
+        : Math.max(1, Math.floor(attacker.maxHp / 4));
+    healBattler(battle, attackerSide, attacker, amount, messages);
+  } else if (move.effect === 'EFFECT_SOFTBOILED') {
     healBattler(battle, attackerSide, attacker, Math.floor(attacker.maxHp / 2), messages);
   } else if (move.effect === 'EFFECT_REST') {
     if (attacker.hp >= attacker.maxHp || attacker.status === 'sleep') {
@@ -1404,10 +2246,12 @@ const executeMove = (
     } else {
       attacker.hp = attacker.maxHp;
       attacker.status = 'sleep';
+      attacker.statusTurns = 3;
+      attacker.volatile.toxicCounter = 0;
       applyQueuedDamage(battle, attackerSide, attacker.hp);
       messages.push(`${attacker.species} went to sleep and became healthy!`);
     }
-  } else if (!applyStageEffect(move.effect, attacker, defender, messages)) {
+  } else if (!applyStageEffect(move.effect, attacker, defender, messages, battle, attackerSide, defenderSide)) {
     pushMessage(messages, battle, 'But nothing happened!');
   }
 
@@ -1443,7 +2287,11 @@ const getActionOrder = (
 const resolveEndOfTurn = (battle: BattleState): string[] => {
   const messages: string[] = [];
   decrementSideConditions(battle, messages);
+  resolveWish(battle, 'opponent', battle.wildMon, messages);
+  resolveWish(battle, 'player', battle.playerMon, messages);
   resolveWeatherEndOfTurn(battle, messages);
+  applyLeechSeedDrain(battle, 'opponent', battle.wildMon, messages);
+  applyLeechSeedDrain(battle, 'player', battle.playerMon, messages);
 
   const enemyStatusMessage = applyStatusDamage(battle, 'opponent', battle.wildMon);
   if (enemyStatusMessage) {
@@ -1454,6 +2302,17 @@ const resolveEndOfTurn = (battle: BattleState): string[] => {
   if (playerStatusMessage) {
     messages.push(playerStatusMessage);
   }
+
+  applyNightmareDamage(battle, 'opponent', battle.wildMon, messages);
+  applyNightmareDamage(battle, 'player', battle.playerMon, messages);
+  applyTrapDamage(battle, 'opponent', battle.wildMon, messages);
+  applyTrapDamage(battle, 'player', battle.playerMon, messages);
+  decrementYawn(battle.wildMon, messages);
+  decrementYawn(battle.playerMon, messages);
+  decrementTaunt(battle.wildMon);
+  decrementTaunt(battle.playerMon);
+  decrementPerishSong(battle, 'opponent', battle.wildMon, messages);
+  decrementPerishSong(battle, 'player', battle.playerMon, messages);
 
   if (battle.wildMon.hp === 0 && !messages.includes(getFaintMessage('opponent', battle))) {
     messages.push(getFaintMessage('opponent', battle));

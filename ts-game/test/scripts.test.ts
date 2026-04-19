@@ -73,9 +73,9 @@ describe('script runtime helpers', () => {
     expect(runtime.party[0].status).toBe('none');
     expect(runtime.party[1].hp).toBe(runtime.party[1].maxHp);
     expect(dialogue.queue).toEqual([
-      'Welcome to our POKeMON CENTER! We heal your POKeMON back to perfect health.',
+      'Welcome to our POKeMON CENTER!\nWould you like me to heal your POKeMON back to perfect health?',
       "Okay, I'll take your POKeMON for a few seconds.",
-      "We've restored your POKeMON to full health.",
+      "Thank you for waiting.\nWe've restored your POKeMON to full health.",
       'We hope to see you again!'
     ]);
   });

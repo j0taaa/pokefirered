@@ -537,6 +537,744 @@ describe('battle vertical slice', () => {
     expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.playerMon.species} woke up!`);
   });
 
+  test('Substitute costs HP and takes target damage before the user does', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeStatusMove('SUBSTITUTE', 'EFFECT_SUBSTITUTE', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.wildMon.moves = battle.wildMoves;
+    const hpCost = Math.max(1, Math.floor(battle.playerMon.maxHp / 4));
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.playerMon.hp).toBe(battle.playerMon.maxHp - hpCost);
+    expect(battle.playerMon.volatile.substituteHp).toBeLessThan(hpCost);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('substitute'))).toBe(true);
+  });
+
+  test('Leech Seed drains at end of turn and Grass types are immune', () => {
+    const seededBattle = createBattleState();
+    seededBattle.active = true;
+    seededBattle.phase = 'moveSelect';
+    seededBattle.playerMon.speed = 99;
+    seededBattle.playerMon.hp = 10;
+    seededBattle.moves = [makeStatusMove('LEECH_SEED', 'EFFECT_LEECH_SEED', 'grass')];
+    seededBattle.playerMon.moves = seededBattle.moves;
+    seededBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    seededBattle.wildMon.moves = seededBattle.wildMoves;
+    const wildHp = seededBattle.wildMon.hp;
+
+    stepBattle(seededBattle, confirmInput, createBattleEncounterState());
+
+    expect(seededBattle.wildMon.volatile.leechSeededBy).toBe('player');
+    expect(seededBattle.wildMon.hp).toBeLessThan(wildHp);
+    expect(seededBattle.playerMon.hp).toBeGreaterThan(10);
+
+    const grassBattle = createBattleState();
+    grassBattle.active = true;
+    grassBattle.phase = 'moveSelect';
+    grassBattle.playerMon.speed = 99;
+    grassBattle.wildMon.types = ['grass'];
+    grassBattle.moves = [makeStatusMove('LEECH_SEED', 'EFFECT_LEECH_SEED', 'grass')];
+    grassBattle.playerMon.moves = grassBattle.moves;
+
+    stepBattle(grassBattle, confirmInput, createBattleEncounterState());
+
+    expect(grassBattle.wildMon.volatile.leechSeededBy).toBeNull();
+    expect([grassBattle.turnSummary, ...grassBattle.queuedMessages].some((message) => message.includes("doesn't affect"))).toBe(true);
+  });
+
+  test('Safeguard blocks status and Mist blocks stat drops for five-turn side state', () => {
+    const safeguardBattle = createBattleState();
+    safeguardBattle.active = true;
+    safeguardBattle.phase = 'moveSelect';
+    safeguardBattle.playerMon.speed = 99;
+    safeguardBattle.wildMon.speed = 1;
+    safeguardBattle.moves = [makeStatusMove('SAFEGUARD', 'EFFECT_SAFEGUARD', 'normal')];
+    safeguardBattle.playerMon.moves = safeguardBattle.moves;
+    safeguardBattle.wildMoves = [makeStatusMove('SLEEP_POWDER', 'EFFECT_SLEEP', 'grass')];
+    safeguardBattle.wildMon.moves = safeguardBattle.wildMoves;
+
+    stepBattle(safeguardBattle, confirmInput, createBattleEncounterState());
+
+    expect(safeguardBattle.playerMon.status).toBe('none');
+    expect(safeguardBattle.sideState.player.safeguardTurns).toBe(4);
+    expect([safeguardBattle.turnSummary, ...safeguardBattle.queuedMessages].some((message) => message.includes('Safeguard'))).toBe(true);
+
+    const mistBattle = createBattleState();
+    mistBattle.active = true;
+    mistBattle.phase = 'moveSelect';
+    mistBattle.playerMon.speed = 99;
+    mistBattle.wildMon.speed = 1;
+    mistBattle.moves = [makeStatusMove('MIST', 'EFFECT_MIST', 'ice')];
+    mistBattle.playerMon.moves = mistBattle.moves;
+    mistBattle.wildMoves = [makeStatusMove('GROWL', 'EFFECT_ATTACK_DOWN', 'normal')];
+    mistBattle.wildMon.moves = mistBattle.wildMoves;
+
+    stepBattle(mistBattle, confirmInput, createBattleEncounterState());
+
+    expect(mistBattle.playerMon.statStages.attack).toBe(0);
+    expect(mistBattle.sideState.player.mistTurns).toBe(4);
+    expect([mistBattle.turnSummary, ...mistBattle.queuedMessages].some((message) => message.includes('Mist'))).toBe(true);
+  });
+
+  test('Haze clears stat stages and Brick Break removes Reflect and Light Screen before damage', () => {
+    const hazeBattle = createBattleState();
+    hazeBattle.active = true;
+    hazeBattle.phase = 'moveSelect';
+    hazeBattle.playerMon.speed = 99;
+    hazeBattle.playerMon.statStages.attack = 4;
+    hazeBattle.wildMon.statStages.defense = -3;
+    hazeBattle.moves = [makeStatusMove('HAZE', 'EFFECT_HAZE', 'ice')];
+    hazeBattle.playerMon.moves = hazeBattle.moves;
+    hazeBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    hazeBattle.wildMon.moves = hazeBattle.wildMoves;
+
+    stepBattle(hazeBattle, confirmInput, createBattleEncounterState());
+
+    expect(hazeBattle.playerMon.statStages.attack).toBe(0);
+    expect(hazeBattle.wildMon.statStages.defense).toBe(0);
+
+    const brickBattle = createBattleState();
+    brickBattle.active = true;
+    brickBattle.phase = 'moveSelect';
+    brickBattle.playerMon.speed = 99;
+    brickBattle.sideState.opponent.reflectTurns = 5;
+    brickBattle.sideState.opponent.lightScreenTurns = 5;
+    brickBattle.moves = [makeDamageMove('BRICK_BREAK', 'EFFECT_BRICK_BREAK', 'fighting', 75)];
+    brickBattle.playerMon.moves = brickBattle.moves;
+    brickBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    brickBattle.wildMon.moves = brickBattle.wildMoves;
+
+    stepBattle(brickBattle, confirmInput, createBattleEncounterState());
+
+    expect(brickBattle.sideState.opponent.reflectTurns).toBe(0);
+    expect(brickBattle.sideState.opponent.lightScreenTurns).toBe(0);
+    expect(brickBattle.wildMon.hp).toBeLessThan(brickBattle.wildMon.maxHp);
+  });
+
+  test('Facade, Flail, Eruption, and False Swipe use decomp-style dynamic damage', () => {
+    const normalFacade = createBattleState();
+    const statusFacade = createBattleState();
+    const fullFlail = createBattleState();
+    const lowFlail = createBattleState();
+    const fullEruption = createBattleState();
+    const lowEruption = createBattleState();
+    for (const battle of [normalFacade, statusFacade, fullFlail, lowFlail, fullEruption, lowEruption]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    normalFacade.moves = [makeDamageMove('FACADE', 'EFFECT_FACADE', 'normal', 70)];
+    normalFacade.playerMon.moves = normalFacade.moves;
+    statusFacade.playerMon.status = 'poison';
+    statusFacade.moves = [makeDamageMove('FACADE', 'EFFECT_FACADE', 'normal', 70)];
+    statusFacade.playerMon.moves = statusFacade.moves;
+    fullFlail.moves = [makeDamageMove('FLAIL', 'EFFECT_FLAIL', 'normal', 1)];
+    fullFlail.playerMon.moves = fullFlail.moves;
+    lowFlail.playerMon.hp = 1;
+    lowFlail.moves = [makeDamageMove('FLAIL', 'EFFECT_FLAIL', 'normal', 1)];
+    lowFlail.playerMon.moves = lowFlail.moves;
+    fullEruption.moves = [makeDamageMove('ERUPTION', 'EFFECT_ERUPTION', 'fire', 150)];
+    fullEruption.playerMon.moves = fullEruption.moves;
+    lowEruption.playerMon.hp = 1;
+    lowEruption.moves = [makeDamageMove('ERUPTION', 'EFFECT_ERUPTION', 'fire', 150)];
+    lowEruption.playerMon.moves = lowEruption.moves;
+
+    stepBattle(normalFacade, confirmInput, createBattleEncounterState());
+    stepBattle(statusFacade, confirmInput, createBattleEncounterState());
+    stepBattle(fullFlail, confirmInput, createBattleEncounterState());
+    stepBattle(lowFlail, confirmInput, createBattleEncounterState());
+    stepBattle(fullEruption, confirmInput, createBattleEncounterState());
+    stepBattle(lowEruption, confirmInput, createBattleEncounterState());
+
+    expect(statusFacade.wildMon.maxHp - statusFacade.wildMon.hp).toBeGreaterThan(normalFacade.wildMon.maxHp - normalFacade.wildMon.hp);
+    expect(lowFlail.wildMon.maxHp - lowFlail.wildMon.hp).toBeGreaterThan(fullFlail.wildMon.maxHp - fullFlail.wildMon.hp);
+    expect(fullEruption.wildMon.maxHp - fullEruption.wildMon.hp).toBeGreaterThan(lowEruption.wildMon.maxHp - lowEruption.wildMon.hp);
+
+    const falseSwipeBattle = createBattleState();
+    falseSwipeBattle.active = true;
+    falseSwipeBattle.phase = 'moveSelect';
+    falseSwipeBattle.playerMon.speed = 99;
+    falseSwipeBattle.wildMon.hp = 3;
+    falseSwipeBattle.moves = [makeDamageMove('FALSE_SWIPE', 'EFFECT_FALSE_SWIPE', 'normal', 200)];
+    falseSwipeBattle.playerMon.moves = falseSwipeBattle.moves;
+
+    stepBattle(falseSwipeBattle, confirmInput, createBattleEncounterState());
+
+    expect(falseSwipeBattle.wildMon.hp).toBe(1);
+  });
+
+  test('Focus Energy, Belly Drum, and combo stat moves update battle stages', () => {
+    const focusBattle = createBattleState();
+    focusBattle.active = true;
+    focusBattle.phase = 'moveSelect';
+    focusBattle.playerMon.speed = 99;
+    focusBattle.moves = [makeStatusMove('FOCUS_ENERGY', 'EFFECT_FOCUS_ENERGY', 'normal')];
+    focusBattle.playerMon.moves = focusBattle.moves;
+    focusBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    focusBattle.wildMon.moves = focusBattle.wildMoves;
+
+    stepBattle(focusBattle, confirmInput, createBattleEncounterState());
+
+    expect(focusBattle.playerMon.volatile.focusEnergy).toBe(true);
+
+    const bellyBattle = createBattleState();
+    bellyBattle.active = true;
+    bellyBattle.phase = 'moveSelect';
+    bellyBattle.playerMon.speed = 99;
+    bellyBattle.moves = [makeStatusMove('BELLY_DRUM', 'EFFECT_BELLY_DRUM', 'normal')];
+    bellyBattle.playerMon.moves = bellyBattle.moves;
+    bellyBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    bellyBattle.wildMon.moves = bellyBattle.wildMoves;
+    const hpCost = Math.floor(bellyBattle.playerMon.maxHp / 2);
+
+    stepBattle(bellyBattle, confirmInput, createBattleEncounterState());
+
+    expect(bellyBattle.playerMon.hp).toBe(bellyBattle.playerMon.maxHp - hpCost);
+    expect(bellyBattle.playerMon.statStages.attack).toBe(6);
+
+    const danceBattle = createBattleState();
+    danceBattle.active = true;
+    danceBattle.phase = 'moveSelect';
+    danceBattle.playerMon.speed = 99;
+    danceBattle.moves = [makeStatusMove('DRAGON_DANCE', 'EFFECT_DRAGON_DANCE', 'dragon')];
+    danceBattle.playerMon.moves = danceBattle.moves;
+    danceBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    danceBattle.wildMon.moves = danceBattle.wildMoves;
+
+    stepBattle(danceBattle, confirmInput, createBattleEncounterState());
+
+    expect(danceBattle.playerMon.statStages.attack).toBe(1);
+    expect(danceBattle.playerMon.statStages.speed).toBe(1);
+  });
+
+  test('multi-hit, OHKO, and self-dropping damage effects follow decomp move scripts', () => {
+    const doubleHitBattle = createBattleState();
+    const singleHitBattle = createBattleState();
+    for (const battle of [doubleHitBattle, singleHitBattle]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    doubleHitBattle.moves = [makeDamageMove('DOUBLE_HIT', 'EFFECT_DOUBLE_HIT', 'normal', 20)];
+    doubleHitBattle.playerMon.moves = doubleHitBattle.moves;
+    singleHitBattle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 20)];
+    singleHitBattle.playerMon.moves = singleHitBattle.moves;
+
+    stepBattle(doubleHitBattle, confirmInput, createBattleEncounterState());
+    stepBattle(singleHitBattle, confirmInput, createBattleEncounterState());
+
+    expect(doubleHitBattle.wildMon.maxHp - doubleHitBattle.wildMon.hp).toBeGreaterThan(singleHitBattle.wildMon.maxHp - singleHitBattle.wildMon.hp);
+    expect([doubleHitBattle.turnSummary, ...doubleHitBattle.queuedMessages]).toContain('Hit 2 times!');
+
+    const ohkoBattle = createBattleState();
+    ohkoBattle.active = true;
+    ohkoBattle.phase = 'moveSelect';
+    ohkoBattle.playerMon.speed = 99;
+    ohkoBattle.playerMon.level = 10;
+    ohkoBattle.wildMon.level = 3;
+    ohkoBattle.moves = [makeDamageMove('SHEER_COLD', 'EFFECT_OHKO', 'ice', 1, 0)];
+    ohkoBattle.playerMon.moves = ohkoBattle.moves;
+
+    stepBattle(ohkoBattle, confirmInput, createBattleEncounterState());
+
+    expect(ohkoBattle.wildMon.hp).toBe(0);
+    expect([ohkoBattle.turnSummary, ...ohkoBattle.queuedMessages]).toContain("It's a one-hit KO!");
+
+    const superpowerBattle = createBattleState();
+    superpowerBattle.active = true;
+    superpowerBattle.phase = 'moveSelect';
+    superpowerBattle.playerMon.speed = 99;
+    superpowerBattle.moves = [makeDamageMove('SUPERPOWER', 'EFFECT_SUPERPOWER', 'fighting', 120)];
+    superpowerBattle.playerMon.moves = superpowerBattle.moves;
+    superpowerBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    superpowerBattle.wildMon.moves = superpowerBattle.wildMoves;
+
+    stepBattle(superpowerBattle, confirmInput, createBattleEncounterState());
+
+    expect(superpowerBattle.playerMon.statStages.attack).toBe(-1);
+    expect(superpowerBattle.playerMon.statStages.defense).toBe(-1);
+  });
+
+  test('Always-hit moves bypass accuracy and Thunder follows weather accuracy', () => {
+    const swiftBattle = createBattleState();
+    swiftBattle.active = true;
+    swiftBattle.phase = 'moveSelect';
+    swiftBattle.playerMon.speed = 99;
+    swiftBattle.moves = [makeDamageMove('SWIFT', 'EFFECT_ALWAYS_HIT', 'normal', 60, 1)];
+    swiftBattle.playerMon.moves = swiftBattle.moves;
+    swiftBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    swiftBattle.wildMon.moves = swiftBattle.wildMoves;
+
+    stepBattle(swiftBattle, confirmInput, createBattleEncounterState());
+
+    expect(swiftBattle.wildMon.hp).toBeLessThan(swiftBattle.wildMon.maxHp);
+
+    const rainThunder = createBattleState();
+    rainThunder.active = true;
+    rainThunder.phase = 'moveSelect';
+    rainThunder.playerMon.speed = 99;
+    rainThunder.weather = 'rain';
+    rainThunder.weatherTurns = 5;
+    rainThunder.moves = [makeDamageMove('THUNDER', 'EFFECT_THUNDER', 'electric', 120, 1)];
+    rainThunder.playerMon.moves = rainThunder.moves;
+    rainThunder.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    rainThunder.wildMon.moves = rainThunder.wildMoves;
+
+    stepBattle(rainThunder, confirmInput, createBattleEncounterState());
+
+    expect(rainThunder.wildMon.hp).toBeLessThan(rainThunder.wildMon.maxHp);
+    expect([rainThunder.turnSummary, ...rainThunder.queuedMessages]).not.toContain('The attack missed!');
+  });
+
+  test('Endure braces for a lethal pending hit without blocking damage outright', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.wildMon.attack = 999;
+    battle.moves = [makeStatusMove('ENDURE', 'EFFECT_ENDURE', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeDamageMove('MEGA_HIT', 'EFFECT_HIT', 'normal', 250)];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.playerMon.hp).toBe(1);
+    expect(battle.playerMon.volatile.enduring).toBe(false);
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.playerMon.species} endured the hit!`);
+  });
+
+  test('Recharge effects consume the next attempted action', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.moves = [makeDamageMove('HYPER_BEAM', 'EFFECT_RECHARGE', 'normal', 50)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.playerMon.volatile.rechargeTurns).toBe(1);
+
+    flushScriptMessages(battle, encounter);
+    stepBattle(battle, confirmInput, encounter);
+    const wildHp = battle.wildMon.hp;
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.hp).toBe(wildHp);
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.playerMon.species} must recharge!`);
+  });
+
+  test('trapping moves tick at end of turn and Rapid Spin frees binding effects', () => {
+    const trapBattle = createBattleState();
+    trapBattle.active = true;
+    trapBattle.phase = 'moveSelect';
+    trapBattle.playerMon.speed = 99;
+    trapBattle.moves = [makeDamageMove('WRAP', 'EFFECT_TRAP', 'normal', 15)];
+    trapBattle.playerMon.moves = trapBattle.moves;
+    trapBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    trapBattle.wildMon.moves = trapBattle.wildMoves;
+    const wildHp = trapBattle.wildMon.hp;
+
+    stepBattle(trapBattle, confirmInput, createBattleEncounterState());
+
+    expect(trapBattle.wildMon.volatile.trappedBy).toBe('player');
+    expect(trapBattle.wildMon.volatile.trapTurns).toBeGreaterThan(0);
+    expect(trapBattle.wildMon.hp).toBeLessThan(wildHp);
+    expect([trapBattle.turnSummary, ...trapBattle.queuedMessages].some((message) => message.includes('trap'))).toBe(true);
+
+    const spinBattle = createBattleState();
+    spinBattle.active = true;
+    spinBattle.phase = 'moveSelect';
+    spinBattle.playerMon.speed = 99;
+    spinBattle.playerMon.volatile.trapTurns = 3;
+    spinBattle.playerMon.volatile.trappedBy = 'opponent';
+    spinBattle.playerMon.volatile.leechSeededBy = 'opponent';
+    spinBattle.moves = [makeDamageMove('RAPID_SPIN', 'EFFECT_RAPID_SPIN', 'normal', 20)];
+    spinBattle.playerMon.moves = spinBattle.moves;
+    spinBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    spinBattle.wildMon.moves = spinBattle.wildMoves;
+
+    stepBattle(spinBattle, confirmInput, createBattleEncounterState());
+
+    expect(spinBattle.playerMon.volatile.trapTurns).toBe(0);
+    expect(spinBattle.playerMon.volatile.trappedBy).toBeNull();
+    expect(spinBattle.playerMon.volatile.leechSeededBy).toBeNull();
+  });
+
+  test('Yawn, Nightmare, and Perish Song advance through end-of-turn counters', () => {
+    const yawnBattle = createBattleState();
+    const yawnEncounter = createBattleEncounterState();
+    yawnBattle.active = true;
+    yawnBattle.phase = 'moveSelect';
+    yawnBattle.playerMon.speed = 99;
+    yawnBattle.moves = [makeStatusMove('YAWN', 'EFFECT_YAWN', 'normal')];
+    yawnBattle.playerMon.moves = yawnBattle.moves;
+    yawnBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    yawnBattle.wildMon.moves = yawnBattle.wildMoves;
+
+    stepBattle(yawnBattle, confirmInput, yawnEncounter);
+    expect(yawnBattle.wildMon.volatile.yawnTurns).toBe(1);
+    expect(yawnBattle.wildMon.status).toBe('none');
+
+    flushScriptMessages(yawnBattle, yawnEncounter);
+    stepBattle(yawnBattle, confirmInput, yawnEncounter);
+    stepBattle(yawnBattle, confirmInput, yawnEncounter);
+
+    expect(yawnBattle.wildMon.status).toBe('sleep');
+    expect([yawnBattle.turnSummary, ...yawnBattle.queuedMessages]).toContain(`${yawnBattle.wildMon.species} fell asleep!`);
+
+    const nightmareBattle = createBattleState();
+    nightmareBattle.active = true;
+    nightmareBattle.phase = 'moveSelect';
+    nightmareBattle.playerMon.speed = 99;
+    nightmareBattle.wildMon.status = 'sleep';
+    nightmareBattle.wildMon.statusTurns = 3;
+    nightmareBattle.moves = [makeStatusMove('NIGHTMARE', 'EFFECT_NIGHTMARE', 'ghost')];
+    nightmareBattle.playerMon.moves = nightmareBattle.moves;
+    nightmareBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    nightmareBattle.wildMon.moves = nightmareBattle.wildMoves;
+    const nightmareHp = nightmareBattle.wildMon.hp;
+
+    stepBattle(nightmareBattle, confirmInput, createBattleEncounterState());
+
+    expect(nightmareBattle.wildMon.volatile.nightmare).toBe(true);
+    expect(nightmareBattle.wildMon.hp).toBeLessThanOrEqual(nightmareHp - Math.floor(nightmareBattle.wildMon.maxHp / 4));
+
+    const perishBattle = createBattleState();
+    perishBattle.active = true;
+    perishBattle.phase = 'moveSelect';
+    perishBattle.playerMon.speed = 99;
+    perishBattle.moves = [makeStatusMove('PERISH_SONG', 'EFFECT_PERISH_SONG', 'normal')];
+    perishBattle.playerMon.moves = perishBattle.moves;
+    perishBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    perishBattle.wildMon.moves = perishBattle.wildMoves;
+
+    stepBattle(perishBattle, confirmInput, createBattleEncounterState());
+
+    expect(perishBattle.playerMon.volatile.perishTurns).toBe(2);
+    expect(perishBattle.wildMon.volatile.perishTurns).toBe(2);
+  });
+
+  test('Wish, Refresh, Heal Bell, and Pain Split follow their battle-script state changes', () => {
+    const wishBattle = createBattleState();
+    wishBattle.active = true;
+    wishBattle.phase = 'moveSelect';
+    wishBattle.playerMon.speed = 99;
+    wishBattle.playerMon.hp = 5;
+    wishBattle.sideState.player.wishTurns = 1;
+    wishBattle.sideState.player.wishHp = 10;
+    wishBattle.moves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    wishBattle.playerMon.moves = wishBattle.moves;
+    wishBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    wishBattle.wildMon.moves = wishBattle.wildMoves;
+
+    stepBattle(wishBattle, confirmInput, createBattleEncounterState());
+
+    expect(wishBattle.playerMon.hp).toBe(15);
+    expect(wishBattle.sideState.player.wishTurns).toBe(0);
+
+    const refreshBattle = createBattleState();
+    refreshBattle.active = true;
+    refreshBattle.phase = 'moveSelect';
+    refreshBattle.playerMon.speed = 99;
+    refreshBattle.playerMon.status = 'burn';
+    refreshBattle.moves = [makeStatusMove('REFRESH', 'EFFECT_REFRESH', 'normal')];
+    refreshBattle.playerMon.moves = refreshBattle.moves;
+    refreshBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    refreshBattle.wildMon.moves = refreshBattle.wildMoves;
+
+    stepBattle(refreshBattle, confirmInput, createBattleEncounterState());
+
+    expect(refreshBattle.playerMon.status).toBe('none');
+
+    const bellBattle = createBattleState();
+    bellBattle.active = true;
+    bellBattle.phase = 'moveSelect';
+    bellBattle.playerMon.speed = 99;
+    bellBattle.playerMon.status = 'poison';
+    bellBattle.party[1]!.status = 'paralysis';
+    bellBattle.moves = [makeStatusMove('HEAL_BELL', 'EFFECT_HEAL_BELL', 'normal')];
+    bellBattle.playerMon.moves = bellBattle.moves;
+    bellBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    bellBattle.wildMon.moves = bellBattle.wildMoves;
+
+    stepBattle(bellBattle, confirmInput, createBattleEncounterState());
+
+    expect(bellBattle.playerMon.status).toBe('none');
+    expect(bellBattle.party[1]!.status).toBe('none');
+
+    const painBattle = createBattleState();
+    painBattle.active = true;
+    painBattle.phase = 'moveSelect';
+    painBattle.playerMon.speed = 99;
+    painBattle.playerMon.hp = 5;
+    painBattle.wildMon.hp = 21;
+    painBattle.moves = [makeStatusMove('PAIN_SPLIT', 'EFFECT_PAIN_SPLIT', 'normal')];
+    painBattle.playerMon.moves = painBattle.moves;
+    painBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    painBattle.wildMon.moves = painBattle.wildMoves;
+
+    stepBattle(painBattle, confirmInput, createBattleEncounterState());
+
+    expect(painBattle.playerMon.hp).toBe(13);
+    expect(painBattle.wildMon.hp).toBe(13);
+  });
+
+  test('Magnitude, Weather Ball, SmellingSalt, Revenge, Low Kick, and Endeavor use dynamic decomp damage', () => {
+    const magnitudeBattle = createBattleState();
+    magnitudeBattle.active = true;
+    magnitudeBattle.phase = 'moveSelect';
+    magnitudeBattle.playerMon.speed = 99;
+    magnitudeBattle.wildMon.types = ['normal'];
+    magnitudeBattle.moves = [makeDamageMove('MAGNITUDE', 'EFFECT_MAGNITUDE', 'ground', 1)];
+    magnitudeBattle.playerMon.moves = magnitudeBattle.moves;
+    magnitudeBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    magnitudeBattle.wildMon.moves = magnitudeBattle.wildMoves;
+
+    stepBattle(magnitudeBattle, confirmInput, createBattleEncounterState());
+
+    expect([magnitudeBattle.turnSummary, ...magnitudeBattle.queuedMessages].some((message) => message.startsWith('Magnitude '))).toBe(true);
+    expect(magnitudeBattle.wildMon.hp).toBeLessThan(magnitudeBattle.wildMon.maxHp);
+
+    const clearWeatherBall = createBattleState();
+    const rainWeatherBall = createBattleState();
+    for (const battle of [clearWeatherBall, rainWeatherBall]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.moves = [makeDamageMove('WEATHER_BALL', 'EFFECT_WEATHER_BALL', 'normal', 50)];
+      battle.playerMon.moves = battle.moves;
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    rainWeatherBall.weather = 'rain';
+    rainWeatherBall.weatherTurns = 5;
+
+    stepBattle(clearWeatherBall, confirmInput, createBattleEncounterState());
+    stepBattle(rainWeatherBall, confirmInput, createBattleEncounterState());
+
+    expect(rainWeatherBall.wildMon.maxHp - rainWeatherBall.wildMon.hp).toBeGreaterThan(clearWeatherBall.wildMon.maxHp - clearWeatherBall.wildMon.hp);
+
+    const saltBattle = createBattleState();
+    saltBattle.active = true;
+    saltBattle.phase = 'moveSelect';
+    saltBattle.playerMon.speed = 99;
+    saltBattle.wildMon.status = 'paralysis';
+    saltBattle.moves = [makeDamageMove('SMELLINGSALT', 'EFFECT_SMELLINGSALT', 'normal', 60)];
+    saltBattle.playerMon.moves = saltBattle.moves;
+    saltBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    saltBattle.wildMon.moves = saltBattle.wildMoves;
+
+    stepBattle(saltBattle, confirmInput, createBattleEncounterState());
+
+    expect(saltBattle.wildMon.status).toBe('none');
+
+    const normalRevenge = createBattleState();
+    const boostedRevenge = createBattleState();
+    for (const battle of [normalRevenge, boostedRevenge]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.moves = [makeDamageMove('REVENGE', 'EFFECT_REVENGE', 'fighting', 60)];
+      battle.playerMon.moves = battle.moves;
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    boostedRevenge.playerMon.volatile.tookDamageThisTurn = true;
+
+    stepBattle(normalRevenge, confirmInput, createBattleEncounterState());
+    stepBattle(boostedRevenge, confirmInput, createBattleEncounterState());
+
+    expect(boostedRevenge.wildMon.maxHp - boostedRevenge.wildMon.hp).toBeGreaterThan(normalRevenge.wildMon.maxHp - normalRevenge.wildMon.hp);
+
+    const lightLowKick = createBattleState();
+    const heavyLowKick = createBattleState();
+    for (const battle of [lightLowKick, heavyLowKick]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.moves = [makeDamageMove('LOW_KICK', 'EFFECT_LOW_KICK', 'fighting', 1)];
+      battle.playerMon.moves = battle.moves;
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    lightLowKick.wildMon.species = 'PIDGEY';
+    heavyLowKick.wildMon.species = 'ONIX';
+
+    stepBattle(lightLowKick, confirmInput, createBattleEncounterState());
+    stepBattle(heavyLowKick, confirmInput, createBattleEncounterState());
+
+    expect(heavyLowKick.wildMon.maxHp - heavyLowKick.wildMon.hp).toBeGreaterThan(lightLowKick.wildMon.maxHp - lightLowKick.wildMon.hp);
+
+    const endeavorBattle = createBattleState();
+    endeavorBattle.active = true;
+    endeavorBattle.phase = 'moveSelect';
+    endeavorBattle.playerMon.speed = 99;
+    endeavorBattle.playerMon.hp = 5;
+    endeavorBattle.wildMon.hp = 20;
+    endeavorBattle.moves = [makeDamageMove('ENDEAVOR', 'EFFECT_ENDEAVOR', 'normal', 0)];
+    endeavorBattle.playerMon.moves = endeavorBattle.moves;
+    endeavorBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    endeavorBattle.wildMon.moves = endeavorBattle.wildMoves;
+
+    stepBattle(endeavorBattle, confirmInput, createBattleEncounterState());
+
+    expect(endeavorBattle.wildMon.hp).toBe(5);
+  });
+
+  test('Psych Up, Swagger, Flatter, Minimize, and Memento apply status2-era script state', () => {
+    const psychBattle = createBattleState();
+    psychBattle.active = true;
+    psychBattle.phase = 'moveSelect';
+    psychBattle.playerMon.speed = 99;
+    psychBattle.wildMon.statStages.attack = 3;
+    psychBattle.wildMon.statStages.evasion = 2;
+    psychBattle.moves = [makeStatusMove('PSYCH_UP', 'EFFECT_PSYCH_UP', 'normal')];
+    psychBattle.playerMon.moves = psychBattle.moves;
+    psychBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    psychBattle.wildMon.moves = psychBattle.wildMoves;
+
+    stepBattle(psychBattle, confirmInput, createBattleEncounterState());
+
+    expect(psychBattle.playerMon.statStages.attack).toBe(3);
+    expect(psychBattle.playerMon.statStages.evasion).toBe(2);
+
+    const swaggerBattle = createBattleState();
+    swaggerBattle.active = true;
+    swaggerBattle.phase = 'moveSelect';
+    swaggerBattle.playerMon.speed = 99;
+    swaggerBattle.moves = [makeStatusMove('SWAGGER', 'EFFECT_SWAGGER', 'normal')];
+    swaggerBattle.playerMon.moves = swaggerBattle.moves;
+    swaggerBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    swaggerBattle.wildMon.moves = swaggerBattle.wildMoves;
+
+    stepBattle(swaggerBattle, confirmInput, createBattleEncounterState());
+
+    expect(swaggerBattle.wildMon.statStages.attack).toBe(2);
+    expect(swaggerBattle.wildMon.volatile.confusionTurns).toBeGreaterThan(0);
+
+    const flatterBattle = createBattleState();
+    flatterBattle.active = true;
+    flatterBattle.phase = 'moveSelect';
+    flatterBattle.playerMon.speed = 99;
+    flatterBattle.moves = [makeStatusMove('FLATTER', 'EFFECT_FLATTER', 'dark')];
+    flatterBattle.playerMon.moves = flatterBattle.moves;
+    flatterBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    flatterBattle.wildMon.moves = flatterBattle.wildMoves;
+
+    stepBattle(flatterBattle, confirmInput, createBattleEncounterState());
+
+    expect(flatterBattle.wildMon.statStages.spAttack).toBe(1);
+    expect(flatterBattle.wildMon.volatile.confusionTurns).toBeGreaterThan(0);
+
+    const minimizeBattle = createBattleState();
+    minimizeBattle.active = true;
+    minimizeBattle.phase = 'moveSelect';
+    minimizeBattle.playerMon.speed = 99;
+    minimizeBattle.moves = [makeStatusMove('MINIMIZE', 'EFFECT_MINIMIZE', 'normal')];
+    minimizeBattle.playerMon.moves = minimizeBattle.moves;
+    minimizeBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    minimizeBattle.wildMon.moves = minimizeBattle.wildMoves;
+
+    stepBattle(minimizeBattle, confirmInput, createBattleEncounterState());
+
+    expect(minimizeBattle.playerMon.volatile.minimized).toBe(true);
+    expect(minimizeBattle.playerMon.statStages.evasion).toBe(1);
+
+    const mementoBattle = createBattleState();
+    mementoBattle.active = true;
+    mementoBattle.phase = 'moveSelect';
+    mementoBattle.playerMon.speed = 99;
+    mementoBattle.moves = [makeStatusMove('MEMENTO', 'EFFECT_MEMENTO', 'dark')];
+    mementoBattle.playerMon.moves = mementoBattle.moves;
+    mementoBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    mementoBattle.wildMon.moves = mementoBattle.wildMoves;
+
+    stepBattle(mementoBattle, confirmInput, createBattleEncounterState());
+
+    expect(mementoBattle.playerMon.hp).toBe(0);
+    expect(mementoBattle.wildMon.statStages.attack).toBe(-2);
+    expect(mementoBattle.wildMon.statStages.spAttack).toBe(-2);
+  });
+
+  test('Taunt prevents pending status moves and ticks down at end of turn', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('GROWL', 'EFFECT_ATTACK_DOWN', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('TAUNT', 'EFFECT_TAUNT', 'dark')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.playerMon.volatile.tauntTurns).toBe(1);
+    expect(battle.wildMon.statStages.attack).toBe(0);
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.playerMon.species} can't use GROWL after the taunt!`);
+  });
+
+  test('Defense Curl boosts Rollout and Fury Cutter ramps after successful hits', () => {
+    const firstFury = createBattleState();
+    firstFury.active = true;
+    firstFury.phase = 'moveSelect';
+    firstFury.playerMon.speed = 99;
+    firstFury.wildMon.maxHp = 200;
+    firstFury.wildMon.hp = 200;
+    firstFury.wildMon.types = ['normal'];
+    firstFury.moves = [makeDamageMove('FURY_CUTTER', 'EFFECT_FURY_CUTTER', 'bug', 10)];
+    firstFury.playerMon.moves = firstFury.moves;
+    firstFury.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    firstFury.wildMon.moves = firstFury.wildMoves;
+    const furyEncounter = createBattleEncounterState();
+
+    stepBattle(firstFury, confirmInput, furyEncounter);
+    const firstDamage = 200 - firstFury.wildMon.hp;
+    flushScriptMessages(firstFury, furyEncounter);
+    stepBattle(firstFury, confirmInput, furyEncounter);
+    stepBattle(firstFury, confirmInput, furyEncounter);
+    const secondDamage = 200 - firstFury.wildMon.hp - firstDamage;
+
+    expect(secondDamage).toBeGreaterThan(firstDamage);
+
+    const plainRollout = createBattleState();
+    const curledRollout = createBattleState();
+    for (const battle of [plainRollout, curledRollout]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.wildMon.maxHp = 200;
+      battle.wildMon.hp = 200;
+      battle.wildMon.types = ['normal'];
+      battle.moves = [makeDamageMove('ROLLOUT', 'EFFECT_ROLLOUT', 'rock', 30)];
+      battle.playerMon.moves = battle.moves;
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    curledRollout.playerMon.volatile.defenseCurl = true;
+
+    stepBattle(plainRollout, confirmInput, createBattleEncounterState());
+    stepBattle(curledRollout, confirmInput, createBattleEncounterState());
+
+    expect(curledRollout.wildMon.hp).toBeLessThan(plainRollout.wildMon.hp);
+    expect(curledRollout.playerMon.volatile.rolloutCounter).toBe(1);
+  });
+
   test('Recover restores half max HP and Rest fully heals while sleeping', () => {
     const recoverBattle = createBattleState();
     const restBattle = createBattleState();
@@ -628,6 +1366,46 @@ describe('battle vertical slice', () => {
 
     expect(battle.wildMon.status).toBe('none');
     expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes("doesn't affect"))).toBe(true);
+  });
+
+  test('Toxic applies bad poison with ramping residual damage', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.maxHp = 160;
+    battle.wildMon.hp = 160;
+    battle.wildMon.types = ['normal'];
+    battle.moves = [makeStatusMove('TOXIC', 'EFFECT_TOXIC', 'poison')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.status).toBe('badPoison');
+    expect(battle.wildMon.volatile.toxicCounter).toBe(1);
+    expect(battle.wildMon.hp).toBe(150);
+
+    flushScriptMessages(battle, encounter);
+    stepBattle(battle, confirmInput, encounter);
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.volatile.toxicCounter).toBe(2);
+    expect(battle.wildMon.hp).toBe(130);
+
+    const immuneBattle = createBattleState();
+    immuneBattle.active = true;
+    immuneBattle.phase = 'moveSelect';
+    immuneBattle.playerMon.speed = 99;
+    immuneBattle.wildMon.types = ['steel'];
+    immuneBattle.moves = [makeStatusMove('TOXIC', 'EFFECT_TOXIC', 'poison')];
+    immuneBattle.playerMon.moves = immuneBattle.moves;
+
+    stepBattle(immuneBattle, confirmInput, createBattleEncounterState());
+
+    expect(immuneBattle.wildMon.status).toBe('none');
   });
 
   test('Thunder Wave respects Gen 3 type immunity through typecalc', () => {

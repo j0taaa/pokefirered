@@ -81,7 +81,7 @@ const handleSaveConfirmed = () => {
 };
 
 const battleStatusToField = (status: BattlePokemonSnapshot['status']): FieldPokemonStatus =>
-  status === 'poison' ? 'poison' : 'none';
+  status === 'poison' || status === 'badPoison' ? 'poison' : 'none';
 
 const snapshotToFieldPokemon = (member: BattlePokemonSnapshot) =>
   cloneFieldPokemon({

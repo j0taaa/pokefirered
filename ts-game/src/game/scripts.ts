@@ -4,10 +4,10 @@ import { createBagState, getItemDefinition, type BagState } from './bag';
 import {
   createDefaultParty,
   createDefaultPokedex,
-  healParty,
   type FieldPokemon,
   type PokedexState
 } from './pokemonStorage';
+import { getAllCenterScriptHandlers } from './pokemonCenterTemplate';
 
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
@@ -182,33 +182,6 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       seenCount === 0
         ? 'Talk to me again and I will share more bug-catching tips.'
         : 'Remember: look for moving grass to find wild encounters.'
-    ]);
-  },
-  ViridianCity_PokemonCenter_1F_EventScript_Nurse: ({ dialogue, runtime }) => {
-    healParty(runtime.party);
-    openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_NURSE', [
-      'Welcome to our POKeMON CENTER! We heal your POKeMON back to perfect health.',
-      "Okay, I'll take your POKeMON for a few seconds.",
-      "We've restored your POKeMON to full health.",
-      'We hope to see you again!'
-    ]);
-  },
-  ViridianCity_PokemonCenter_1F_EventScript_Boy: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_PokemonCenter_1F_ObjectEvent_Boy', [
-      "There's a POKeMON CENTER in every town ahead.",
-      "They charge no money, so don't be shy about healing POKeMON."
-    ]);
-  },
-  ViridianCity_PokemonCenter_1F_EventScript_Gentleman: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_PokemonCenter_1F_ObjectEvent_Gentleman', [
-      'Please feel free to use that PC in the corner.',
-      "The receptionist told me so. It's so kind of her!"
-    ]);
-  },
-  ViridianCity_PokemonCenter_1F_EventScript_Youngster: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_PokemonCenter_1F_ObjectEvent_Youngster', [
-      'POKeMON CENTERS heal your tired, hurt, or fainted POKeMON.',
-      'They make all POKeMON completely healthy.'
     ]);
   },
   ViridianCity_Mart_EventScript_Clerk: ({ dialogue, runtime }) => {
@@ -452,3 +425,14 @@ export const viridianCityTryUnlockGym = (runtime: ScriptRuntimeState): boolean =
 
 export const isViridianGymLocked = (runtime: ScriptRuntimeState): boolean =>
   getScriptVar(runtime, VIRIDIAN_GYM_DOOR_VAR) === 0;
+
+export const registerCenterScripts = (): void => {
+  const centerScripts = getAllCenterScriptHandlers();
+  for (const [key, handler] of Object.entries(centerScripts)) {
+    if (!prototypeScriptRegistry[key]) {
+      prototypeScriptRegistry[key] = handler;
+    }
+  }
+};
+
+registerCenterScripts();
