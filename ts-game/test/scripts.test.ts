@@ -143,4 +143,36 @@ describe('script runtime helpers', () => {
       'will need quick healing.'
     ]);
   });
+
+  test('Viridian School NPC stubs mirror the exported map dialogue ids', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('ViridianCity_School_EventScript_Woman', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.queue).toEqual([
+      'Okay!',
+      "Be sure to read what's on the blackboard carefully!"
+    ]);
+
+    runScriptById('ViridianCity_School_EventScript_Lass', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.queue).toEqual([
+      "Whew! I'm trying to memorize all my notes."
+    ]);
+  });
+
+  test('Viridian School sign stubs mirror the exported map trigger ids', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('ViridianCity_School_EventScript_Notebook', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.queue[0]).toContain('notebook');
+
+    runScriptById('ViridianCity_School_EventScript_Blackboard', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.queue[0]).toContain('blackboard');
+
+    runScriptById('ViridianCity_School_EventScript_PokemonJournal', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(dialogue.text).toContain('journal');
+  });
 });

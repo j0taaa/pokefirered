@@ -114,12 +114,13 @@ describe('Viridian City School compact map source', () => {
   });
 
   test('indoor map metadata is correct', () => {
-    const map = loadViridianCitySchoolMap();
-    expect(map.metadata.mapType).toBe('MAP_TYPE_INDOOR');
-    expect(map.metadata.allowCycling).toBe(false);
-    expect(map.metadata.allowRunning).toBe(false);
-    expect(map.metadata.showMapName).toBe(false);
-    expect(map.metadata.music).toBe('MUS_PEWTER');
-    expect(map.metadata.regionMapSection).toBe('MAPSEC_VIRIDIAN_CITY');
+    const source = viridianCitySchoolMapJson as Record<string, unknown>;
+    const metadata = source.metadata as Record<string, unknown>;
+    expect(metadata.mapType).toBe('MAP_TYPE_INDOOR');
+    expect(metadata.allowCycling).toBe(false);
+    expect(metadata.allowRunning).toBe(false);
+    expect(metadata.showMapName).toBe(false);
+    expect(metadata.music).toBe('MUS_PEWTER');
+    expect(metadata.regionMapSection).toBe('MAPSEC_VIRIDIAN_CITY');
   });
 });

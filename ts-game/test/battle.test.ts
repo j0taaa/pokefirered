@@ -209,6 +209,84 @@ describe('battle vertical slice', () => {
     expect(battle.phase).toBe('resolved');
   });
 
+  test('failed ball throw also spends the player action before the foe moves', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'bagSelect';
+    battle.selectedBagIndex = 0;
+    battle.bag.pokeBalls = 1;
+    battle.bag.greatBalls = 0;
+    battle.wildMon.catchRate = 1;
+    battle.wildMon.hp = battle.wildMon.maxHp;
+    const foeMove = { ...(battle.wildMoves.find((move) => move.id === 'TACKLE') ?? battle.wildMoves[0]!), accuracy: 0 };
+    battle.wildMon.moves = [foeMove];
+    battle.wildMoves = [foeMove];
+    const playerHp = battle.playerMon.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.playerMon.hp).toBeLessThan(playerHp);
+    expect(battle.turnSummary).toContain('thrown');
+    expect(battle.queuedMessages.some((message) => message.includes('broke free'))).toBe(true);
+    expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(true);
+
+    flushScriptMessages(battle, encounter);
+    expect(battle.phase).toBe('command');
+  });
+
+  test('voluntary party switch consumes the player action before the foe moves', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const incoming = battle.party[1]!;
+    battle.active = true;
+    battle.phase = 'partySelect';
+    battle.selectedPartyIndex = 1;
+    const foeMove = { ...(battle.wildMoves.find((move) => move.id === 'TACKLE') ?? battle.wildMoves[0]!), accuracy: 0 };
+    battle.wildMon.moves = [foeMove];
+    battle.wildMoves = [foeMove];
+    const incomingHp = incoming.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.playerMon).toBe(incoming);
+    expect(incoming.hp).toBeLessThan(incomingHp);
+    expect(battle.turnSummary).toContain('come back');
+    expect(battle.queuedMessages).toContain(`Go! ${incoming.species}!`);
+    expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(true);
+
+    flushScriptMessages(battle, encounter);
+    expect(battle.phase).toBe('command');
+    expect(battle.turnSummary).toBe(`What will ${incoming.species} do?`);
+  });
+
+  test('forced party switch after fainting does not grant the foe an extra move', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const incoming = battle.party[1]!;
+    battle.active = true;
+    battle.phase = 'partySelect';
+    battle.selectedPartyIndex = 1;
+    battle.playerMon.hp = 0;
+    const foeMove = { ...(battle.wildMoves.find((move) => move.id === 'TACKLE') ?? battle.wildMoves[0]!), accuracy: 0 };
+    battle.wildMon.moves = [foeMove];
+    battle.wildMoves = [foeMove];
+    const incomingHp = incoming.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.playerMon).toBe(incoming);
+    expect(incoming.hp).toBe(incomingHp);
+    expect(battle.turnSummary).toBe(`Go! ${incoming.species}!`);
+    expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(false);
+
+    flushScriptMessages(battle, encounter);
+    expect(battle.phase).toBe('command');
+  });
+
   test('battle state seeds active and wild moves from decomp learnsets', () => {
     const battle = createBattleState();
     expect(battle.moves.some((move) => move.id === 'EMBER')).toBe(true);

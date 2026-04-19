@@ -272,7 +272,7 @@
       "y": 2,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_PokemonJournal",
-      "facing": "BG_EVENT_PLAYER_FACING_NORTH",
+      "facing": "up",
       "once": false
     },
     {
@@ -281,7 +281,7 @@
       "y": 2,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_PokemonJournal",
-      "facing": "BG_EVENT_PLAYER_FACING_NORTH",
+      "facing": "up",
       "once": false
     }
   ],

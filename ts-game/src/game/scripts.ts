@@ -238,6 +238,40 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'You never know when your POKeMON',
       'will need quick healing.'
     ]);
+  },
+  ViridianCity_School_EventScript_Woman: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'LOCALID_SCHOOL_WOMAN', [
+      'Okay!',
+      "Be sure to read what's on the blackboard carefully!"
+    ]);
+  },
+  ViridianCity_School_EventScript_Lass: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'LOCALID_SCHOOL_LASS', [
+      "Whew! I'm trying to memorize all my notes."
+    ]);
+  },
+  ViridianCity_School_EventScript_Notebook: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'system', [
+      "Let's check out the notebook.",
+      'First page…',
+      'POKe BALLS are used to catch POKeMON.',
+      'Up to six POKeMON can be carried in your party.',
+      'People who raise and battle with POKeMON are called TRAINERS.',
+      '(Notebook multi-page stub — full yes/no paging pending script engine.)'
+    ]);
+  },
+  ViridianCity_School_EventScript_Blackboard: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'system', [
+      'The blackboard lists POKeMON STATUS problems during battles.',
+      '(Blackboard multi-choice stub — Sleep, Poison, Paralysis, Burn, Freeze, Exit pending script engine.)'
+    ]);
+  },
+  ViridianCity_School_EventScript_PokemonJournal: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      "It's a POKeMON journal. (Content stub pending script engine.)"
+    );
   }
 };
 

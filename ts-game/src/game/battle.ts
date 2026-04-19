@@ -256,6 +256,9 @@ const decompMoveToBattleMove = (move: DecompBattleMove): BattleMove => ({
   secondaryEffectChance: move.secondaryEffectChance
 });
 
+const getStruggleMove = (): BattleMove =>
+  decompMoveToBattleMove(getDecompBattleMove('STRUGGLE') ?? getDecompBattleMove('TACKLE') ?? getFallbackBattleMoves()[0]!);
+
 const getKnownMovesForSpecies = (species: string, level: number): BattleMove[] => {
   const learned = getDecompLevelUpMoves(species, level);
   const fallback = learned.length > 0 ? learned : getFallbackBattleMoves();
@@ -521,10 +524,30 @@ const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterSta
     .filter(({ move }) => move.ppRemaining > 0);
 
   if (usable.length === 0) {
-    return 0;
+    return -1;
   }
 
   return usable[nextEncounterRoll(encounter, usable.length)]?.index ?? usable[0].index;
+};
+
+const hasUsableMove = (moves: BattleMove[]): boolean => moves.some((move) => move.ppRemaining > 0);
+
+const getEnemyTurnMove = (battle: BattleState, encounter: BattleEncounterState): BattleMove | null => {
+  const enemyMoveIndex = chooseEnemyMoveIndex(battle, encounter);
+  if (enemyMoveIndex < 0) {
+    return getStruggleMove();
+  }
+
+  return battle.wildMoves[enemyMoveIndex] ?? battle.wildMoves[0] ?? null;
+};
+
+const getPlayerTurnMove = (battle: BattleState): BattleMove | null => {
+  const playerMove = battle.moves[battle.selectedMoveIndex];
+  if (!playerMove) {
+    return null;
+  }
+
+  return playerMove.ppRemaining > 0 || hasUsableMove(battle.moves) ? playerMove : getStruggleMove();
 };
 
 const hasLivingBenchMon = (battle: BattleState): boolean =>
@@ -712,7 +735,12 @@ const executeMove = (
     return messages;
   }
 
-  if (move.ppRemaining > 0) {
+  if (move.ppRemaining <= 0 && move.id !== 'STRUGGLE') {
+    pushMessage(messages, battle, `There's no PP left for ${move.name}!`);
+    return messages;
+  }
+
+  if (move.id !== 'STRUGGLE' && move.ppRemaining > 0) {
     move.ppRemaining -= 1;
   }
 
@@ -741,12 +769,22 @@ const executeMove = (
     }
 
     maybeApplySecondaryStatus(move, defender, encounterState, messages);
+
+    if (move.effect === 'EFFECT_RECOIL') {
+      const recoil = Math.max(1, Math.floor(damage / 4));
+      attacker.hp = Math.max(0, attacker.hp - recoil);
+      applyQueuedDamage(battle, attackerSide, attacker.hp);
+      pushMessage(messages, battle, `${attacker.species} is hit with recoil!`);
+    }
   } else if (!applyStageEffect(move.effect, attacker, defender, messages)) {
     pushMessage(messages, battle, 'But nothing happened!');
   }
 
   if (defender.hp === 0) {
     pushMessage(messages, battle, getFaintMessage(defenderSide, battle));
+  }
+  if (attacker.hp === 0) {
+    pushMessage(messages, battle, getFaintMessage(attackerSide, battle));
   }
 
   return messages;
@@ -813,7 +851,7 @@ const enqueueTurnMessages = (battle: BattleState, messages: string[]): void => {
 
 const resolveEnemyOnlyTurn = (battle: BattleState, encounterState: BattleEncounterState, leadingMessages: string[]): void => {
   battle.queuedControllerCommands = [];
-  const enemyMove = battle.wildMoves[chooseEnemyMoveIndex(battle, encounterState)] ?? battle.wildMoves[0];
+  const enemyMove = getEnemyTurnMove(battle, encounterState);
   const messages = [...leadingMessages];
 
   if (enemyMove) {
@@ -827,10 +865,35 @@ const resolveEnemyOnlyTurn = (battle: BattleState, encounterState: BattleEncount
   enqueueTurnMessages(battle, messages);
 };
 
+const resolvePlayerSwitchTurn = (
+  battle: BattleState,
+  target: BattlePokemonSnapshot,
+  encounterState: BattleEncounterState,
+  voluntary: boolean
+): void => {
+  const previous = battle.playerMon;
+  battle.playerMon = target;
+  refreshActiveMovePointers(battle);
+  battle.currentScriptLabel = 'BattleScript_ActionSwitch';
+
+  const messages = voluntary
+    ? [`${previous.species}, come back!`, `Go! ${target.species}!`]
+    : [`Go! ${target.species}!`];
+
+  // Mirrors battle_main.c::SetActionsAndBattlersTurnOrder: switch actions are
+  // ordered before moves, but the opposing battler's move still resolves.
+  if (voluntary && battle.wildMon.hp > 0) {
+    resolveEnemyOnlyTurn(battle, encounterState, messages);
+    return;
+  }
+
+  queueMessages(battle, messages, 'command', getPromptSummary(battle));
+};
+
 const resolveSelectedMoveTurn = (battle: BattleState, encounterState: BattleEncounterState): void => {
   battle.queuedControllerCommands = [];
-  const playerMove = battle.moves[battle.selectedMoveIndex];
-  const enemyMove = battle.wildMoves[chooseEnemyMoveIndex(battle, encounterState)] ?? battle.wildMoves[0];
+  const playerMove = getPlayerTurnMove(battle);
+  const enemyMove = getEnemyTurnMove(battle, encounterState);
   if (!playerMove || !enemyMove) {
     return;
   }
@@ -1252,11 +1315,10 @@ export const stepBattle = (
         'resolved'
       );
     } else {
-      queueMessages(
+      resolveEnemyOnlyTurn(
         battle,
-        [`${capture.ballLabel} thrown!`, `Oh no! The Pokémon broke free after ${capture.shakes} shakes!`],
-        'command',
-        getPromptSummary(battle)
+        encounterState,
+        [`${capture.ballLabel} thrown!`, `Oh no! The Pokémon broke free after ${capture.shakes} shakes!`]
       );
     }
     return;
@@ -1290,9 +1352,7 @@ export const stepBattle = (
       return;
     }
 
-    battle.playerMon = target;
-    refreshActiveMovePointers(battle);
-    queueMessages(battle, [`Go! ${target.species}!`], 'command', getPromptSummary(battle));
+    resolvePlayerSwitchTurn(battle, target, encounterState, battle.playerMon.hp > 0);
     return;
   }
 
@@ -1312,6 +1372,12 @@ export const stepBattle = (
   }
 
   if (!input.interactPressed) {
+    return;
+  }
+
+  const selectedMove = battle.moves[battle.selectedMoveIndex];
+  if (selectedMove && selectedMove.ppRemaining <= 0 && hasUsableMove(battle.moves)) {
+    battle.turnSummary = `There's no PP left for ${selectedMove.name}!`;
     return;
   }
 

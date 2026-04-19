@@ -168,6 +168,36 @@ describe('warp runtime', () => {
     });
   });
 
+  test('resolves the Viridian City School door warp into the loaded school map', () => {
+    const map = loadViridianCityMap();
+    const player = createPlayer();
+    player.position = vec2(25 * map.tileSize, 18 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 25, y: 18, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_SCHOOL', destWarpId: 1 },
+      destinationMap: loadViridianCitySchoolMap(),
+      destinationWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 3 },
+      playerPosition: { x: 4 * 16, y: 7 * 16 }
+    });
+  });
+
+  test('resolves the Viridian City School exit warp back to loaded Viridian City', () => {
+    const map = loadViridianCitySchoolMap();
+    const player = createPlayer();
+    player.position = vec2(4 * map.tileSize, 7 * map.tileSize);
+    player.facing = 'down';
+
+    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 3 },
+      destinationMap: loadViridianCityMap(),
+      destinationWarp: { x: 25, y: 18, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_SCHOOL', destWarpId: 1 },
+      playerPosition: { x: 25 * 16, y: 18 * 16 }
+    });
+  });
+
   test('resolves the Pallet Town front door warp into the loaded Players House 1F', () => {
     const map = loadPalletTownMap();
     const player = createPlayer();

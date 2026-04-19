@@ -95,6 +95,16 @@ const objectEventToCloneObject = (event) => ({
   targetMap: event.target_map
 });
 
+const BG_EVENT_FACING_MAP = {
+  BG_EVENT_PLAYER_FACING_ANY: 'any',
+  BG_EVENT_PLAYER_FACING_NORTH: 'up',
+  BG_EVENT_PLAYER_FACING_SOUTH: 'down',
+  BG_EVENT_PLAYER_FACING_EAST: 'right',
+  BG_EVENT_PLAYER_FACING_WEST: 'left'
+};
+
+const bgEventFacingToRuntime = (dir) => BG_EVENT_FACING_MAP[dir] ?? 'any';
+
 const objectEventToBerryTree = (event) => ({
   x: event.x,
   y: event.y,
@@ -135,7 +145,7 @@ const bgEventToTrigger = (event) => {
     y: event.y,
     activation: 'interact',
     scriptId: event.script,
-    facing: event.player_facing_dir === 'BG_EVENT_PLAYER_FACING_ANY' ? 'any' : event.player_facing_dir,
+    facing: bgEventFacingToRuntime(event.player_facing_dir),
     once: false
   };
 };
