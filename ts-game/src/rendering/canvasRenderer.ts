@@ -77,7 +77,7 @@ import {
   type BagContextActionId,
   type BagPanelState
 } from '../game/bag';
-import { getBattleBagChoices, type BattleState } from '../game/battle';
+import { getBattleBagChoices, getBattleCommandLabel, type BattleState } from '../game/battle';
 import type {
   OptionPanelState,
   PartyActionId,
@@ -992,7 +992,7 @@ export class CanvasRenderer {
       if (index === battle.selectedCommandIndex) {
         this.drawCursor(entry.x - 8, entry.y - 2);
       }
-      this.drawBattleMonoCommandLabel(entry.label, entry.x, entry.y);
+      this.drawBattleMonoCommandLabel(getBattleCommandLabel(battle.commands[index]!), entry.x, entry.y);
     });
   }
 
@@ -1052,7 +1052,16 @@ export class CanvasRenderer {
         selected: index === battle.selectedBagIndex
       }));
 
-    rows.slice(0, 4).forEach((row, index) => {
+    const visibleRows = 4;
+    const selectedIndex = battle.phase === 'partySelect'
+      ? battle.selectedPartyIndex
+      : battle.selectedBagIndex;
+    const startIndex = Math.max(0, Math.min(
+      selectedIndex - (visibleRows - 1),
+      Math.max(0, rows.length - visibleRows)
+    ));
+
+    rows.slice(startIndex, startIndex + visibleRows).forEach((row, index) => {
       const y = BATTLE_LIST_WINDOW.y + 6 + index * 12;
       if (row.selected) {
         this.drawCursor(BATTLE_LIST_WINDOW.x + 4, y - 2);

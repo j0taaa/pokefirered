@@ -1,5 +1,5 @@
-import { getBattleBagChoices, type BattleState } from '../game/battle';
-import { getBagQuantity, type BagState } from '../game/bag';
+import { getBattleBagChoices, getBattleCommandLabel, type BattleState } from '../game/battle';
+import type { BagState } from '../game/bag';
 
 export interface BattleOverlayBindings {
   root: HTMLElement;
@@ -53,7 +53,7 @@ export const updateBattleOverlay = (
   if (battle.phase === 'command') {
     battle.commands.forEach((command, index) => {
       const entry = document.createElement('li');
-      entry.textContent = `${index === battle.selectedCommandIndex ? '▶' : ' '} ${command.toUpperCase()}`;
+      entry.textContent = `${index === battle.selectedCommandIndex ? '▶' : ' '} ${getBattleCommandLabel(command)}`;
       entry.className = index === battle.selectedCommandIndex ? 'battle-move-selected' : '';
       bindings.moveList.append(entry);
     });
@@ -94,9 +94,10 @@ export const updateBattleOverlay = (
   } else if (battle.phase === 'resolved') {
     bindings.hint.textContent = 'Z/Enter/X/Esc: Return to field';
   } else if (battle.phase === 'command') {
-    const pokeBallCount = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
-    const greatBallCount = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
-    bindings.hint.textContent = `Z/Enter: Confirm · ↑/↓: Choose command · Balls ${pokeBallCount}/${greatBallCount}`;
+    const ballCount = getBattleBagChoices(battle, bag)
+      .filter((choice) => !choice.isExit)
+      .reduce((sum, choice) => sum + (choice.quantity ?? 0), 0);
+    bindings.hint.textContent = `Z/Enter: Confirm · ↑/↓: Choose command · Balls ${ballCount}`;
   } else if (battle.phase === 'partySelect') {
     bindings.hint.textContent = 'Z/Enter: Switch · X/Esc: Back';
   } else if (battle.phase === 'bagSelect') {

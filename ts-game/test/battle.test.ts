@@ -1,16 +1,21 @@
 import { describe, expect, test } from 'vitest';
 import {
   calculateBaseDamage,
+  calculateCaptureOdds,
   calculateDamagePreview,
   calculateTypeEffectiveness,
   createBattleEncounterState,
   createBattleState,
+  getBallCatchMultiplierTenths,
+  getBallEscapeMessage,
+  getBattleBagChoices,
   performCaptureAttempt,
   shouldStartWildEncounter,
   stepBattle,
   tryStartWildBattle
 } from '../src/game/battle';
 import type { BattleMove, PokemonType } from '../src/game/battle';
+import { createBagState, getBagQuantity } from '../src/game/bag';
 import type { WildEncounterGroup } from '../src/world/mapSource';
 
 const neutralInput = {
@@ -106,6 +111,37 @@ describe('battle vertical slice', () => {
 
     const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, move!);
     expect(preview).toEqual({ min: 25, max: 30 });
+  });
+
+  test('applies Gen 3 STAB/type modifiers with integer truncation in type-table order', () => {
+    const battle = createBattleState();
+    const move = makeDamageMove('FIRE_TEST', 'EFFECT_HIT', 'fire', 25, 100);
+    battle.playerMon.level = 10;
+    battle.playerMon.types = ['normal'];
+    battle.playerMon.spAttack = 10;
+    battle.wildMon.types = ['water', 'grass'];
+    battle.wildMon.spDefense = 10;
+
+    expect(calculateBaseDamage(battle.playerMon, battle.wildMon, move)).toBe(5);
+
+    const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, move);
+    expect(preview.max).toBe(4);
+    expect(preview.min).toBe(3);
+  });
+
+  test('Struggle skips STAB and type immunity like FireRed TypeCalc', () => {
+    const battle = createBattleState();
+    const struggle = makeDamageMove('STRUGGLE', 'EFFECT_RECOIL', 'normal', 50, 0);
+    const tackle = makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 50, 0);
+    battle.playerMon.types = ['normal'];
+    battle.wildMon.types = ['ghost'];
+
+    const baseDamage = calculateBaseDamage(battle.playerMon, battle.wildMon, struggle);
+    expect(calculateDamagePreview(battle.playerMon, battle.wildMon, tackle)).toEqual({ min: 0, max: 0 });
+    expect(calculateDamagePreview(battle.playerMon, battle.wildMon, struggle)).toEqual({
+      min: Math.max(1, Math.floor((baseDamage * 85) / 100)),
+      max: baseDamage
+    });
   });
 
   test('burn halves physical attack damage but not special attack damage', () => {
@@ -836,6 +872,25 @@ describe('battle vertical slice', () => {
 
     expect(rainThunder.wildMon.hp).toBeLessThan(rainThunder.wildMon.maxHp);
     expect([rainThunder.turnSummary, ...rainThunder.queuedMessages]).not.toContain('The attack missed!');
+  });
+
+  test('Foresight ignores target evasion stages during accuracy checks', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const tackle = makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40, 100);
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.moves = [tackle];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMon.types = ['normal'];
+    battle.wildMon.statStages.evasion = 6;
+    battle.wildMon.volatile.foresighted = true;
+    const wildHp = battle.wildMon.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.wildMon.hp).toBeLessThan(wildHp);
   });
 
   test('Endure braces for a lethal pending hit without blocking damage outright', () => {
@@ -2983,6 +3038,63 @@ describe('battle vertical slice', () => {
     expect(battle.turnSummary).toContain("Can't escape");
   });
 
+  test('Smoke Ball and Run Away bypass trapping when fleeing wild battles', () => {
+    const smokeBattle = createBattleState();
+    smokeBattle.active = true;
+    smokeBattle.phase = 'command';
+    smokeBattle.playerMon.heldItemId = 'ITEM_SMOKE_BALL';
+    smokeBattle.playerMon.volatile.escapePreventedBy = 'opponent';
+    smokeBattle.selectedCommandIndex = smokeBattle.commands.findIndex((command) => command === 'run');
+
+    stepBattle(smokeBattle, confirmInput, createBattleEncounterState());
+    expect(smokeBattle.phase).toBe('script');
+    expect(smokeBattle.resumePhase).toBe('resolved');
+    expect(smokeBattle.turnSummary).toContain('Got away safely');
+
+    const runAwayBattle = createBattleState();
+    runAwayBattle.active = true;
+    runAwayBattle.phase = 'command';
+    runAwayBattle.playerMon.abilityId = 'RUN_AWAY';
+    runAwayBattle.wildMon.abilityId = 'SHADOW_TAG';
+    runAwayBattle.selectedCommandIndex = runAwayBattle.commands.findIndex((command) => command === 'run');
+
+    stepBattle(runAwayBattle, confirmInput, createBattleEncounterState());
+    expect(runAwayBattle.phase).toBe('script');
+    expect(runAwayBattle.resumePhase).toBe('resolved');
+    expect(runAwayBattle.turnSummary).toContain('Got away safely');
+  });
+
+  test('Shadow Tag, Arena Trap, and Magnet Pull can prevent wild battle escape', () => {
+    const shadowTagBattle = createBattleState();
+    shadowTagBattle.active = true;
+    shadowTagBattle.phase = 'command';
+    shadowTagBattle.wildMon.abilityId = 'SHADOW_TAG';
+    shadowTagBattle.selectedCommandIndex = shadowTagBattle.commands.findIndex((command) => command === 'run');
+
+    stepBattle(shadowTagBattle, confirmInput, createBattleEncounterState());
+    expect(shadowTagBattle.turnSummary).toContain("Can't escape!");
+
+    const arenaTrapBattle = createBattleState();
+    arenaTrapBattle.active = true;
+    arenaTrapBattle.phase = 'command';
+    arenaTrapBattle.wildMon.abilityId = 'ARENA_TRAP';
+    arenaTrapBattle.playerMon.types = ['fire'];
+    arenaTrapBattle.selectedCommandIndex = arenaTrapBattle.commands.findIndex((command) => command === 'run');
+
+    stepBattle(arenaTrapBattle, confirmInput, createBattleEncounterState());
+    expect(arenaTrapBattle.turnSummary).toContain("Can't escape!");
+
+    const magnetPullBattle = createBattleState();
+    magnetPullBattle.active = true;
+    magnetPullBattle.phase = 'command';
+    magnetPullBattle.wildMon.abilityId = 'MAGNET_PULL';
+    magnetPullBattle.playerMon.types = ['steel'];
+    magnetPullBattle.selectedCommandIndex = magnetPullBattle.commands.findIndex((command) => command === 'run');
+
+    stepBattle(magnetPullBattle, confirmInput, createBattleEncounterState());
+    expect(magnetPullBattle.turnSummary).toContain("Can't escape!");
+  });
+
   test('supports Poké Ball shakes and Great Ball fallback modifiers', () => {
     const battle = createBattleState();
     const encounter = createBattleEncounterState();
@@ -2999,6 +3111,231 @@ describe('battle vertical slice', () => {
     expect(capture.shakes).toBe(4);
     expect(capture.caught).toBe(true);
     expect(battle.bag.greatBalls).toBe(0);
+  });
+
+  test('calculates capture odds with FireRed integer ball and status order', () => {
+    const battle = createBattleState();
+    battle.wildMon.maxHp = 100;
+    battle.wildMon.hp = 37;
+    battle.wildMon.catchRate = 45;
+    battle.wildMon.status = 'paralysis';
+
+    expect(calculateCaptureOdds(battle.wildMon, 'ITEM_GREAT_BALL')).toBe(75);
+
+    battle.wildMon.status = 'sleep';
+    expect(calculateCaptureOdds(battle.wildMon, 'ITEM_GREAT_BALL')).toBe(100);
+
+    battle.wildMon.hp = 50;
+    battle.wildMon.status = 'none';
+    expect(calculateCaptureOdds(battle.wildMon, 'ITEM_SAFARI_BALL')).toBe(38);
+    expect(calculateCaptureOdds(battle.wildMon, 'ITEM_SAFARI_BALL', { safariCatchFactor: 20 })).toBe(254);
+  });
+
+  test('uses FireRed special ball catch multipliers from battle context', () => {
+    const battle = createBattleState();
+    battle.wildMon.species = 'MAGIKARP';
+    battle.wildMon.types = ['water'];
+    battle.wildMon.level = 12;
+
+    expect(getBallCatchMultiplierTenths('ITEM_NET_BALL', battle.wildMon)).toBe(30);
+    expect(getBallCatchMultiplierTenths('ITEM_DIVE_BALL', battle.wildMon, { terrain: 'BATTLE_TERRAIN_UNDERWATER' })).toBe(35);
+    expect(getBallCatchMultiplierTenths('ITEM_NEST_BALL', battle.wildMon)).toBe(28);
+    expect(getBallCatchMultiplierTenths('ITEM_REPEAT_BALL', battle.wildMon, { caughtSpeciesIds: ['MAGIKARP'] })).toBe(30);
+    expect(getBallCatchMultiplierTenths('ITEM_TIMER_BALL', battle.wildMon, { battleTurnCounter: 35 })).toBe(40);
+  });
+
+  test('battle BAG lists and consumes every supported ball from the Poké Balls pocket order', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const bag = createBagState();
+    bag.pockets.pokeBalls = [
+      { itemId: 'ITEM_TIMER_BALL', quantity: 2 },
+      { itemId: 'ITEM_ULTRA_BALL', quantity: 1 }
+    ];
+
+    const choices = getBattleBagChoices(battle, bag);
+    expect(choices.map((choice) => choice.itemId)).toEqual(['ITEM_TIMER_BALL', 'ITEM_ULTRA_BALL', null]);
+    expect(choices.map((choice) => choice.label)).toEqual(['TIMER BALL', 'ULTRA BALL', 'CANCEL']);
+
+    battle.wildMon.catchRate = 255;
+    battle.wildMon.hp = 1;
+    encounter.rngState = 0;
+    const capture = performCaptureAttempt(battle, encounter, bag);
+
+    expect(capture.usedItemId).toBe('ITEM_TIMER_BALL');
+    expect(capture.caught).toBe(true);
+    expect(getBagQuantity(bag, 'ITEM_TIMER_BALL')).toBe(1);
+    expect(getBagQuantity(bag, 'ITEM_ULTRA_BALL')).toBe(1);
+  });
+
+  test('Master Ball always catches and is removed from the bag', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const bag = createBagState();
+    bag.pockets.pokeBalls = [{ itemId: 'ITEM_MASTER_BALL', quantity: 1 }];
+    battle.wildMon.catchRate = 3;
+    battle.wildMon.hp = battle.wildMon.maxHp;
+
+    const capture = performCaptureAttempt(battle, encounter, bag, 'ITEM_MASTER_BALL');
+
+    expect(capture).toMatchObject({
+      caught: true,
+      shakes: 4,
+      ballLabel: 'MASTER BALL',
+      usedItemId: 'ITEM_MASTER_BALL'
+    });
+    expect(getBagQuantity(bag, 'ITEM_MASTER_BALL')).toBe(0);
+  });
+
+  test('failed ball throws use FireRed shake-specific escape messages', () => {
+    expect(getBallEscapeMessage(0)).toBe('Oh, no! The POKéMON broke free!');
+    expect(getBallEscapeMessage(1)).toBe('Aww! It appeared to be caught!');
+    expect(getBallEscapeMessage(2)).toBe('Aargh! Almost had it!');
+    expect(getBallEscapeMessage(3)).toBe('Shoot! It was so close, too!');
+  });
+
+  test('trainer and ghost battle ball blocks do not consume the selected ball', () => {
+    const encounter = createBattleEncounterState();
+    const trainerBattle = createBattleState();
+    const trainerBag = createBagState();
+    trainerBag.pockets.pokeBalls = [{ itemId: 'ITEM_ULTRA_BALL', quantity: 1 }];
+    trainerBattle.battleTypeFlags = ['trainer'];
+
+    const trainerCapture = performCaptureAttempt(trainerBattle, encounter, trainerBag, 'ITEM_ULTRA_BALL');
+    expect(trainerCapture).toMatchObject({
+      caught: false,
+      blockedReason: 'trainer',
+      usedItemId: 'ITEM_ULTRA_BALL'
+    });
+    expect(getBagQuantity(trainerBag, 'ITEM_ULTRA_BALL')).toBe(1);
+
+    const ghostBattle = createBattleState();
+    const ghostBag = createBagState();
+    ghostBag.pockets.pokeBalls = [{ itemId: 'ITEM_POKE_BALL', quantity: 1 }];
+    ghostBattle.battleTypeFlags = ['ghost'];
+
+    const ghostCapture = performCaptureAttempt(ghostBattle, encounter, ghostBag, 'ITEM_POKE_BALL');
+    expect(ghostCapture).toMatchObject({
+      caught: false,
+      blockedReason: 'ghost',
+      usedItemId: 'ITEM_POKE_BALL'
+    });
+    expect(getBagQuantity(ghostBag, 'ITEM_POKE_BALL')).toBe(1);
+  });
+
+  test('old-man tutorial ball throw resolves as caught without adding a player caught mon', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const bag = createBagState();
+    bag.pockets.pokeBalls = [{ itemId: 'ITEM_POKE_BALL', quantity: 1 }];
+    battle.active = true;
+    battle.phase = 'bagSelect';
+    battle.battleTypeFlags = ['oldManTutorial'];
+
+    stepBattle(battle, confirmInput, encounter, bag);
+
+    expect(battle.currentScriptLabel).toBe('BattleScript_OldMan_Pokedude_CaughtMessage');
+    expect(battle.caughtMon).toBeNull();
+    expect(battle.caughtSpeciesIds).toEqual([]);
+    expect(getBagQuantity(bag, 'ITEM_POKE_BALL')).toBe(1);
+    expect(battle.phase).toBe('script');
+    expect([battle.turnSummary, ...battle.queuedMessages]).toEqual([
+      'POKé BALL thrown!',
+      `Gotcha! ${battle.wildMon.species} was caught!`
+    ]);
+  });
+
+  test('Safari battles use Ball, Bait, Rock, Run commands', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'command';
+    battle.battleTypeFlags = ['safari'];
+
+    stepBattle(battle, neutralInput, createBattleEncounterState());
+
+    expect(battle.commands).toEqual(['safariBall', 'safariBait', 'safariRock', 'run']);
+  });
+
+  test('Safari bait and rock mutate catch factors and counters like FireRed actions', () => {
+    const baitBattle = createBattleState();
+    const baitEncounter = createBattleEncounterState();
+    baitEncounter.rngState = 1;
+    baitBattle.active = true;
+    baitBattle.phase = 'command';
+    baitBattle.battleTypeFlags = ['safari'];
+    baitBattle.safariCatchFactor = 10;
+    baitBattle.safariEscapeFactor = 2;
+    stepBattle(baitBattle, neutralInput, baitEncounter);
+    baitBattle.selectedCommandIndex = 1;
+
+    stepBattle(baitBattle, confirmInput, baitEncounter);
+
+    expect(baitBattle.safariCatchFactor).toBe(5);
+    expect(baitBattle.safariBaitThrowCounter).toBe(4);
+    expect(baitBattle.safariRockThrowCounter).toBe(0);
+    expect([baitBattle.turnSummary, ...baitBattle.queuedMessages]).toEqual([
+      `You threw some BAIT at the ${baitBattle.wildMon.species}!`,
+      `${baitBattle.wildMon.species} is eating!`
+    ]);
+
+    const rockBattle = createBattleState();
+    const rockEncounter = createBattleEncounterState();
+    rockEncounter.rngState = 1;
+    rockBattle.active = true;
+    rockBattle.phase = 'command';
+    rockBattle.battleTypeFlags = ['safari'];
+    rockBattle.safariCatchFactor = 11;
+    rockBattle.safariEscapeFactor = 2;
+    stepBattle(rockBattle, neutralInput, rockEncounter);
+    rockBattle.selectedCommandIndex = 2;
+
+    stepBattle(rockBattle, confirmInput, rockEncounter);
+
+    expect(rockBattle.safariCatchFactor).toBe(20);
+    expect(rockBattle.safariRockThrowCounter).toBe(4);
+    expect(rockBattle.safariBaitThrowCounter).toBe(0);
+    expect([rockBattle.turnSummary, ...rockBattle.queuedMessages]).toEqual([
+      `You threw a ROCK at the ${rockBattle.wildMon.species}!`,
+      `${rockBattle.wildMon.species} is angry!`
+    ]);
+  });
+
+  test('Safari Ball uses the Safari ball counter and ends the battle when the last ball fails', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'command';
+    battle.battleTypeFlags = ['safari'];
+    battle.safariBalls = 1;
+    battle.safariCatchFactor = 1;
+    battle.wildMon.catchRate = 1;
+    battle.wildMon.hp = battle.wildMon.maxHp;
+    encounter.rngState = 1;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.safariBalls).toBe(0);
+    expect(battle.phase).toBe('script');
+    expect(battle.resumePhase).toBe('resolved');
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain("ANNOUNCER: You're out of SAFARI BALLS! Game over!");
+  });
+
+  test('Safari opponent flee check follows rock and escape-factor odds', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'command';
+    battle.battleTypeFlags = ['safari'];
+    battle.safariEscapeFactor = 20;
+    encounter.rngState = 0;
+    stepBattle(battle, neutralInput, encounter);
+    battle.selectedCommandIndex = 2;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.resumePhase).toBe('resolved');
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`Wild ${battle.wildMon.species} fled!`);
   });
 
   test('battle BAG command includes shake-count messaging', () => {
@@ -3126,10 +3463,12 @@ describe('battle vertical slice', () => {
     battle.active = true;
     battle.phase = 'moveSelect';
     battle.playerMon.speed = 99;
+    battle.wildMon.types = ['ghost'];
     battle.moves.forEach((move) => {
       move.ppRemaining = 0;
     });
     const playerHp = battle.playerMon.hp;
+    const wildHp = battle.wildMon.hp;
 
     stepBattle(battle, confirmInput, encounter);
 
@@ -3137,6 +3476,7 @@ describe('battle vertical slice', () => {
     expect(battle.turnSummary).toContain('used STRUGGLE');
     expect(battle.moves.every((move) => move.ppRemaining === 0)).toBe(true);
     expect(battle.playerMon.hp).toBeLessThan(playerHp);
+    expect(battle.wildMon.hp).toBeLessThan(wildHp);
   });
 
   test('wild battler uses Struggle when it has no move PP left', () => {

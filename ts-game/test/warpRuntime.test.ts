@@ -8,6 +8,9 @@ import {
   resolveWarpTransition
 } from '../src/game/warps';
 import {
+  loadCeruleanCityMap,
+  loadCeruleanCityPokemonCenter1FMap,
+  loadCeruleanCityPokemonCenter2FMap,
   loadIndigoPlateauExteriorMap,
   loadIndigoPlateauPokemonCenter1FMap,
   loadMapById,
@@ -25,6 +28,15 @@ import {
   loadPewterCityMuseum2FMap,
   loadPewterCityPokemonCenter1FMap,
   loadPewterCityPokemonCenter2FMap,
+  loadVermilionCityGymMap,
+  loadVermilionCityHouse1Map,
+  loadVermilionCityHouse2Map,
+  loadVermilionCityHouse3Map,
+  loadVermilionCityMap,
+  loadVermilionCityMartMap,
+  loadVermilionCityPokemonCenter1FMap,
+  loadVermilionCityPokemonCenter2FMap,
+  loadVermilionCityPokemonFanClubMap,
   loadViridianCityGymMap,
   loadViridianCityHouseMap,
   loadViridianCityMap,
@@ -604,5 +616,166 @@ describe('warp runtime', () => {
     const center1F = loadPewterCityPokemonCenter1FMap();
     expect(result.sourceWarp).toMatchObject({ destMap: 'MAP_PEWTER_CITY_POKEMON_CENTER_1F', destWarpId: 3 });
     expect(result.destinationMap!.id).toBe(center1F.id);
+  });
+
+  test('resolves Cerulean City door warps into the loaded interiors', () => {
+    const cityMap = loadCeruleanCityMap();
+    const destinations = [
+      'MAP_CERULEAN_CITY_HOUSE1',
+      'MAP_CERULEAN_CITY_HOUSE2',
+      'MAP_CERULEAN_CITY_HOUSE3',
+      'MAP_CERULEAN_CITY_POKEMON_CENTER_1F',
+      'MAP_CERULEAN_CITY_GYM',
+      'MAP_CERULEAN_CITY_BIKE_SHOP',
+      'MAP_CERULEAN_CITY_MART',
+      'MAP_CERULEAN_CITY_HOUSE4',
+      'MAP_CERULEAN_CITY_HOUSE5'
+    ];
+
+    for (const destMap of destinations) {
+      const warp = cityMap.warps.find((candidate) => candidate.destMap === destMap);
+      expect(warp).toBeDefined();
+      if (!warp) continue;
+
+      const player = createPlayer();
+      player.position = vec2(warp.x * cityMap.tileSize, warp.y * cityMap.tileSize);
+      player.facing = 'up';
+
+      const result = resolveWarpTransition(cityMap, player, loadMapById);
+      expect(result.status).toBe('resolved');
+      if (result.status !== 'resolved') continue;
+      expect(result.sourceWarp).toEqual(warp);
+      expect(result.destinationMap!.id).toBe(destMap);
+      expect(result.destinationWarp).toEqual(result.destinationMap!.warps[warp.destWarpId]);
+    }
+  });
+
+  test('resolves Cerulean Pokemon Center stairs between 1F and 2F', () => {
+    const center1F = loadCeruleanCityPokemonCenter1FMap();
+    const player = createPlayer();
+    player.position = vec2(1 * center1F.tileSize, 6 * center1F.tileSize);
+    player.facing = 'up';
+
+    const upstairs = resolveWarpTransition(center1F, player, loadMapById);
+    expect(upstairs.status).toBe('resolved');
+    if (upstairs.status !== 'resolved') return;
+
+    const center2F = loadCeruleanCityPokemonCenter2FMap();
+    expect(upstairs.sourceWarp).toMatchObject({ destMap: 'MAP_CERULEAN_CITY_POKEMON_CENTER_2F', destWarpId: 0 });
+    expect(upstairs.destinationMap!.id).toBe(center2F.id);
+
+    player.position = vec2(1 * center2F.tileSize, 6 * center2F.tileSize);
+    player.facing = 'down';
+
+    const downstairs = resolveWarpTransition(center2F, player, loadMapById);
+    expect(downstairs.status).toBe('resolved');
+    if (downstairs.status !== 'resolved') return;
+    expect(downstairs.sourceWarp).toMatchObject({ destMap: 'MAP_CERULEAN_CITY_POKEMON_CENTER_1F', destWarpId: 3 });
+    expect(downstairs.destinationMap!.id).toBe(center1F.id);
+  });
+
+  test('resolves Vermilion City door warps into the loaded interiors', () => {
+    const cityMap = loadVermilionCityMap();
+    const destinations = [
+      'MAP_VERMILION_CITY_HOUSE1',
+      'MAP_VERMILION_CITY_POKEMON_CENTER_1F',
+      'MAP_VERMILION_CITY_POKEMON_FAN_CLUB',
+      'MAP_VERMILION_CITY_HOUSE2',
+      'MAP_VERMILION_CITY_MART',
+      'MAP_VERMILION_CITY_HOUSE3',
+      'MAP_VERMILION_CITY_GYM'
+    ];
+
+    for (const destMap of destinations) {
+      const warp = cityMap.warps.find((candidate) => candidate.destMap === destMap);
+      expect(warp).toBeDefined();
+      if (!warp) continue;
+
+      const player = createPlayer();
+      player.position = vec2(warp.x * cityMap.tileSize, warp.y * cityMap.tileSize);
+      player.facing = 'up';
+
+      const result = resolveWarpTransition(cityMap, player, loadMapById);
+      expect(result.status).toBe('resolved');
+      if (result.status !== 'resolved') continue;
+      expect(result.sourceWarp).toEqual(warp);
+      expect(result.destinationMap!.id).toBe(destMap);
+      expect(result.destinationWarp).toEqual(result.destinationMap!.warps[warp.destWarpId]);
+    }
+  });
+
+  test('resolves Vermilion Pokemon Center stairs between 1F and 2F', () => {
+    const center1F = loadVermilionCityPokemonCenter1FMap();
+    const player = createPlayer();
+    player.position = vec2(1 * center1F.tileSize, 6 * center1F.tileSize);
+    player.facing = 'up';
+
+    const upstairs = resolveWarpTransition(center1F, player, loadMapById);
+    expect(upstairs.status).toBe('resolved');
+    if (upstairs.status !== 'resolved') return;
+
+    const center2F = loadVermilionCityPokemonCenter2FMap();
+    expect(upstairs.sourceWarp).toMatchObject({ destMap: 'MAP_VERMILION_CITY_POKEMON_CENTER_2F', destWarpId: 0 });
+    expect(upstairs.destinationMap!.id).toBe(center2F.id);
+
+    player.position = vec2(1 * center2F.tileSize, 6 * center2F.tileSize);
+    player.facing = 'down';
+
+    const downstairs = resolveWarpTransition(center2F, player, loadMapById);
+    expect(downstairs.status).toBe('resolved');
+    if (downstairs.status !== 'resolved') return;
+    expect(downstairs.sourceWarp).toMatchObject({ destMap: 'MAP_VERMILION_CITY_POKEMON_CENTER_1F', destWarpId: 3 });
+    expect(downstairs.destinationMap!.id).toBe(center1F.id);
+  });
+
+  test('resolves Vermilion Gym exit warps back to city', () => {
+    const gym = loadVermilionCityGymMap();
+    const player = createPlayer();
+    const exitWarp = gym.warps[0];
+
+    player.position = vec2(exitWarp.x * gym.tileSize, exitWarp.y * gym.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(gym, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+    expect(result.destinationMap!.id).toBe('MAP_VERMILION_CITY');
+  });
+
+  test('resolves Vermilion Fan Club exit warps back to city', () => {
+    const fanClub = loadVermilionCityPokemonFanClubMap();
+    const player = createPlayer();
+    const exitWarp = fanClub.warps[0];
+
+    player.position = vec2(exitWarp.x * fanClub.tileSize, exitWarp.y * fanClub.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(fanClub, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved') return;
+    expect(result.destinationMap!.id).toBe('MAP_VERMILION_CITY');
+  });
+
+  test('resolves Vermilion House1/2/3 and Mart exit warps back to city', () => {
+    const interiors = [
+      loadVermilionCityHouse1Map,
+      loadVermilionCityHouse2Map,
+      loadVermilionCityHouse3Map,
+      loadVermilionCityMartMap
+    ];
+
+    for (const load of interiors) {
+      const map = load();
+      const player = createPlayer();
+      const exitWarp = map.warps[0];
+
+      player.position = vec2(exitWarp.x * map.tileSize, exitWarp.y * map.tileSize);
+      player.facing = 'down';
+
+      const result = resolveWarpTransition(map, player, loadMapById);
+      expect(result.status).toBe('resolved');
+      if (result.status !== 'resolved') continue;
+      expect(result.destinationMap!.id).toBe('MAP_VERMILION_CITY');
+    }
   });
 });

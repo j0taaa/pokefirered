@@ -28,6 +28,7 @@ export interface DecompSpeciesInfo {
   baseSpAttack: number;
   baseSpDefense: number;
   catchRate: number;
+  safariZoneFleeRate: number;
   types: DecompTypeId[];
   abilities: string[];
 }
@@ -78,6 +79,7 @@ const parseSpeciesInfo = (source: string): Map<string, DecompSpeciesInfo> => {
       baseSpAttack: Number.parseInt(block.match(/\.baseSpAttack = (\d+)/u)?.[1] ?? '1', 10),
       baseSpDefense: Number.parseInt(block.match(/\.baseSpDefense = (\d+)/u)?.[1] ?? '1', 10),
       catchRate: Number.parseInt(block.match(/\.catchRate = (\d+)/u)?.[1] ?? '255', 10),
+      safariZoneFleeRate: Number.parseInt(block.match(/\.safariZoneFleeRate = (\d+)/u)?.[1] ?? '0', 10),
       types,
       abilities
     });

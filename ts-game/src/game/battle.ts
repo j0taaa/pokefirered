@@ -1,5 +1,5 @@
 import type { InputSnapshot } from '../input/inputState';
-import { getBagQuantity, getItemDefinition, type BagState } from './bag';
+import { getBagQuantity, getItemDefinition, removeBagItem, type BagState } from './bag';
 import type { DecompTypeId } from './decompSpecies';
 import { getDecompSpeciesInfo } from './decompSpecies';
 import { getDecompPokedexEntry } from './decompPokedex';
@@ -168,9 +168,23 @@ export interface BattleEncounterState {
   rngState: number;
 }
 
-export type BattleCommand = 'fight' | 'bag' | 'pokemon' | 'run';
+export type BattleCommand = 'fight' | 'bag' | 'pokemon' | 'run' | 'safariBall' | 'safariBait' | 'safariRock';
 export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'partySelect' | 'bagSelect' | 'script' | 'resolved';
 export type BattleWeather = 'none' | 'rain' | 'sun' | 'sandstorm' | 'hail';
+export type BattleTypeFlag = 'ghost' | 'trainer' | 'oldManTutorial' | 'pokedude' | 'safari';
+export type BattleBallItemId =
+  | 'ITEM_MASTER_BALL'
+  | 'ITEM_ULTRA_BALL'
+  | 'ITEM_GREAT_BALL'
+  | 'ITEM_POKE_BALL'
+  | 'ITEM_SAFARI_BALL'
+  | 'ITEM_NET_BALL'
+  | 'ITEM_DIVE_BALL'
+  | 'ITEM_NEST_BALL'
+  | 'ITEM_REPEAT_BALL'
+  | 'ITEM_TIMER_BALL'
+  | 'ITEM_LUXURY_BALL'
+  | 'ITEM_PREMIER_BALL';
 
 export interface BattleControllerCommand {
   type: 'script' | 'message' | 'hp' | 'status';
@@ -194,6 +208,12 @@ export interface BattleState {
     player: BattleSideState;
     opponent: BattleSideState;
   };
+  battleTypeFlags: BattleTypeFlag[];
+  safariBalls: number;
+  safariCatchFactor: number;
+  safariEscapeFactor: number;
+  safariRockThrowCounter: number;
+  safariBaitThrowCounter: number;
   weather: BattleWeather;
   weatherTurns: number;
   mudSport: boolean;
@@ -210,6 +230,8 @@ export interface BattleState {
     max: number;
   } | null;
   runAttempts: number;
+  battleTurnCounter: number;
+  caughtSpeciesIds: string[];
   bag: {
     pokeBalls: number;
     greatBalls: number;
@@ -228,10 +250,12 @@ export interface CaptureResult {
   shakes: number;
   ballLabel: string;
   usedItemId: string | null;
+  blockedReason: 'ghost' | 'trainer' | null;
+  tutorialCatch: boolean;
 }
 
 export interface BattleBagChoice {
-  itemId: 'ITEM_POKE_BALL' | 'ITEM_GREAT_BALL' | null;
+  itemId: BattleBallItemId | null;
   label: string;
   quantity: number | null;
   isExit: boolean;
@@ -286,6 +310,23 @@ const TYPE_CHART: Partial<Record<PokemonType, Partial<Record<PokemonType, number
 const specialTypes = new Set<PokemonType>(['fire', 'water', 'grass', 'electric', 'ice', 'psychic', 'dragon', 'dark']);
 const highCriticalEffects = new Set<string>(['EFFECT_HIGH_CRITICAL', 'EFFECT_SKY_ATTACK', 'EFFECT_BLAZE_KICK', 'EFFECT_POISON_TAIL']);
 const criticalHitDivisors = [16, 8, 4, 3, 2];
+const BATTLE_BALL_ITEM_IDS: BattleBallItemId[] = [
+  'ITEM_MASTER_BALL',
+  'ITEM_ULTRA_BALL',
+  'ITEM_GREAT_BALL',
+  'ITEM_POKE_BALL',
+  'ITEM_SAFARI_BALL',
+  'ITEM_NET_BALL',
+  'ITEM_DIVE_BALL',
+  'ITEM_NEST_BALL',
+  'ITEM_REPEAT_BALL',
+  'ITEM_TIMER_BALL',
+  'ITEM_LUXURY_BALL',
+  'ITEM_PREMIER_BALL'
+];
+const battleBallItemIdSet = new Set<string>(BATTLE_BALL_ITEM_IDS);
+const NORMAL_BATTLE_COMMANDS: BattleCommand[] = ['fight', 'bag', 'pokemon', 'run'];
+const SAFARI_BATTLE_COMMANDS: BattleCommand[] = ['safariBall', 'safariBait', 'safariRock', 'run'];
 
 const stageEffectTable: Partial<Record<string, { target: 'self' | 'target'; stat: keyof BattleStatStages; delta: number }>> = {
   EFFECT_ATTACK_UP: { target: 'self', stat: 'attack', delta: 1 },
@@ -664,6 +705,11 @@ const advanceQueuedMessages = (battle: BattleState): void => {
 const singleTypeEffectiveness = (moveType: PokemonType, defenderType: PokemonType): number =>
   TYPE_CHART[moveType]?.[defenderType] ?? 1;
 
+const applyGen3DamageMultiplier = (damage: number, multiplierTenths: number): number => {
+  const nextDamage = Math.floor((damage * multiplierTenths) / 10);
+  return nextDamage === 0 && multiplierTenths !== 0 ? 1 : nextDamage;
+};
+
 export const calculateTypeEffectiveness = (
   moveType: PokemonType,
   defenderTypes: PokemonType[]
@@ -679,6 +725,10 @@ export const calculateTypeEffectiveness = (
 };
 
 const getBattleTypeEffectiveness = (move: BattleMove, defender: BattlePokemonSnapshot): number => {
+  if (move.id === 'STRUGGLE') {
+    return 1;
+  }
+
   if (move.type === 'ground' && defender.abilityId === 'LEVITATE') {
     return 0;
   }
@@ -694,6 +744,51 @@ const getBattleTypeEffectiveness = (move: BattleMove, defender: BattlePokemonSna
 
   const typeEffectiveness = calculateTypeEffectiveness(move.type, defender.types);
   return defender.abilityId === 'WONDER_GUARD' && move.power > 0 && typeEffectiveness <= 1 ? 0 : typeEffectiveness;
+};
+
+const applyStabAndTypeModifiers = (
+  damage: number,
+  attacker: BattlePokemonSnapshot,
+  defender: BattlePokemonSnapshot,
+  move: BattleMove
+): number => {
+  if (damage <= 0) {
+    return 0;
+  }
+
+  if (getBattleTypeEffectiveness(move, defender) === 0) {
+    return 0;
+  }
+
+  if (move.id === 'STRUGGLE') {
+    return damage;
+  }
+
+  let modifiedDamage = damage;
+  if (attacker.types.includes(move.type)) {
+    modifiedDamage = applyGen3DamageMultiplier(modifiedDamage, 15);
+  }
+
+  const typeMatchups = TYPE_CHART[move.type] ?? {};
+  const seenTypes = new Set<PokemonType>();
+  for (const [defenderType, multiplier] of Object.entries(typeMatchups) as Array<[PokemonType, number]>) {
+    if (
+      defender.volatile.foresighted
+      && defenderType === 'ghost'
+      && (move.type === 'normal' || move.type === 'fighting')
+    ) {
+      continue;
+    }
+
+    if (seenTypes.has(defenderType) || !defender.types.includes(defenderType)) {
+      continue;
+    }
+
+    seenTypes.add(defenderType);
+    modifiedDamage = applyGen3DamageMultiplier(modifiedDamage, Math.floor(multiplier * 10));
+  }
+
+  return modifiedDamage;
 };
 
 const typeByTerrain: Partial<Record<DecompBattleTerrainId, PokemonType>> = {
@@ -1005,15 +1100,12 @@ export const calculateDamagePreview = (
     return { min: 0, max: 0 };
   }
 
-  const baseDamage = calculateBaseDamage(attacker, defender, move);
-  const typeBonus = getBattleTypeEffectiveness(move, defender);
-  if (typeBonus === 0) {
+  const max = applyStabAndTypeModifiers(calculateBaseDamage(attacker, defender, move), attacker, defender, move);
+  if (max === 0) {
     return { min: 0, max: 0 };
   }
 
-  const stab = attacker.types.includes(move.type) ? 1.5 : 1;
-  const max = clampDamage(baseDamage * stab * typeBonus);
-  const min = clampDamage((max * 217) / 255);
+  const min = clampDamage((max * 85) / 100);
   return { min, max };
 };
 
@@ -1035,9 +1127,7 @@ const calculateDamageRoll = (
     return 0;
   }
 
-  const baseDamage = calculateBaseDamage(attacker, defender, move, critical) * (critical ? 2 : 1);
-  const stab = attacker.types.includes(move.type) ? 1.5 : 1;
-  let max = clampDamage(baseDamage * stab * typeBonus);
+  let max = calculateBaseDamage(attacker, defender, move, critical) * (critical ? 2 : 1);
   if (hasPinchTypeBoost(attacker, move.type)) {
     max = Math.max(1, Math.floor((max * 15) / 10));
   }
@@ -1084,8 +1174,13 @@ const calculateDamageRoll = (
       max = Math.max(1, Math.floor(max / 2));
     }
   }
-  const randomFactor = 217 + (nextBattleRng(encounterState) % 39);
-  return clampDamage((max * randomFactor) / 255);
+  max = applyStabAndTypeModifiers(max, attacker, defender, move);
+  if (max === 0) {
+    return 0;
+  }
+
+  const randomFactor = 100 - (nextBattleRng(encounterState) % 16);
+  return clampDamage((max * randomFactor) / 100);
 };
 
 const getMapBaseEncounterCooldown = (encounterRate: number): number => {
@@ -1125,7 +1220,11 @@ const tryRunFromBattle = (
   runAttempts: number,
   encounter: BattleEncounterState
 ): boolean => {
-  if (isSwitchPrevented(player)) {
+  if (canAlwaysRunFromBattle(player)) {
+    return true;
+  }
+
+  if (isRunPrevented(player, enemy)) {
     return false;
   }
 
@@ -1241,6 +1340,26 @@ const isSwitchPrevented = (pokemon: BattlePokemonSnapshot): boolean =>
   pokemon.volatile.rooted
   || pokemon.volatile.trapTurns > 0
   || pokemon.volatile.escapePreventedBy !== null;
+
+const canAlwaysRunFromBattle = (pokemon: BattlePokemonSnapshot): boolean =>
+  getHeldItemHoldEffect(pokemon) === 'HOLD_EFFECT_CAN_ALWAYS_RUN'
+  || pokemon.abilityId === 'RUN_AWAY';
+
+const isRunPrevented = (player: BattlePokemonSnapshot, enemy: BattlePokemonSnapshot): boolean => {
+  if (canAlwaysRunFromBattle(player)) {
+    return false;
+  }
+  if (enemy.abilityId === 'SHADOW_TAG') {
+    return true;
+  }
+  if (enemy.abilityId === 'ARENA_TRAP' && player.abilityId !== 'LEVITATE' && !player.types.includes('flying')) {
+    return true;
+  }
+  if (enemy.abilityId === 'MAGNET_PULL' && player.types.includes('steel')) {
+    return true;
+  }
+  return isSwitchPrevented(player);
+};
 
 const applyStatusDamage = (
   battle: BattleState,
@@ -1638,14 +1757,23 @@ const clearSingleTurnVolatiles = (battle: BattleState): void => {
   battle.wildMon.volatile.helpingHand = false;
 };
 
-const getStatusBonus = (status: StatusCondition): number => {
+const getStatusCaptureMultiplierTenths = (status: StatusCondition): number => {
   if (status === 'sleep' || status === 'freeze') {
-    return 2;
+    return 20;
   }
   if (status !== 'none') {
-    return 1.5;
+    return 15;
   }
-  return 1;
+  return 10;
+};
+
+const getInitialSafariCatchFactor = (pokemon: BattlePokemonSnapshot): number =>
+  Math.floor((pokemon.catchRate * 100) / 1275);
+
+const getInitialSafariEscapeFactor = (pokemon: BattlePokemonSnapshot): number => {
+  const speciesInfo = getDecompSpeciesInfo(pokemon.species);
+  const factor = Math.floor(((speciesInfo?.safariZoneFleeRate ?? 0) * 100) / 1275);
+  return factor <= 1 ? 2 : factor;
 };
 
 const lowerOrRaiseText = (delta: number): string => {
@@ -3320,7 +3448,7 @@ const attemptAccuracy = (
   let accuracyValue = getAccuracyAdjustedValue(
     move.accuracy,
     attacker.statStages.accuracy,
-    defender.statStages.evasion
+    defender.volatile.foresighted ? 0 : defender.statStages.evasion
   );
   if (attacker.abilityId === 'COMPOUND_EYES') {
     accuracyValue = Math.floor((accuracyValue * 13) / 10);
@@ -4454,6 +4582,9 @@ const resolveEndOfTurn = (battle: BattleState, encounterState: BattleEncounterSt
 
   clearSingleTurnVolatiles(battle);
   incrementActiveTurns(battle);
+  if (battle.playerMon.hp > 0 && battle.wildMon.hp > 0) {
+    battle.battleTurnCounter = Math.min(0xff, battle.battleTurnCounter + 1);
+  }
   return messages;
 };
 
@@ -4692,6 +4823,12 @@ export const createBattleState = (): BattleState => {
       player: createSideState(),
       opponent: createSideState()
     },
+    battleTypeFlags: [],
+    safariBalls: 30,
+    safariCatchFactor: getInitialSafariCatchFactor(wildMon),
+    safariEscapeFactor: getInitialSafariEscapeFactor(wildMon),
+    safariRockThrowCounter: 0,
+    safariBaitThrowCounter: 0,
     weather: 'none',
     weatherTurns: 0,
     mudSport: false,
@@ -4699,12 +4836,14 @@ export const createBattleState = (): BattleState => {
     payDayMoney: 0,
     selectedMoveIndex: 0,
     selectedCommandIndex: 0,
-    commands: ['fight', 'bag', 'pokemon', 'run'],
+    commands: [...NORMAL_BATTLE_COMMANDS],
     selectedPartyIndex: 0,
     selectedBagIndex: 0,
     turnSummary: '',
     damagePreview: calculateDamagePreview(playerMonA, wildMon, playerMonA.moves[0] ?? decompMoveToBattleMove(getDecompBattleMove('TACKLE') ?? getFallbackBattleMoves()[0]!)),
     runAttempts: 0,
+    battleTurnCounter: 0,
+    caughtSpeciesIds: [],
     bag: {
       pokeBalls: 5,
       greatBalls: 1
@@ -4753,6 +4892,12 @@ export const tryStartWildBattle = (
     player: createSideState(),
     opponent: createSideState()
   };
+  battle.battleTypeFlags = [];
+  battle.safariBalls = 30;
+  battle.safariCatchFactor = getInitialSafariCatchFactor(battle.wildMon);
+  battle.safariEscapeFactor = getInitialSafariEscapeFactor(battle.wildMon);
+  battle.safariRockThrowCounter = 0;
+  battle.safariBaitThrowCounter = 0;
   battle.weather = 'none';
   battle.weatherTurns = 0;
   battle.mudSport = false;
@@ -4762,8 +4907,10 @@ export const tryStartWildBattle = (
   battle.selectedCommandIndex = 0;
   battle.selectedPartyIndex = 0;
   battle.selectedBagIndex = 0;
-  battle.commands = ['fight', 'bag', 'pokemon', 'run'];
+  battle.commands = [...NORMAL_BATTLE_COMMANDS];
   battle.runAttempts = 0;
+  battle.battleTurnCounter = 0;
+  battle.caughtSpeciesIds = [];
   battle.caughtMon = null;
   battle.moveEndedBattle = false;
   battle.currentScriptLabel = 'BattleIntroPrintWildMonAttacked';
@@ -4780,75 +4927,396 @@ export const tryStartWildBattle = (
 
 export const isBattleBlockingWorld = (battle: BattleState): boolean => battle.active;
 
+const isBattleBallItemId = (itemId: string): itemId is BattleBallItemId =>
+  battleBallItemIdSet.has(itemId);
+
+const getFallbackBattleBallQuantity = (battle: BattleState, itemId: BattleBallItemId): number => {
+  switch (itemId) {
+    case 'ITEM_POKE_BALL':
+      return battle.bag.pokeBalls;
+    case 'ITEM_GREAT_BALL':
+      return battle.bag.greatBalls;
+    case 'ITEM_SAFARI_BALL':
+      return battle.safariBalls;
+    default:
+      return 0;
+  }
+};
+
+const setFallbackBattleBallQuantity = (battle: BattleState, itemId: BattleBallItemId, quantity: number): void => {
+  switch (itemId) {
+    case 'ITEM_POKE_BALL':
+      battle.bag.pokeBalls = quantity;
+      break;
+    case 'ITEM_GREAT_BALL':
+      battle.bag.greatBalls = quantity;
+      break;
+    case 'ITEM_SAFARI_BALL':
+      battle.safariBalls = quantity;
+      break;
+  }
+};
+
+const getBattleBallQuantity = (battle: BattleState, itemId: BattleBallItemId, bag?: BagState): number =>
+  bag ? getBagQuantity(bag, itemId) : getFallbackBattleBallQuantity(battle, itemId);
+
+const consumeBattleBall = (battle: BattleState, itemId: BattleBallItemId, bag?: BagState): boolean => {
+  if (bag) {
+    if (!removeBagItem(bag, itemId, 1)) {
+      return false;
+    }
+    syncBattleBagSnapshot(battle, bag);
+    return true;
+  }
+
+  const quantity = getFallbackBattleBallQuantity(battle, itemId);
+  if (quantity <= 0) {
+    return false;
+  }
+  setFallbackBattleBallQuantity(battle, itemId, quantity - 1);
+  return true;
+};
+
+const getBattleBallLabel = (itemId: BattleBallItemId): string =>
+  getItemDefinition(itemId).name;
+
+const getSafariReactionMessage = (battle: BattleState): string => {
+  if (battle.safariRockThrowCounter !== 0) {
+    battle.safariRockThrowCounter -= 1;
+    if (battle.safariRockThrowCounter === 0) {
+      battle.safariCatchFactor = getInitialSafariCatchFactor(battle.wildMon);
+      return `${battle.wildMon.species} is watching carefully!`;
+    }
+    return `${battle.wildMon.species} is angry!`;
+  }
+
+  if (battle.safariBaitThrowCounter !== 0) {
+    battle.safariBaitThrowCounter -= 1;
+    return battle.safariBaitThrowCounter === 0
+      ? `${battle.wildMon.species} is watching carefully!`
+      : `${battle.wildMon.species} is eating!`;
+  }
+
+  return `${battle.wildMon.species} is watching carefully!`;
+};
+
+const shouldSafariMonFlee = (battle: BattleState, encounterState: BattleEncounterState): boolean => {
+  let safariFleeRate = battle.safariEscapeFactor;
+  if (battle.safariRockThrowCounter !== 0) {
+    safariFleeRate = Math.min(20, battle.safariEscapeFactor * 2);
+  } else if (battle.safariBaitThrowCounter !== 0) {
+    safariFleeRate = Math.floor(battle.safariEscapeFactor / 4);
+    if (safariFleeRate === 0) {
+      safariFleeRate = 1;
+    }
+  }
+
+  safariFleeRate *= 5;
+  return (nextBattleRng(encounterState) % 100) < safariFleeRate;
+};
+
+const resolveSafariOpponentAction = (
+  battle: BattleState,
+  encounterState: BattleEncounterState,
+  leadingMessages: string[]
+): void => {
+  if (shouldSafariMonFlee(battle, encounterState)) {
+    battle.currentScriptLabel = 'BattleScript_PrintMonFledFromBattle';
+    queueMessages(battle, [...leadingMessages, `Wild ${battle.wildMon.species} fled!`], 'resolved');
+    return;
+  }
+
+  battle.currentScriptLabel = 'BattleScript_WatchesCarefully';
+  queueMessages(battle, [...leadingMessages, getSafariReactionMessage(battle)], 'command', getPromptSummary(battle));
+};
+
+const handleSafariBallThrow = (
+  battle: BattleState,
+  encounterState: BattleEncounterState
+): void => {
+  battle.currentScriptLabel = 'BattleScript_ThrowSafariBall';
+  if (battle.safariBalls <= 0) {
+    queueMessages(battle, ["ANNOUNCER: You're out of SAFARI BALLS! Game over!"], 'resolved');
+    return;
+  }
+
+  const capture = performCaptureAttempt(battle, encounterState, undefined, 'ITEM_SAFARI_BALL');
+  if (capture.ballLabel === 'NONE') {
+    queueMessages(battle, ["ANNOUNCER: You're out of SAFARI BALLS! Game over!"], 'resolved');
+    return;
+  }
+
+  const leadingMessages = [`${capture.ballLabel} thrown!`];
+  if (capture.caught) {
+    battle.caughtMon = cloneBattlePokemon(battle.wildMon);
+    if (!battle.caughtSpeciesIds.includes(battle.wildMon.species)) {
+      battle.caughtSpeciesIds.push(battle.wildMon.species);
+    }
+    queueMessages(battle, [...leadingMessages, `Gotcha! ${battle.wildMon.species} was caught!`], 'resolved');
+    return;
+  }
+
+  leadingMessages.push(getBallEscapeMessage(capture.shakes));
+  if (battle.safariBalls === 0) {
+    queueMessages(battle, [...leadingMessages, "ANNOUNCER: You're out of SAFARI BALLS! Game over!"], 'resolved');
+    return;
+  }
+
+  resolveSafariOpponentAction(battle, encounterState, leadingMessages);
+};
+
+const handleSafariBaitThrow = (
+  battle: BattleState,
+  encounterState: BattleEncounterState
+): void => {
+  battle.currentScriptLabel = 'BattleScript_ThrowBait';
+  battle.safariBaitThrowCounter += (nextBattleRng(encounterState) % 5) + 2;
+  if (battle.safariBaitThrowCounter > 6) {
+    battle.safariBaitThrowCounter = 6;
+  }
+  battle.safariRockThrowCounter = 0;
+  battle.safariCatchFactor >>= 1;
+  if (battle.safariCatchFactor <= 2) {
+    battle.safariCatchFactor = 3;
+  }
+  resolveSafariOpponentAction(
+    battle,
+    encounterState,
+    [`You threw some BAIT at the ${battle.wildMon.species}!`]
+  );
+};
+
+const handleSafariRockThrow = (
+  battle: BattleState,
+  encounterState: BattleEncounterState
+): void => {
+  battle.currentScriptLabel = 'BattleScript_ThrowRock';
+  battle.safariRockThrowCounter += (nextBattleRng(encounterState) % 5) + 2;
+  if (battle.safariRockThrowCounter > 6) {
+    battle.safariRockThrowCounter = 6;
+  }
+  battle.safariBaitThrowCounter = 0;
+  battle.safariCatchFactor <<= 1;
+  if (battle.safariCatchFactor > 20) {
+    battle.safariCatchFactor = 20;
+  }
+  resolveSafariOpponentAction(
+    battle,
+    encounterState,
+    [`You threw a ROCK at the ${battle.wildMon.species}!`]
+  );
+};
+
+export const getBallEscapeMessage = (shakes: number): string => {
+  switch (shakes) {
+    case 0:
+      return 'Oh, no! The POKéMON broke free!';
+    case 1:
+      return 'Aww! It appeared to be caught!';
+    case 2:
+      return 'Aargh! Almost had it!';
+    default:
+      return 'Shoot! It was so close, too!';
+  }
+};
+
+export const getBallCatchMultiplierTenths = (
+  itemId: BattleBallItemId,
+  target: BattlePokemonSnapshot,
+  context: {
+    battleTurnCounter?: number;
+    caughtSpeciesIds?: string[];
+    safariCatchFactor?: number;
+    terrain?: DecompBattleTerrainId;
+  } = {}
+): number => {
+  switch (itemId) {
+    case 'ITEM_ULTRA_BALL':
+      return 20;
+    case 'ITEM_GREAT_BALL':
+    case 'ITEM_SAFARI_BALL':
+      return 15;
+    case 'ITEM_NET_BALL':
+      return target.types.some((type) => type === 'water' || type === 'bug') ? 30 : 10;
+    case 'ITEM_DIVE_BALL':
+      return context.terrain === 'BATTLE_TERRAIN_UNDERWATER' ? 35 : 10;
+    case 'ITEM_NEST_BALL':
+      return target.level < 40 ? Math.max(10, 40 - target.level) : 10;
+    case 'ITEM_REPEAT_BALL':
+      return context.caughtSpeciesIds?.includes(target.species) ? 30 : 10;
+    case 'ITEM_TIMER_BALL':
+      return Math.min(40, (context.battleTurnCounter ?? 0) + 10);
+    case 'ITEM_POKE_BALL':
+    case 'ITEM_LUXURY_BALL':
+    case 'ITEM_PREMIER_BALL':
+    case 'ITEM_MASTER_BALL':
+      return 10;
+  }
+};
+
+export const calculateCaptureOdds = (
+  target: BattlePokemonSnapshot,
+  itemId: BattleBallItemId,
+  context: {
+    battleTurnCounter?: number;
+    caughtSpeciesIds?: string[];
+    safariCatchFactor?: number;
+    terrain?: DecompBattleTerrainId;
+  } = {}
+): number => {
+  if (itemId === 'ITEM_MASTER_BALL') {
+    return 255;
+  }
+
+  const maxHp = Math.max(1, target.maxHp);
+  const hp = Math.max(1, Math.min(target.hp, maxHp));
+  const hpFactor = (3 * maxHp) - (2 * hp);
+  const catchRate = itemId === 'ITEM_SAFARI_BALL'
+    ? Math.floor(((context.safariCatchFactor ?? getInitialSafariCatchFactor(target)) * 1275) / 100)
+    : target.catchRate;
+  const ballMultiplier = getBallCatchMultiplierTenths(itemId, target, context);
+  let odds = Math.floor((catchRate * ballMultiplier) / 10);
+  odds = Math.floor((odds * hpFactor) / (3 * maxHp));
+
+  const statusMultiplier = getStatusCaptureMultiplierTenths(target.status);
+  if (statusMultiplier !== 10) {
+    odds = Math.floor((odds * statusMultiplier) / 10);
+  }
+
+  return odds;
+};
+
+const calculateShakeThreshold = (captureOdds: number): number => {
+  const clampedOdds = Math.max(1, captureOdds);
+  const firstRoot = Math.floor(Math.sqrt(Math.floor(16711680 / clampedOdds)));
+  const secondRoot = Math.floor(Math.sqrt(firstRoot));
+  return secondRoot > 0 ? Math.floor(1048560 / secondRoot) : 0xffff;
+};
+
+const getFirstBattleBallChoice = (battle: BattleState, bag?: BagState): BattleBagChoice | null =>
+  getBattleBagChoices(battle, bag).find((choice) => !choice.isExit && choice.itemId && (choice.quantity ?? 0) > 0) ?? null;
+
+const hasBattleTypeFlag = (battle: BattleState, flag: BattleTypeFlag): boolean =>
+  battle.battleTypeFlags.includes(flag);
+
+const getBattleCommandsForType = (battle: BattleState): BattleCommand[] =>
+  hasBattleTypeFlag(battle, 'safari') ? SAFARI_BATTLE_COMMANDS : NORMAL_BATTLE_COMMANDS;
+
+const refreshBattleCommandsForType = (battle: BattleState): void => {
+  const expectedCommands = getBattleCommandsForType(battle);
+  if (battle.commands.length === expectedCommands.length && battle.commands.every((command, index) => command === expectedCommands[index])) {
+    return;
+  }
+
+  battle.commands = [...expectedCommands];
+  battle.selectedCommandIndex = Math.max(0, Math.min(battle.selectedCommandIndex, battle.commands.length - 1));
+};
+
+export const getBattleCommandLabel = (command: BattleCommand): string => {
+  switch (command) {
+    case 'fight':
+      return 'FIGHT';
+    case 'bag':
+      return 'BAG';
+    case 'pokemon':
+      return 'POKéMON';
+    case 'run':
+      return 'RUN';
+    case 'safariBall':
+      return 'BALL';
+    case 'safariBait':
+      return 'BAIT';
+    case 'safariRock':
+      return 'ROCK';
+  }
+};
+
 export const performCaptureAttempt = (
   battle: BattleState,
   encounterState: BattleEncounterState,
   bag?: BagState,
-  preferredItemId?: 'ITEM_POKE_BALL' | 'ITEM_GREAT_BALL'
+  preferredItemId?: BattleBallItemId
 ): CaptureResult => {
-  const pokeBallCount = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
-  const greatBallCount = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
-  const useGreatBall = preferredItemId
-    ? preferredItemId === 'ITEM_GREAT_BALL'
-    : pokeBallCount <= 0 && greatBallCount > 0;
-  const selectedItemId = useGreatBall ? 'ITEM_GREAT_BALL' : 'ITEM_POKE_BALL';
-
-  if ((selectedItemId === 'ITEM_POKE_BALL' && pokeBallCount <= 0) || (selectedItemId === 'ITEM_GREAT_BALL' && greatBallCount <= 0)) {
+  const selectedItemId = preferredItemId ?? getFirstBattleBallChoice(battle, bag)?.itemId ?? null;
+  if (!selectedItemId || getBattleBallQuantity(battle, selectedItemId, bag) <= 0) {
     return {
       caught: false,
       shakes: 0,
       ballLabel: 'NONE',
-      usedItemId: null
+      usedItemId: null,
+      blockedReason: null,
+      tutorialCatch: false
     };
   }
 
-  if (useGreatBall) {
-    if (bag) {
-      bag.pockets.pokeBalls = bag.pockets.pokeBalls.map((slot) =>
-        slot.itemId === 'ITEM_GREAT_BALL'
-          ? { ...slot, quantity: slot.quantity - 1 }
-          : slot
-      ).filter((slot) => slot.quantity > 0);
-      battle.bag.greatBalls = getBagQuantity(bag, 'ITEM_GREAT_BALL');
-    } else {
-      battle.bag.greatBalls -= 1;
-    }
-  } else {
-    if (bag) {
-      bag.pockets.pokeBalls = bag.pockets.pokeBalls.map((slot) =>
-        slot.itemId === 'ITEM_POKE_BALL'
-          ? { ...slot, quantity: slot.quantity - 1 }
-          : slot
-      ).filter((slot) => slot.quantity > 0);
-      battle.bag.pokeBalls = getBagQuantity(bag, 'ITEM_POKE_BALL');
-    } else {
-      battle.bag.pokeBalls -= 1;
-    }
+  const ballLabel = getBattleBallLabel(selectedItemId);
+  if (hasBattleTypeFlag(battle, 'ghost')) {
+    return {
+      caught: false,
+      shakes: 0,
+      ballLabel,
+      usedItemId: selectedItemId,
+      blockedReason: 'ghost',
+      tutorialCatch: false
+    };
   }
 
-  const ballBonus = useGreatBall ? 1.5 : 1;
-  const statusBonus = getStatusBonus(battle.wildMon.status);
-  const catchNumerator =
-    ((3 * battle.wildMon.maxHp) - (2 * battle.wildMon.hp)) * battle.wildMon.catchRate * ballBonus;
-  const catchDenominator = 3 * battle.wildMon.maxHp;
-  const a = Math.floor((catchNumerator / Math.max(1, catchDenominator)) * statusBonus);
+  if (hasBattleTypeFlag(battle, 'trainer')) {
+    return {
+      caught: false,
+      shakes: 0,
+      ballLabel,
+      usedItemId: selectedItemId,
+      blockedReason: 'trainer',
+      tutorialCatch: false
+    };
+  }
 
-  if (a >= 255) {
+  if (hasBattleTypeFlag(battle, 'oldManTutorial') || hasBattleTypeFlag(battle, 'pokedude')) {
     return {
       caught: true,
       shakes: 4,
-      ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL',
-      usedItemId: useGreatBall ? 'ITEM_GREAT_BALL' : 'ITEM_POKE_BALL'
+      ballLabel,
+      usedItemId: selectedItemId,
+      blockedReason: null,
+      tutorialCatch: true
     };
   }
 
-  const aClamped = Math.max(1, a);
-  const b = Math.floor(1048560 / Math.sqrt(Math.sqrt(16711680 / aClamped)));
+  if (!consumeBattleBall(battle, selectedItemId, bag)) {
+    return {
+      caught: false,
+      shakes: 0,
+      ballLabel: 'NONE',
+      usedItemId: null,
+      blockedReason: null,
+      tutorialCatch: false
+    };
+  }
+
+  const captureOdds = calculateCaptureOdds(battle.wildMon, selectedItemId, {
+    battleTurnCounter: battle.battleTurnCounter,
+    caughtSpeciesIds: battle.caughtSpeciesIds,
+    safariCatchFactor: battle.safariCatchFactor,
+    terrain: battle.terrain
+  });
+  if (captureOdds > 254) {
+    return {
+      caught: true,
+      shakes: 4,
+      ballLabel,
+      usedItemId: selectedItemId,
+      blockedReason: null,
+      tutorialCatch: false
+    };
+  }
+
+  const shakeThreshold = calculateShakeThreshold(captureOdds);
 
   let shakes = 0;
   for (let i = 0; i < 4; i += 1) {
     const shakeRoll = nextBattleRng(encounterState) & 0xffff;
-    if (shakeRoll < b) {
+    if (shakeRoll < shakeThreshold) {
       shakes += 1;
       continue;
     }
@@ -4859,8 +5327,10 @@ export const performCaptureAttempt = (
   return {
     caught: shakes === 4,
     shakes,
-    ballLabel: useGreatBall ? 'GREAT BALL' : 'POKé BALL',
-    usedItemId: useGreatBall ? 'ITEM_GREAT_BALL' : 'ITEM_POKE_BALL'
+    ballLabel,
+    usedItemId: selectedItemId,
+    blockedReason: null,
+    tutorialCatch: false
   };
 };
 
@@ -4874,17 +5344,18 @@ const syncBattleBagSnapshot = (battle: BattleState, bag?: BagState): void => {
 };
 
 export const getBattleBagChoices = (battle: BattleState, bag?: BagState): BattleBagChoice[] => {
-  const pokeBalls = bag ? getBagQuantity(bag, 'ITEM_POKE_BALL') : battle.bag.pokeBalls;
-  const greatBalls = bag ? getBagQuantity(bag, 'ITEM_GREAT_BALL') : battle.bag.greatBalls;
-  const choices: BattleBagChoice[] = [];
-
-  if (pokeBalls > 0) {
-    choices.push({ itemId: 'ITEM_POKE_BALL', label: 'POKé BALL', quantity: pokeBalls, isExit: false });
-  }
-
-  if (greatBalls > 0) {
-    choices.push({ itemId: 'ITEM_GREAT_BALL', label: 'GREAT BALL', quantity: greatBalls, isExit: false });
-  }
+  const ballItemIds = bag
+    ? bag.pockets.pokeBalls.map((slot) => slot.itemId).filter(isBattleBallItemId)
+    : (['ITEM_POKE_BALL', 'ITEM_GREAT_BALL'] as BattleBallItemId[])
+      .filter((itemId) => getFallbackBattleBallQuantity(battle, itemId) > 0);
+  const choices = ballItemIds
+    .map((itemId): BattleBagChoice => ({
+      itemId,
+      label: getBattleBallLabel(itemId),
+      quantity: getBattleBallQuantity(battle, itemId, bag),
+      isExit: false
+    }))
+    .filter((choice) => (choice.quantity ?? 0) > 0);
 
   choices.push({ itemId: null, label: 'CANCEL', quantity: null, isExit: true });
   return choices;
@@ -4916,6 +5387,8 @@ export const stepBattle = (
     return;
   }
 
+  refreshBattleCommandsForType(battle);
+
   if (battle.phase === 'script') {
     if (input.interactPressed || input.startPressed || input.cancelPressed) {
       advanceQueuedMessages(battle);
@@ -4941,11 +5414,19 @@ export const stepBattle = (
         player: createSideState(),
         opponent: createSideState()
       };
+      battle.battleTypeFlags = [];
+      battle.safariBalls = 30;
+      battle.safariCatchFactor = getInitialSafariCatchFactor(battle.wildMon);
+      battle.safariEscapeFactor = getInitialSafariEscapeFactor(battle.wildMon);
+      battle.safariRockThrowCounter = 0;
+      battle.safariBaitThrowCounter = 0;
       battle.weather = 'none';
       battle.weatherTurns = 0;
       battle.mudSport = false;
       battle.waterSport = false;
       battle.payDayMoney = 0;
+      battle.battleTurnCounter = 0;
+      battle.caughtSpeciesIds = [];
       for (const partyMember of battle.party) {
         resetBattlePokemonTransientState(partyMember);
       }
@@ -4966,6 +5447,21 @@ export const stepBattle = (
     }
 
     const selectedCommand = battle.commands[battle.selectedCommandIndex];
+    if (selectedCommand === 'safariBall') {
+      handleSafariBallThrow(battle, encounterState);
+      return;
+    }
+
+    if (selectedCommand === 'safariBait') {
+      handleSafariBaitThrow(battle, encounterState);
+      return;
+    }
+
+    if (selectedCommand === 'safariRock') {
+      handleSafariRockThrow(battle, encounterState);
+      return;
+    }
+
     if (selectedCommand === 'fight') {
       battle.phase = 'moveSelect';
       battle.turnSummary = 'Choose a move.';
@@ -4974,7 +5470,7 @@ export const stepBattle = (
     }
 
     if (selectedCommand === 'bag') {
-      if (battle.bag.pokeBalls <= 0 && battle.bag.greatBalls <= 0) {
+      if (!getBattleBagChoices(battle, bag).some((choice) => !choice.isExit)) {
         battle.turnSummary = 'No balls left!';
         return;
       }
@@ -4995,7 +5491,13 @@ export const stepBattle = (
       return;
     }
 
-    if (isSwitchPrevented(battle.playerMon)) {
+    if (hasBattleTypeFlag(battle, 'safari')) {
+      battle.currentScriptLabel = 'BattleScript_SafariZoneRun';
+      queueMessages(battle, ['Got away safely!'], 'resolved');
+      return;
+    }
+
+    if (isRunPrevented(battle.playerMon, battle.wildMon)) {
       battle.currentScriptLabel = 'BattleScript_PrintFailedToRunString';
       battle.runAttempts += 1;
       resolveEnemyOnlyTurn(battle, encounterState, ["Can't escape!"]);
@@ -5051,8 +5553,41 @@ export const stepBattle = (
     }
 
     battle.currentScriptLabel = 'BattleScript_ThrowBall';
+    if (capture.blockedReason === 'ghost') {
+      battle.currentScriptLabel = 'BattleScript_GhostBallDodge';
+      resolveEnemyOnlyTurn(
+        battle,
+        encounterState,
+        [`${capture.ballLabel} thrown!`, "It dodged the thrown BALL! This POKéMON can't be caught!"]
+      );
+      return;
+    }
+
+    if (capture.blockedReason === 'trainer') {
+      battle.currentScriptLabel = 'BattleScript_TrainerBallBlock';
+      resolveEnemyOnlyTurn(
+        battle,
+        encounterState,
+        [`${capture.ballLabel} thrown!`, 'The TRAINER blocked the BALL!', "Don't be a thief!"]
+      );
+      return;
+    }
+
     if (capture.caught) {
+      if (capture.tutorialCatch) {
+        battle.currentScriptLabel = 'BattleScript_OldMan_Pokedude_CaughtMessage';
+        queueMessages(
+          battle,
+          [`${capture.ballLabel} thrown!`, `Gotcha! ${battle.wildMon.species} was caught!`],
+          'resolved'
+        );
+        return;
+      }
+
       battle.caughtMon = cloneBattlePokemon(battle.wildMon);
+      if (!battle.caughtSpeciesIds.includes(battle.wildMon.species)) {
+        battle.caughtSpeciesIds.push(battle.wildMon.species);
+      }
       queueMessages(
         battle,
         [`${capture.ballLabel} thrown!`, `Gotcha! ${battle.wildMon.species} was caught!`],
@@ -5062,7 +5597,7 @@ export const stepBattle = (
       resolveEnemyOnlyTurn(
         battle,
         encounterState,
-        [`${capture.ballLabel} thrown!`, `Oh no! The Pokémon broke free after ${capture.shakes} shakes!`]
+        [`${capture.ballLabel} thrown!`, getBallEscapeMessage(capture.shakes)]
       );
     }
     return;

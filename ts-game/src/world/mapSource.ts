@@ -1,7 +1,17 @@
 import cinnabarIslandMapJson from './maps/cinnabarIsland.json';
 import fuchsiaCityMapJson from './maps/fuchsiaCity.json';
 import celadonCityMapJson from './maps/celadonCity.json';
+import ceruleanCityBikeShopMapJson from './maps/ceruleanCityBikeShop.json';
 import ceruleanCityMapJson from './maps/ceruleanCity.json';
+import ceruleanCityGymMapJson from './maps/ceruleanCityGym.json';
+import ceruleanCityHouse1MapJson from './maps/ceruleanCityHouse1.json';
+import ceruleanCityHouse2MapJson from './maps/ceruleanCityHouse2.json';
+import ceruleanCityHouse3MapJson from './maps/ceruleanCityHouse3.json';
+import ceruleanCityHouse4MapJson from './maps/ceruleanCityHouse4.json';
+import ceruleanCityHouse5MapJson from './maps/ceruleanCityHouse5.json';
+import ceruleanCityMartMapJson from './maps/ceruleanCityMart.json';
+import ceruleanCityPokemonCenter1FMapJson from './maps/ceruleanCityPokemonCenter1F.json';
+import ceruleanCityPokemonCenter2FMapJson from './maps/ceruleanCityPokemonCenter2F.json';
 import indigoPlateauExteriorMapJson from './maps/indigoPlateauExterior.json';
 import indigoPlateauPokemonCenter1FMapJson from './maps/indigoPlateauPokemonCenter1F.json';
 import lavenderTownMapJson from './maps/lavenderTown.json';
@@ -49,6 +59,14 @@ import threeIslandPortMapJson from './maps/threeIslandPort.json';
 import twoIslandMapJson from './maps/twoIsland.json';
 import twoIslandCapeBrinkMapJson from './maps/twoIslandCapeBrink.json';
 import vermilionCityMapJson from './maps/vermilionCity.json';
+import vermilionCityGymMapJson from './maps/vermilionCityGym.json';
+import vermilionCityHouse1MapJson from './maps/vermilionCityHouse1.json';
+import vermilionCityHouse2MapJson from './maps/vermilionCityHouse2.json';
+import vermilionCityHouse3MapJson from './maps/vermilionCityHouse3.json';
+import vermilionCityMartMapJson from './maps/vermilionCityMart.json';
+import vermilionCityPokemonCenter1FMapJson from './maps/vermilionCityPokemonCenter1F.json';
+import vermilionCityPokemonCenter2FMapJson from './maps/vermilionCityPokemonCenter2F.json';
+import vermilionCityPokemonFanClubMapJson from './maps/vermilionCityPokemonFanClub.json';
 import viridianCityMapJson from './maps/viridianCity.json';
 import viridianCityMartMapJson from './maps/viridianCityMart.json';
 import viridianCityPokemonCenter1FMapJson from './maps/viridianCityPokemonCenter1F.json';
@@ -798,6 +816,36 @@ export const loadCinnabarIslandMap = (): TileMap =>
 export const loadCeruleanCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(ceruleanCityMapJson));
 
+export const loadCeruleanCityBikeShopMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityBikeShopMapJson));
+
+export const loadCeruleanCityGymMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityGymMapJson));
+
+export const loadCeruleanCityHouse1Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse1MapJson));
+
+export const loadCeruleanCityHouse2Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse2MapJson));
+
+export const loadCeruleanCityHouse3Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse3MapJson));
+
+export const loadCeruleanCityHouse4Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse4MapJson));
+
+export const loadCeruleanCityHouse5Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse5MapJson));
+
+export const loadCeruleanCityMartMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityMartMapJson));
+
+export const loadCeruleanCityPokemonCenter1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityPokemonCenter1FMapJson));
+
+export const loadCeruleanCityPokemonCenter2FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(ceruleanCityPokemonCenter2FMapJson));
+
 export const loadFuchsiaCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(fuchsiaCityMapJson));
 
@@ -912,6 +960,30 @@ export const loadTwoIslandCapeBrinkMap = (): TileMap =>
 export const loadVermilionCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(vermilionCityMapJson));
 
+export const loadVermilionCityGymMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityGymMapJson));
+
+export const loadVermilionCityHouse1Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityHouse1MapJson));
+
+export const loadVermilionCityHouse2Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityHouse2MapJson));
+
+export const loadVermilionCityHouse3Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityHouse3MapJson));
+
+export const loadVermilionCityMartMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityMartMapJson));
+
+export const loadVermilionCityPokemonCenter1FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityPokemonCenter1FMapJson));
+
+export const loadVermilionCityPokemonCenter2FMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityPokemonCenter2FMapJson));
+
+export const loadVermilionCityPokemonFanClubMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(vermilionCityPokemonFanClubMapJson));
+
 export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2ViridianForestNorthEntranceMapJson));
 
@@ -953,6 +1025,26 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadCinnabarIslandMap();
     case 'MAP_CERULEAN_CITY':
       return loadCeruleanCityMap();
+    case 'MAP_CERULEAN_CITY_BIKE_SHOP':
+      return loadCeruleanCityBikeShopMap();
+    case 'MAP_CERULEAN_CITY_GYM':
+      return loadCeruleanCityGymMap();
+    case 'MAP_CERULEAN_CITY_HOUSE1':
+      return loadCeruleanCityHouse1Map();
+    case 'MAP_CERULEAN_CITY_HOUSE2':
+      return loadCeruleanCityHouse2Map();
+    case 'MAP_CERULEAN_CITY_HOUSE3':
+      return loadCeruleanCityHouse3Map();
+    case 'MAP_CERULEAN_CITY_HOUSE4':
+      return loadCeruleanCityHouse4Map();
+    case 'MAP_CERULEAN_CITY_HOUSE5':
+      return loadCeruleanCityHouse5Map();
+    case 'MAP_CERULEAN_CITY_MART':
+      return loadCeruleanCityMartMap();
+    case 'MAP_CERULEAN_CITY_POKEMON_CENTER_1F':
+      return loadCeruleanCityPokemonCenter1FMap();
+    case 'MAP_CERULEAN_CITY_POKEMON_CENTER_2F':
+      return loadCeruleanCityPokemonCenter2FMap();
     case 'MAP_FUCHSIA_CITY':
       return loadFuchsiaCityMap();
     case 'MAP_INDIGO_PLATEAU_EXTERIOR':
@@ -1049,6 +1141,22 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadTwoIslandCapeBrinkMap();
     case 'MAP_VERMILION_CITY':
       return loadVermilionCityMap();
+    case 'MAP_VERMILION_CITY_GYM':
+      return loadVermilionCityGymMap();
+    case 'MAP_VERMILION_CITY_HOUSE1':
+      return loadVermilionCityHouse1Map();
+    case 'MAP_VERMILION_CITY_HOUSE2':
+      return loadVermilionCityHouse2Map();
+    case 'MAP_VERMILION_CITY_HOUSE3':
+      return loadVermilionCityHouse3Map();
+    case 'MAP_VERMILION_CITY_MART':
+      return loadVermilionCityMartMap();
+    case 'MAP_VERMILION_CITY_POKEMON_CENTER_1F':
+      return loadVermilionCityPokemonCenter1FMap();
+    case 'MAP_VERMILION_CITY_POKEMON_CENTER_2F':
+      return loadVermilionCityPokemonCenter2FMap();
+    case 'MAP_VERMILION_CITY_POKEMON_FAN_CLUB':
+      return loadVermilionCityPokemonFanClubMap();
     case 'MAP_VIRIDIAN_CITY':
       return loadViridianCityMap();
     case 'MAP_VIRIDIAN_CITY_GYM':

@@ -671,11 +671,583 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'You can battle POKéMON with your friends. (Link stub — pending connectivity.)'
     );
   },
+  Common_EventScript_UnionRoomAttendant: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'Common_EventScript_UnionRoomAttendant',
+      'Welcome to the UNION ROOM. (Wireless club stub — pending connectivity.)'
+    );
+  },
+  Common_EventScript_WirelessClubAttendant: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'Common_EventScript_WirelessClubAttendant',
+      'Welcome to the WIRELESS CLUB. (Wireless club stub — pending connectivity.)'
+    );
+  },
+  Common_EventScript_DirectCornerAttendant: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'Common_EventScript_DirectCornerAttendant',
+      'Welcome to the DIRECT CORNER. (Direct Corner stub — pending connectivity.)'
+    );
+  },
+  CableClub_EventScript_MysteryGiftMan: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'CableClub_EventScript_MysteryGiftMan',
+      'The deliveryman has no MYSTERY GIFT for you right now.'
+    );
+  },
+  CeruleanCity_Gym_EventScript_Misty: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_MISTY')) {
+      openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Misty', [
+        'TM03 teaches WATER PULSE.',
+        'Use it on an aquatic POKéMON!'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Misty', [
+      "Hi, you're a new face!",
+      'Only those TRAINERS who have a policy about POKéMON can turn pro.',
+      'My policy is an all-out offensive with WATER-type POKéMON!',
+      '(Misty battle stub — trainer battle pending script engine.)'
+    ]);
+  },
+  CeruleanCity_Gym_EventScript_Diana: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_PICNICKER_DIANA')) {
+      openScriptDialogue(
+        dialogue,
+        'CeruleanCity_Gym_ObjectEvent_Diana',
+        'You have to face other TRAINERS to see how good you really are.'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Diana', [
+      'What? You?',
+      "I'm more than good enough for you!",
+      "MISTY won't have to be bothered.",
+      '(Diana trainer battle stub — pending battle system.)'
+    ]);
+  },
+  CeruleanCity_Gym_EventScript_Luis: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_SWIMMER_M_LUIS')) {
+      openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Luis', [
+        "MISTY is a TRAINER who's going to keep improving.",
+        "She won't lose to someone like you!"
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Luis', [
+      'Splash!',
+      "I'm first up!",
+      "Let's do it!",
+      '(Luis trainer battle stub — pending battle system.)'
+    ]);
+  },
+  CeruleanCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_MISTY')) {
+      openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_GymGuy', [
+        'You beat MISTY!',
+        "See, what'd I tell ya?",
+        'You and me, kid, we make a pretty darn-good team!'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_GymGuy', [
+      'Yo! Champ in the making!',
+      'The LEADER, MISTY, is a pro who uses WATER-type POKéMON.',
+      'You can drain all their water with GRASS-type POKéMON.',
+      'Or, you might use ELECTRIC-type POKéMON and zap them!'
+    ]);
+  },
+  CeruleanCity_Gym_EventScript_GymStatue: ({ dialogue, runtime }) => {
+    openScriptDialogue(
+      dialogue,
+      'sign',
+      isScriptFlagSet(runtime, 'FLAG_BADGE02_GET')
+        ? 'CERULEAN POKéMON GYM\nLEADER: MISTY\nWINNING TRAINERS:\nRIVAL, PLAYER'
+        : 'CERULEAN POKéMON GYM\nLEADER: MISTY\nWINNING TRAINERS:\nRIVAL'
+    );
+  },
+  CeruleanCity_House1_EventScript_BadgeGuy: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'CeruleanCity_House1_ObjectEvent_BadgeGuy', [
+      'Only skilled TRAINERS can collect POKéMON BADGES.',
+      'Those BADGES have amazing secrets, did you know?',
+      '(Badge description list stub — pending multichoice script support.)'
+    ]);
+  },
+  CeruleanCity_House2_EventScript_Hiker: ({ dialogue, runtime }) => {
+    openDialogueSequence(
+      dialogue,
+      'CeruleanCity_House2_ObjectEvent_Hiker',
+      isScriptFlagSet(runtime, 'FLAG_GOT_TM28_FROM_ROCKET')
+        ? [
+            "I figure what's lost is lost.",
+            'I decided to teach DIGLETT how to DIG without a TM.'
+          ]
+        : [
+            'Those miserable ROCKETS!',
+            "Look what they've done to my house!",
+            'They stole a TM for teaching POKéMON how to DIG holes!'
+          ]
+    );
+  },
+  CeruleanCity_House2_EventScript_Lass: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'CeruleanCity_House2_ObjectEvent_Lass',
+      'TEAM ROCKET must be trying to DIG their way into no good!'
+    );
+  },
+  CeruleanCity_House2_EventScript_WallHole: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'TEAM ROCKET left a way out!');
+  },
+  CeruleanCity_House3_EventScript_OldWoman: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'CeruleanCity_House3_ObjectEvent_OldWoman', [
+      'My husband likes trading POKéMON.',
+      "You're collecting POKéMON for your POKéDEX, aren't you?",
+      'Would you please trade with him?'
+    ]);
+  },
+  CeruleanCity_House3_EventScript_Dontae: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DID_ZYNX_TRADE')) {
+      openScriptDialogue(
+        dialogue,
+        'CeruleanCity_House3_ObjectEvent_Dontae',
+        'Has the traded POKéMON grown stronger?'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'CeruleanCity_House3_ObjectEvent_Dontae', [
+      'Do you have the POKéMON I want?',
+      'Would you trade it for my POKéMON?',
+      '(In-game trade stub — JYNX trade pending party selection support.)'
+    ]);
+  },
+  CeruleanCity_BikeShop_EventScript_Clerk: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_BICYCLE')) {
+      openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Clerk', [
+        'How do you like your new BICYCLE?',
+        'You can take it out on CYCLING ROAD and even into caves!'
+      ]);
+      return;
+    }
+
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_BIKE_VOUCHER')) {
+      setScriptFlag(runtime, 'FLAG_GOT_BICYCLE');
+      openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Clerk', [
+        "Oh, that's…",
+        'A BIKE VOUCHER!',
+        'Okay! Here you go!',
+        'PLAYER exchanged the BIKE VOUCHER for a BICYCLE.',
+        '(Bicycle inventory transfer stub — pending key item use flow.)'
+      ]);
+      return;
+    }
+
+    openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Clerk', [
+      'Hi! Welcome to our BIKE SHOP.',
+      'Have we got just the BIKE for you!',
+      "Sorry! You can't afford it!"
+    ]);
+  },
+  CeruleanCity_BikeShop_EventScript_Woman: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Woman', [
+      'A plain city bike is good enough for me.',
+      "After all, you can't put a shopping basket on a mountain bike."
+    ]);
+  },
+  CeruleanCity_BikeShop_EventScript_Youngster: ({ dialogue, runtime }) => {
+    openScriptDialogue(
+      dialogue,
+      'CeruleanCity_BikeShop_ObjectEvent_Youngster',
+      isScriptFlagSet(runtime, 'FLAG_GOT_BICYCLE')
+        ? 'Wow. Your BIKE is really cool!'
+        : "These bikes are cool, but they're way expensive!"
+    );
+  },
+  CeruleanCity_BikeShop_EventScript_Bicycle: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'A shiny new BICYCLE!');
+  },
+  CeruleanCity_House4_EventScript_WonderNewsBerryMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'LOCALID_WONDER_NEWS_BERRY_MAN', [
+      'Sigh...',
+      'Too much time, too little to do...',
+      'Is nothing entertaining happening anywhere?',
+      '(Wonder News reward stub — pending Mystery Gift support.)'
+    ]);
+  },
+  CeruleanCity_House5_EventScript_BerryPowderMan: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_POWDER_JAR')) {
+      openDialogueSequence(dialogue, 'CeruleanCity_House5_ObjectEvent_BerryPowderMan', [
+        'Er-hem! Have you brought me some BERRY POWDER?',
+        'Come see me if you would like to trade your BERRY POWDER.',
+        '(Berry Powder vendor stub — pending list menu and powder currency support.)'
+      ]);
+      return;
+    }
+
+    if (!isScriptFlagSet(runtime, 'FLAG_SYS_GOT_BERRY_POUCH')) {
+      openScriptDialogue(
+        dialogue,
+        'CeruleanCity_House5_ObjectEvent_BerryPowderMan',
+        'Why must you lie to me? How many BERRIES do you have? Not a one!'
+      );
+      return;
+    }
+
+    setScriptFlag(runtime, 'FLAG_GOT_POWDER_JAR');
+    openDialogueSequence(dialogue, 'CeruleanCity_House5_ObjectEvent_BerryPowderMan', [
+      'I concoct a variety of medicine from BERRY POWDER.',
+      'Ah, good! For you, then, I have just the thing.',
+      'Do not forget, crush BERRIES into BERRY POWDER and bring it to me.',
+      '(POWDER JAR item stub — pending key item inventory flow.)'
+    ]);
+  },
+  CeruleanCity_House5_EventScript_BerryCrushRankings: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'BERRY CRUSH rankings are unavailable. (Berry Crush stub — pending connectivity.)'
+    );
+  },
+  CeruleanCity_PokemonCenter_1F_EventScript_PokemonJournalMisty: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      "It's a POKéMON journal about MISTY. (Content stub pending script engine.)"
+    );
+  },
   MysteryEventClub_EventScript_Woman: ({ dialogue }) => {
     openScriptDialogue(
       dialogue,
       'MysteryEventClub_ObjectEvent_Woman',
       'Welcome to the MYSTERY EVENT CLUB! (Mystery event stub — pending connectivity.)'
+    );
+  },
+  VermilionCity_Gym_EventScript_LtSurge: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LT_SURGE')) {
+      if (!isScriptFlagSet(runtime, 'FLAG_GOT_TM34_FROM_SURGE')) {
+        openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
+          'The THUNDERBADGE cranks up your POKéMON\'s SPEED!',
+          'It also lets your POKéMON FLY lightning-quick anytime, kid!',
+          'You\'re special, kid! Take this!',
+          '(TM34 Shock Wave gift stub — pending item system.)'
+        ]);
+        return;
+      }
+      openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
+        'A little word of advice, kid!',
+        'Electricity is sure powerful!',
+        'But, it\'s useless against GROUND-type POKéMON!'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
+      'Hey, kid! What do you think you\'re doing here?',
+      'You won\'t live long in combat! Not with your puny power!',
+      'I tell you, kid, electric POKéMON saved me during the war!',
+      'They zapped my enemies into paralysis!',
+      'The same as I\'ll do to you!',
+      '(Lt. Surge battle stub — trainer battle pending script engine.)'
+    ]);
+  },
+  VermilionCity_Gym_EventScript_Tucker: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_GENTLEMAN_TUCKER')) {
+      openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Tucker', [
+        'It\'s not easy opening that door.',
+        'LT. SURGE was always famous for his cautious nature in the Army.'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Tucker', [
+      'When I was in the Army, LT. SURGE was my strict CO.',
+      'He was a hard taskmaster.',
+      '(Tucker trainer battle stub — pending battle system.)'
+    ]);
+  },
+  VermilionCity_Gym_EventScript_Baily: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_ENGINEER_BAILY')) {
+      openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Baily', [
+        'Okay, I\'ll talk!',
+        'LT. SURGE said he hid door switches inside something.'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Baily', [
+      'I\'m a lightweight, but I\'m good with electricity!',
+      'That\'s why I joined this GYM.',
+      '(Baily trainer battle stub — pending battle system.)'
+    ]);
+  },
+  VermilionCity_Gym_EventScript_Dwayne: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_SAILOR_DWAYNE')) {
+      openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Dwayne', [
+        'LT. SURGE installed the traps in the GYM himself.',
+        'He set up double locks everywhere. Let me give you a hint.',
+        'When you open the first lock, the second lock is right next to it.'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Dwayne', [
+      'This is no place for kids! Not even if you\'re good!',
+      '(Dwayne trainer battle stub — pending battle system.)'
+    ]);
+  },
+  VermilionCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LT_SURGE')) {
+      openScriptDialogue(
+        dialogue,
+        'VermilionCity_Gym_ObjectEvent_GymGuy',
+        'Whew! That match was electric!'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_GymGuy', [
+      'Yo! Champ in the making!',
+      'LT. SURGE has a nickname. People refer to him as the Lightning American!',
+      'He\'s an expert on electric POKéMON.',
+      'BIRD/WATER-type POKéMON match poorly against the ELECTRIC type.',
+      'Beware of paralysis, too.',
+      'LT. SURGE is very cautious. He\'s locked himself in, so it won\'t be easy getting to him.'
+    ]);
+  },
+  VermilionCity_Gym_EventScript_GymStatue: ({ dialogue, runtime }) => {
+    const text = isScriptFlagSet(runtime, 'FLAG_BADGE03_GET')
+      ? 'VERMILION POKéMON GYM\nLEADER: LT. SURGE\nWINNING TRAINERS:\nRIVAL, PLAYER'
+      : 'VERMILION POKéMON GYM\nLEADER: LT. SURGE\nWINNING TRAINERS:\nRIVAL';
+    openScriptDialogue(dialogue, 'system', text);
+  },
+  VermilionCity_Gym_EventScript_TrashCan1: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan2: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan3: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan4: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan5: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan6: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan7: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan8: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan9: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan10: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan11: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan12: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan13: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan14: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_Gym_EventScript_TrashCan15: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
+  },
+  VermilionCity_House1_EventScript_FishingGuru: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_OLD_ROD')) {
+      openScriptDialogue(
+        dialogue,
+        'VermilionCity_House1_ObjectEvent_FishingGuru',
+        'Hello there, PLAYER! How are the fish biting?'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_House1_ObjectEvent_FishingGuru', [
+      'I\'m the FISHING GURU!',
+      'I simply looove fishing! I can\'t bear to go without.',
+      'Tell me, do you like to fish?',
+      '(Old Rod gift stub — yes/no choice and item system pending.)'
+    ]);
+  },
+  VermilionCity_House2_EventScript_Elyssa: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DID_CH_DING_TRADE')) {
+      openScriptDialogue(
+        dialogue,
+        'VermilionCity_House2_ObjectEvent_Elyssa',
+        'How is my old POKéMON? My POKéMON is doing great!'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_House2_ObjectEvent_Elyssa', [
+      'Hi! Do you have a SPEAROW?',
+      'Want to trade it for my FARFETCH\'D?',
+      '(In-game trade stub — pending party and trade system.)'
+    ]);
+  },
+  VermilionCity_House3_EventScript_Boy: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_House3_ObjectEvent_Boy',
+      'I\'m getting my PIDGEY to fly a letter to SAFFRON in the north.'
+    );
+  },
+  VermilionCity_House3_EventScript_Pidgey: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'VermilionCity_House3_ObjectEvent_Pidgey', 'PIDGEY: Kurukkoo!');
+  },
+  VermilionCity_House3_EventScript_Lass: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_House3_ObjectEvent_Lass',
+      'I want to exchange MAIL with all sorts of people. I send my PIDGEY to a UNION ROOM to exchange MAIL for me.'
+    );
+  },
+  VermilionCity_House3_EventScript_Letter: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'Dear PIPPI, I hope to see you soon. I heard SAFFRON has problems with TEAM ROCKET. VERMILION appears to be safe.'
+    );
+  },
+  VermilionCity_Mart_EventScript_CooltrainerF: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_Mart_ObjectEvent_CooltrainerF',
+      'I think POKéMON can be good or bad. It depends on the TRAINER.'
+    );
+  },
+  VermilionCity_Mart_EventScript_BaldingMan: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'VermilionCity_Mart_ObjectEvent_BaldingMan', [
+      'There are wicked people who will use POKéMON for criminal acts.',
+      'TEAM ROCKET traffics in rare POKéMON, for example.',
+      'They also abandon POKéMON that they consider unpopular or useless.',
+      'That\'s the sort of horrid people they are, TEAM ROCKET.'
+    ]);
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_Nurse: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_PokemonCenter_1F_ObjectEvent_Nurse',
+      'Welcome to the POKéMON CENTER! (Healing stub — pending party system.)'
+    );
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_Man: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_PokemonCenter_1F_ObjectEvent_Man',
+      'My POKéMON was poisoned! It fainted while we were walking!'
+    );
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_Hiker: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_PokemonCenter_1F_ObjectEvent_Hiker',
+      'Even if they are the same level, POKéMON can have very different stats and abilities. A POKéMON raised by a TRAINER is stronger than one in the wild.'
+    );
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_Youngster: ({ dialogue }) => {
+    openDialogueSequence(dialogue, 'VermilionCity_PokemonCenter_1F_ObjectEvent_Youngster', [
+      'It is true that a higher-level POKéMON will be more powerful…',
+      'But, all POKéMON will have weak points against specific types.',
+      'So, there appears to be no universally strong POKéMON.'
+    ]);
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_VSSeekerWoman: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_VS_SEEKER')) {
+      openDialogueSequence(dialogue, 'VermilionCity_PokemonCenter_1F_ObjectEvent_VSSeekerWoman', [
+        'Use that device and you\'ll find TRAINERS looking for a rematch.',
+        'You have to charge its battery to use it, though.'
+      ]);
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_PokemonCenter_1F_ObjectEvent_VSSeekerWoman', [
+      'The urge to battle with someone you\'ve tangled with before…',
+      'Have you ever had that urge? I\'m sure you have.',
+      'I wanted to battle certain people again over and over, too.',
+      'So, I\'ve been giving these away. Please, take one!',
+      '(VS Seeker gift stub — pending item system.)'
+    ]);
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_PokemonJournalLtSurge: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'It\'s a POKéMON journal about LT. SURGE. (Content stub pending script engine.)'
+    );
+  },
+  VermilionCity_PokemonFanClub_EventScript_Chairman: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_GOT_BIKE_VOUCHER')) {
+      openScriptDialogue(
+        dialogue,
+        'VermilionCity_PokemonFanClub_ObjectEvent_Chairman',
+        'Hello, PLAYER! Did you come see me about my POKéMON again? No? Too bad!'
+      );
+      return;
+    }
+    openDialogueSequence(dialogue, 'VermilionCity_PokemonFanClub_ObjectEvent_Chairman', [
+      'I chair the POKéMON Fan Club!',
+      'I raise more than a hundred POKéMON!',
+      'I\'m very fussy when it comes to POKéMON! I surely am!',
+      'So… Did you come visit to hear about my POKéMON?',
+      '(Chairman story + Bike Voucher gift stub — pending yes/no choice and item system.)'
+    ]);
+  },
+  VermilionCity_PokemonFanClub_EventScript_WorkerF: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_SYS_GAME_CLEAR')) {
+      openDialogueSequence(dialogue, 'VermilionCity_PokemonFanClub_ObjectEvent_WorkerF', [
+        'Our CHAIRMAN really does adore his POKéMON.',
+        'But the person who is most liked by POKéMON is DAISY, I think.'
+      ]);
+      return;
+    }
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_PokemonFanClub_ObjectEvent_WorkerF',
+      'Our CHAIRMAN is very vocal about POKéMON.'
+    );
+  },
+  VermilionCity_PokemonFanClub_EventScript_Pikachu: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'VermilionCity_PokemonFanClub_ObjectEvent_Pikachu', 'PIKACHU: Chu! Pikachu!');
+  },
+  VermilionCity_PokemonFanClub_EventScript_Seel: ({ dialogue }) => {
+    openScriptDialogue(dialogue, 'VermilionCity_PokemonFanClub_ObjectEvent_Seel', 'SEEL: Kyuoo!');
+  },
+  VermilionCity_PokemonFanClub_EventScript_Woman: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_PokemonFanClub_ObjectEvent_Woman',
+      'I just adore my SEEL! It\'s so lovable! It squeals, "Kyuuuh," when I hug it!'
+    );
+  },
+  VermilionCity_PokemonFanClub_EventScript_FatMan: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'VermilionCity_PokemonFanClub_ObjectEvent_FatMan',
+      'Won\'t you admire my PIKACHU\'s adorable tail?'
+    );
+  },
+  VermilionCity_PokemonFanClub_EventScript_RulesSign1: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'Let\'s all listen politely to other TRAINERS!'
+    );
+  },
+  VermilionCity_PokemonFanClub_EventScript_RulesSign2: ({ dialogue }) => {
+    openScriptDialogue(
+      dialogue,
+      'system',
+      'If someone brags, brag right back!'
     );
   }
 };
