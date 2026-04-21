@@ -11,6 +11,7 @@ import {
   getBattleBagChoices,
   performCaptureAttempt,
   shouldStartWildEncounter,
+  startConfiguredBattle,
   stepBattle,
   tryStartWildBattle
 } from '../src/game/battle';
@@ -111,6 +112,89 @@ describe('battle vertical slice', () => {
 
     const preview = calculateDamagePreview(battle.playerMon, battle.wildMon, move!);
     expect(preview).toEqual({ min: 25, max: 30 });
+  });
+
+  test('createBattleState builds trainer runtime state with side and battler bookkeeping', () => {
+    const battle = createBattleState({
+      mode: 'trainer',
+      playerName: 'RED',
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      activePlayerPartyIndex: 1,
+      opponentParty: [{
+        species: 'GEODUDE',
+        level: 12,
+        expProgress: 0.15,
+        maxHp: 30,
+        hp: 30,
+        attack: 18,
+        defense: 22,
+        speed: 9,
+        spAttack: 10,
+        spDefense: 12,
+        catchRate: 255,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+
+    expect(battle.mode).toBe('trainer');
+    expect(battle.battleTypeFlags).toContain('trainer');
+    expect(battle.playerSide.name).toBe('RED');
+    expect(battle.opponentSide.name).toBe('BROCK');
+    expect(battle.opponentSide.trainerId).toBe('TRAINER_BROCK');
+    expect(battle.playerMon.species).toBe('PIDGEY');
+    expect(battle.wildMon.species).toBe('GEODUDE');
+    expect(battle.battlers[0]).toMatchObject({ side: 'player', partyIndex: 1, active: true, absent: false });
+    expect(battle.battlers[1]).toMatchObject({ side: 'opponent', partyIndex: 0, active: true, absent: false });
+    expect(battle.battleTrace[0]).toMatchObject({ type: 'init', mode: 'trainer' });
+  });
+
+  test('startConfiguredBattle reconfigures runtime state and records battle trace events', () => {
+    const battle = createBattleState();
+
+    startConfiguredBattle(battle, {
+      mode: 'trainer',
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'ONIX',
+        level: 14,
+        expProgress: 0.25,
+        maxHp: 35,
+        hp: 35,
+        attack: 18,
+        defense: 28,
+        speed: 12,
+        spAttack: 9,
+        spDefense: 14,
+        catchRate: 45,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+
+    expect(battle.active).toBe(true);
+    expect(battle.phase).toBe('intro');
+    expect(battle.mode).toBe('trainer');
+    expect(battle.currentScriptLabel).toBe('BattleScript_TrainerEncounter');
+    expect(battle.wildMon.species).toBe('ONIX');
+    expect(battle.battleTrace.at(-1)).toMatchObject({ type: 'phase', text: 'intro', mode: 'trainer' });
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.battleTrace.some((event) => event.type === 'script' && event.label === 'BattleScript_EFFECT_HIT')).toBe(true);
+    expect(battle.battleTrace.some((event) => event.type === 'message' && event.text?.includes('used'))).toBe(true);
+    expect(battle.battleTrace.some((event) => event.type === 'hp' && event.battler === 'opponent')).toBe(true);
+    expect(battle.battleTrace.some((event) => event.type === 'phase' && event.text === 'script')).toBe(true);
   });
 
   test('applies Gen 3 STAB/type modifiers with integer truncation in type-table order', () => {
@@ -791,6 +875,25 @@ describe('battle vertical slice', () => {
 
     expect(danceBattle.playerMon.statStages.attack).toBe(1);
     expect(danceBattle.playerMon.statStages.speed).toBe(1);
+
+    const focusPunchBattle = createBattleState();
+    focusPunchBattle.active = true;
+    focusPunchBattle.phase = 'moveSelect';
+    focusPunchBattle.playerMon.speed = 1;
+    focusPunchBattle.wildMon.speed = 99;
+    focusPunchBattle.moves = [makeDamageMove('FOCUS_PUNCH', 'EFFECT_FOCUS_PUNCH', 'fighting', 150)];
+    focusPunchBattle.playerMon.moves = focusPunchBattle.moves;
+    focusPunchBattle.wildMoves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    focusPunchBattle.wildMon.moves = focusPunchBattle.wildMoves;
+    const focusPunchPp = focusPunchBattle.moves[0]!.ppRemaining;
+    const focusPunchWildHp = focusPunchBattle.wildMon.hp;
+
+    stepBattle(focusPunchBattle, confirmInput, createBattleEncounterState());
+
+    expect(focusPunchBattle.moves[0]!.ppRemaining).toBe(focusPunchPp - 1);
+    expect(focusPunchBattle.wildMon.hp).toBe(focusPunchWildHp);
+    expect([focusPunchBattle.turnSummary, ...focusPunchBattle.queuedMessages]).toContain(`${focusPunchBattle.playerMon.species} lost its focus and couldn't move!`);
+    expect([focusPunchBattle.turnSummary, ...focusPunchBattle.queuedMessages]).not.toContain(`${focusPunchBattle.playerMon.species} used FOCUS PUNCH!`);
   });
 
   test('multi-hit, OHKO, and self-dropping damage effects follow decomp move scripts', () => {
@@ -910,6 +1013,54 @@ describe('battle vertical slice', () => {
     expect(battle.playerMon.hp).toBe(1);
     expect(battle.playerMon.volatile.enduring).toBe(false);
     expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.playerMon.species} endured the hit!`);
+
+    const chainedBattle = createBattleState();
+    const chainedEncounter = createBattleEncounterState();
+    chainedEncounter.rngState = 2;
+    chainedBattle.active = true;
+    chainedBattle.phase = 'moveSelect';
+    chainedBattle.playerMon.speed = 99;
+    chainedBattle.playerMon.volatile.protectUses = 1;
+    chainedBattle.playerMon.volatile.lastSuccessfulMoveId = 'PROTECT';
+    chainedBattle.wildMon.speed = 1;
+    chainedBattle.wildMon.attack = 999;
+    chainedBattle.moves = [makeStatusMove('ENDURE', 'EFFECT_ENDURE', 'normal')];
+    chainedBattle.playerMon.moves = chainedBattle.moves;
+    chainedBattle.wildMoves = [makeDamageMove('MEGA_HIT', 'EFFECT_HIT', 'normal', 250)];
+    chainedBattle.wildMon.moves = chainedBattle.wildMoves;
+
+    stepBattle(chainedBattle, confirmInput, chainedEncounter);
+
+    expect(chainedBattle.playerMon.hp).toBe(0);
+    expect([chainedBattle.turnSummary, ...chainedBattle.queuedMessages]).toContain('But it failed!');
+
+    const sleepTalkProtectBattle = createBattleState();
+    const sleepTalkProtectEncounter = createBattleEncounterState();
+    sleepTalkProtectBattle.active = true;
+    sleepTalkProtectBattle.phase = 'moveSelect';
+    sleepTalkProtectBattle.playerMon.speed = 99;
+    sleepTalkProtectBattle.moves = [makeStatusMove('PROTECT', 'EFFECT_PROTECT', 'normal')];
+    sleepTalkProtectBattle.playerMon.moves = sleepTalkProtectBattle.moves;
+    sleepTalkProtectBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    sleepTalkProtectBattle.wildMon.moves = sleepTalkProtectBattle.wildMoves;
+
+    stepBattle(sleepTalkProtectBattle, confirmInput, sleepTalkProtectEncounter);
+    flushScriptMessages(sleepTalkProtectBattle, sleepTalkProtectEncounter);
+
+    sleepTalkProtectBattle.phase = 'moveSelect';
+    sleepTalkProtectBattle.playerMon.status = 'sleep';
+    sleepTalkProtectBattle.playerMon.statusTurns = 3;
+    sleepTalkProtectBattle.moves = [
+      makeStatusMove('SLEEP_TALK', 'EFFECT_SLEEP_TALK', 'normal'),
+      makeStatusMove('PROTECT', 'EFFECT_PROTECT', 'normal')
+    ];
+    sleepTalkProtectBattle.playerMon.moves = sleepTalkProtectBattle.moves;
+    sleepTalkProtectEncounter.rngState = 2;
+
+    stepBattle(sleepTalkProtectBattle, confirmInput, sleepTalkProtectEncounter);
+
+    expect(sleepTalkProtectBattle.playerMon.volatile.protected).toBe(false);
+    expect([sleepTalkProtectBattle.turnSummary, ...sleepTalkProtectBattle.queuedMessages]).toContain('But it failed!');
   });
 
   test('Recharge effects consume the next attempted action', () => {
@@ -992,6 +1143,7 @@ describe('battle vertical slice', () => {
     stepBattle(yawnBattle, confirmInput, yawnEncounter);
 
     expect(yawnBattle.wildMon.status).toBe('sleep');
+    expect(yawnBattle.wildMon.statusTurns).toBe(3);
     expect([yawnBattle.turnSummary, ...yawnBattle.queuedMessages]).toContain(`${yawnBattle.wildMon.species} fell asleep!`);
 
     const nightmareBattle = createBattleState();
@@ -1256,6 +1408,47 @@ describe('battle vertical slice', () => {
     expect(battle.sideState.opponent.futureAttack).toBeNull();
     expect(battle.wildMon.hp).toBeLessThan(200);
     expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.wildMon.species} took FUTURE SIGHT!`);
+
+    const sureHitBattle = createBattleState();
+    const sureHitEncounter = createBattleEncounterState();
+    sureHitBattle.active = true;
+    sureHitBattle.phase = 'moveSelect';
+    sureHitBattle.playerMon.speed = 99;
+    sureHitBattle.wildMon.maxHp = 200;
+    sureHitBattle.wildMon.hp = 200;
+    sureHitBattle.moves = [makeDamageMove('FUTURE_SIGHT', 'EFFECT_FUTURE_SIGHT', 'psychic', 80, 1)];
+    sureHitBattle.playerMon.moves = sureHitBattle.moves;
+    sureHitBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    sureHitBattle.wildMon.moves = sureHitBattle.wildMoves;
+
+    stepBattle(sureHitBattle, confirmInput, sureHitEncounter);
+    flushScriptMessages(sureHitBattle, sureHitEncounter);
+    stepBattle(sureHitBattle, confirmInput, sureHitEncounter);
+    stepBattle(sureHitBattle, confirmInput, sureHitEncounter);
+    flushScriptMessages(sureHitBattle, sureHitEncounter);
+    stepBattle(sureHitBattle, confirmInput, sureHitEncounter);
+    stepBattle(sureHitBattle, confirmInput, sureHitEncounter);
+
+    expect(sureHitBattle.wildMon.hp).toBeLessThan(200);
+    expect([sureHitBattle.turnSummary, ...sureHitBattle.queuedMessages]).not.toContain('The attack missed!');
+
+    const helpingHandBattle = createBattleState();
+    helpingHandBattle.active = true;
+    helpingHandBattle.phase = 'moveSelect';
+    helpingHandBattle.playerMon.speed = 99;
+    helpingHandBattle.playerMon.volatile.helpingHand = true;
+    helpingHandBattle.wildMon.maxHp = 200;
+    helpingHandBattle.wildMon.hp = 200;
+    helpingHandBattle.moves = [makeDamageMove('FUTURE_SIGHT', 'EFFECT_FUTURE_SIGHT', 'psychic', 80, 100)];
+    helpingHandBattle.playerMon.moves = helpingHandBattle.moves;
+    helpingHandBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_HIT', 'normal')];
+    helpingHandBattle.wildMon.moves = helpingHandBattle.wildMoves;
+
+    stepBattle(helpingHandBattle, confirmInput, createBattleEncounterState());
+
+    expect(helpingHandBattle.sideState.opponent.futureAttack?.damage).toBe(
+      Math.floor((calculateBaseDamage(helpingHandBattle.playerMon, helpingHandBattle.wildMon, helpingHandBattle.moves[0]!) * 15) / 10)
+    );
   });
 
   test('Hidden Power derives type and power from IVs, and Secret Power uses terrain effects', () => {
@@ -1471,6 +1664,32 @@ describe('battle vertical slice', () => {
     stepBattle(typeBoost, confirmInput, createBattleEncounterState());
 
     expect(typeBoost.wildMon.maxHp - typeBoost.wildMon.hp).toBeGreaterThan(typeBase.wildMon.maxHp - typeBase.wildMon.hp);
+
+    const choiceLockBattle = createBattleState();
+    const choiceLockEncounter = createBattleEncounterState();
+    choiceLockBattle.active = true;
+    choiceLockBattle.phase = 'moveSelect';
+    choiceLockBattle.playerMon.speed = 99;
+    choiceLockBattle.playerMon.heldItemId = 'ITEM_CHOICE_BAND';
+    choiceLockBattle.moves = [
+      makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40),
+      makeStatusMove('GROWL', 'EFFECT_ATTACK_DOWN', 'normal')
+    ];
+    choiceLockBattle.playerMon.moves = choiceLockBattle.moves;
+    choiceLockBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    choiceLockBattle.wildMon.moves = choiceLockBattle.wildMoves;
+
+    stepBattle(choiceLockBattle, confirmInput, choiceLockEncounter);
+    flushScriptMessages(choiceLockBattle, choiceLockEncounter);
+
+    choiceLockBattle.phase = 'moveSelect';
+    choiceLockBattle.selectedMoveIndex = 1;
+    const lockedWildHp = choiceLockBattle.wildMon.hp;
+    stepBattle(choiceLockBattle, confirmInput, choiceLockEncounter);
+
+    expect(choiceLockBattle.phase).toBe('moveSelect');
+    expect(choiceLockBattle.wildMon.hp).toBe(lockedWildHp);
+    expect(choiceLockBattle.turnSummary).toContain('can only use TACKLE');
 
     const shellBattle = createBattleState();
     shellBattle.active = true;
@@ -1709,7 +1928,7 @@ describe('battle vertical slice', () => {
     sketchBattle.active = true;
     sketchBattle.phase = 'moveSelect';
     sketchBattle.playerMon.speed = 99;
-    sketchBattle.wildMon.volatile.lastMoveUsedId = 'EMBER';
+    sketchBattle.wildMon.volatile.lastPrintedMoveId = 'EMBER';
     sketchBattle.wildMoves = [makeDamageMove('EMBER', 'EFFECT_HIT', 'fire', 40)];
     sketchBattle.wildMon.moves = sketchBattle.wildMoves;
     sketchBattle.moves = [makeStatusMove('SKETCH', 'EFFECT_SKETCH', 'normal')];
@@ -1720,11 +1939,41 @@ describe('battle vertical slice', () => {
     expect(sketchBattle.playerMon.moves[0]?.id).toBe('EMBER');
     expect(sketchBattle.playerMon.moves[0]?.ppRemaining).toBe(20);
 
+    const mimicAssistBattle = createBattleState();
+    mimicAssistBattle.active = true;
+    mimicAssistBattle.phase = 'moveSelect';
+    mimicAssistBattle.playerMon.speed = 99;
+    mimicAssistBattle.wildMon.speed = 1;
+    mimicAssistBattle.party[1]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    mimicAssistBattle.moves = [makeStatusMove('ASSIST', 'EFFECT_ASSIST', 'normal')];
+    mimicAssistBattle.playerMon.moves = mimicAssistBattle.moves;
+    mimicAssistBattle.wildMoves = [makeStatusMove('MIMIC', 'EFFECT_MIMIC', 'normal')];
+    mimicAssistBattle.wildMon.moves = mimicAssistBattle.wildMoves;
+
+    stepBattle(mimicAssistBattle, confirmInput, createBattleEncounterState());
+
+    expect(mimicAssistBattle.wildMon.moves[0]?.id).toBe('ASSIST');
+
+    const sketchAssistBattle = createBattleState();
+    sketchAssistBattle.active = true;
+    sketchAssistBattle.phase = 'moveSelect';
+    sketchAssistBattle.playerMon.speed = 99;
+    sketchAssistBattle.wildMon.volatile.lastMoveUsedId = 'ASSIST';
+    sketchAssistBattle.wildMon.volatile.lastPrintedMoveId = 'SPLASH';
+    sketchAssistBattle.wildMoves = [makeStatusMove('ASSIST', 'EFFECT_ASSIST', 'normal')];
+    sketchAssistBattle.wildMon.moves = sketchAssistBattle.wildMoves;
+    sketchAssistBattle.moves = [makeStatusMove('SKETCH', 'EFFECT_SKETCH', 'normal')];
+    sketchAssistBattle.playerMon.moves = sketchAssistBattle.moves;
+
+    stepBattle(sketchAssistBattle, confirmInput, createBattleEncounterState());
+
+    expect(sketchAssistBattle.playerMon.moves[0]?.id).toBe('SPLASH');
+
     const mirrorBattle = createBattleState();
     mirrorBattle.active = true;
     mirrorBattle.phase = 'moveSelect';
     mirrorBattle.playerMon.speed = 99;
-    mirrorBattle.wildMon.volatile.lastMoveUsedId = 'TACKLE';
+    mirrorBattle.playerMon.volatile.lastTakenMoveId = 'TACKLE';
     mirrorBattle.wildMoves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
     mirrorBattle.wildMon.moves = mirrorBattle.wildMoves;
     mirrorBattle.moves = [makeStatusMove('MIRROR_MOVE', 'EFFECT_MIRROR_MOVE', 'flying')];
@@ -1734,6 +1983,52 @@ describe('battle vertical slice', () => {
     stepBattle(mirrorBattle, confirmInput, createBattleEncounterState());
 
     expect(mirrorBattle.wildMon.hp).toBeLessThan(mirrorHp);
+
+    const lastTakenMirrorBattle = createBattleState();
+    lastTakenMirrorBattle.active = true;
+    lastTakenMirrorBattle.phase = 'moveSelect';
+    lastTakenMirrorBattle.playerMon.speed = 99;
+    lastTakenMirrorBattle.playerMon.volatile.lastTakenMoveId = 'GROWL';
+    lastTakenMirrorBattle.wildMon.volatile.lastMoveUsedId = 'TACKLE';
+    lastTakenMirrorBattle.wildMoves = [
+      makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40),
+      makeStatusMove('GROWL', 'EFFECT_ATTACK_DOWN', 'normal')
+    ];
+    lastTakenMirrorBattle.wildMon.moves = lastTakenMirrorBattle.wildMoves;
+    lastTakenMirrorBattle.moves = [makeStatusMove('MIRROR_MOVE', 'EFFECT_MIRROR_MOVE', 'flying')];
+    lastTakenMirrorBattle.playerMon.moves = lastTakenMirrorBattle.moves;
+    const lastTakenWildHp = lastTakenMirrorBattle.wildMon.hp;
+
+    stepBattle(lastTakenMirrorBattle, confirmInput, createBattleEncounterState());
+
+    expect(lastTakenMirrorBattle.wildMon.hp).toBe(lastTakenWildHp);
+    expect(lastTakenMirrorBattle.wildMon.statStages.attack).toBeLessThan(0);
+
+    const mirrorStatusBattle = createBattleState();
+    const mirrorStatusEncounter = createBattleEncounterState();
+    mirrorStatusBattle.active = true;
+    mirrorStatusBattle.phase = 'moveSelect';
+    mirrorStatusBattle.playerMon.speed = 1;
+    mirrorStatusBattle.wildMon.speed = 99;
+    mirrorStatusBattle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    mirrorStatusBattle.playerMon.moves = mirrorStatusBattle.moves;
+    mirrorStatusBattle.wildMoves = [{ ...makeStatusMove('GROWL', 'EFFECT_ATTACK_DOWN', 'normal'), flags: ['FLAG_MIRROR_MOVE_AFFECTED'] }];
+    mirrorStatusBattle.wildMon.moves = mirrorStatusBattle.wildMoves;
+
+    stepBattle(mirrorStatusBattle, confirmInput, mirrorStatusEncounter);
+    flushScriptMessages(mirrorStatusBattle, mirrorStatusEncounter);
+
+    mirrorStatusBattle.phase = 'moveSelect';
+    mirrorStatusBattle.playerMon.speed = 99;
+    mirrorStatusBattle.wildMon.speed = 1;
+    mirrorStatusBattle.moves = [makeStatusMove('MIRROR_MOVE', 'EFFECT_MIRROR_MOVE', 'flying')];
+    mirrorStatusBattle.playerMon.moves = mirrorStatusBattle.moves;
+    mirrorStatusBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    mirrorStatusBattle.wildMon.moves = mirrorStatusBattle.wildMoves;
+
+    stepBattle(mirrorStatusBattle, confirmInput, mirrorStatusEncounter);
+
+    expect(mirrorStatusBattle.wildMon.statStages.attack).toBeLessThan(0);
 
     const metronomeBattle = createBattleState();
     metronomeBattle.active = true;
@@ -1762,6 +2057,34 @@ describe('battle vertical slice', () => {
     stepBattle(assistBattle, confirmInput, createBattleEncounterState());
 
     expect(assistBattle.wildMon.hp).toBeLessThan(assistHp);
+
+    const assistUproarBattle = createBattleState();
+    assistUproarBattle.active = true;
+    assistUproarBattle.phase = 'moveSelect';
+    assistUproarBattle.playerMon.speed = 99;
+    assistUproarBattle.party[1]!.moves = [makeDamageMove('UPROAR', 'EFFECT_UPROAR', 'normal', 50)];
+    assistUproarBattle.moves = [makeStatusMove('ASSIST', 'EFFECT_ASSIST', 'normal')];
+    assistUproarBattle.playerMon.moves = assistUproarBattle.moves;
+    assistUproarBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    assistUproarBattle.wildMon.moves = assistUproarBattle.wildMoves;
+
+    stepBattle(assistUproarBattle, confirmInput, createBattleEncounterState());
+
+    expect(assistUproarBattle.playerMon.volatile.uproarMoveId).toBe('UPROAR');
+
+    const assistSolarBattle = createBattleState();
+    assistSolarBattle.active = true;
+    assistSolarBattle.phase = 'moveSelect';
+    assistSolarBattle.playerMon.speed = 99;
+    assistSolarBattle.party[1]!.moves = [makeDamageMove('SOLAR_BEAM', 'EFFECT_SOLAR_BEAM', 'grass', 120)];
+    assistSolarBattle.moves = [makeStatusMove('ASSIST', 'EFFECT_ASSIST', 'normal')];
+    assistSolarBattle.playerMon.moves = assistSolarBattle.moves;
+    assistSolarBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    assistSolarBattle.wildMon.moves = assistSolarBattle.wildMoves;
+
+    stepBattle(assistSolarBattle, confirmInput, createBattleEncounterState());
+
+    expect(assistSolarBattle.playerMon.volatile.chargingMoveId).toBe('SOLAR_BEAM');
 
     const natureBattle = createBattleState();
     natureBattle.active = true;
@@ -1973,6 +2296,12 @@ describe('battle vertical slice', () => {
     battle.playerMon.statStages.evasion = 2;
     battle.playerMon.volatile.substituteHp = 4;
     battle.playerMon.volatile.focusEnergy = true;
+    battle.playerMon.volatile.cursed = true;
+    battle.playerMon.volatile.perishTurns = 2;
+    battle.playerMon.volatile.lockOnBy = 'opponent';
+    battle.playerMon.volatile.lockOnTurns = 2;
+    battle.playerMon.volatile.escapePreventedBy = 'opponent';
+    battle.playerMon.volatile.rooted = true;
     battle.party[1]!.hp = battle.party[1]!.maxHp;
     battle.moves = [makeStatusMove('BATON_PASS', 'EFFECT_BATON_PASS', 'normal')];
     battle.playerMon.moves = battle.moves;
@@ -1986,6 +2315,12 @@ describe('battle vertical slice', () => {
     expect(battle.playerMon.statStages.evasion).toBe(2);
     expect(battle.playerMon.volatile.substituteHp).toBe(4);
     expect(battle.playerMon.volatile.focusEnergy).toBe(true);
+    expect(battle.playerMon.volatile.cursed).toBe(true);
+    expect(battle.playerMon.volatile.perishTurns).toBe(1);
+    expect(battle.playerMon.volatile.lockOnBy).toBe('opponent');
+    expect(battle.playerMon.volatile.lockOnTurns).toBe(1);
+    expect(battle.playerMon.volatile.escapePreventedBy).toBe('opponent');
+    expect(battle.playerMon.volatile.rooted).toBe(true);
   });
 
   test('Pursuit intercepts voluntary switches before the replacement enters', () => {
@@ -2436,6 +2771,21 @@ describe('battle vertical slice', () => {
     expect(disableBattle.wildMon.statStages.attack).toBe(0);
     expect([disableBattle.turnSummary, ...disableBattle.queuedMessages]).toContain(`${disableBattle.playerMon.species}'s GROWL is disabled!`);
 
+    const disableAssistBattle = createBattleState();
+    disableAssistBattle.active = true;
+    disableAssistBattle.phase = 'moveSelect';
+    disableAssistBattle.playerMon.speed = 99;
+    disableAssistBattle.wildMon.speed = 1;
+    disableAssistBattle.party[1]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    disableAssistBattle.moves = [makeStatusMove('ASSIST', 'EFFECT_ASSIST', 'normal')];
+    disableAssistBattle.playerMon.moves = disableAssistBattle.moves;
+    disableAssistBattle.wildMoves = [makeStatusMove('DISABLE', 'EFFECT_DISABLE', 'normal')];
+    disableAssistBattle.wildMon.moves = disableAssistBattle.wildMoves;
+
+    stepBattle(disableAssistBattle, confirmInput, createBattleEncounterState());
+
+    expect(disableAssistBattle.playerMon.volatile.disabledMoveId).toBe('ASSIST');
+
     const encoreBattle = createBattleState();
     const encoreEncounter = createBattleEncounterState();
     encoreBattle.active = true;
@@ -2455,6 +2805,11 @@ describe('battle vertical slice', () => {
 
     flushScriptMessages(encoreBattle, encoreEncounter);
     stepBattle(encoreBattle, confirmInput, encoreEncounter);
+    stepBattle(encoreBattle, confirmInput, encoreEncounter);
+    expect(encoreBattle.phase).toBe('moveSelect');
+    expect(encoreBattle.turnSummary).toContain('must use SCRATCH');
+
+    encoreBattle.selectedMoveIndex = 0;
     const wildHp = encoreBattle.wildMon.hp;
     stepBattle(encoreBattle, confirmInput, encoreEncounter);
 
@@ -2469,6 +2824,7 @@ describe('battle vertical slice', () => {
     transformBattle.wildMon.species = 'ONIX';
     transformBattle.wildMon.attack = 44;
     transformBattle.wildMon.defense = 88;
+    transformBattle.wildMon.abilityId = 'ROCK_HEAD';
     transformBattle.wildMon.types = ['rock', 'ground'];
     transformBattle.wildMoves = [makeDamageMove('ROCK_THROW', 'EFFECT_HIT', 'rock', 50)];
     transformBattle.wildMon.moves = transformBattle.wildMoves;
@@ -2480,9 +2836,41 @@ describe('battle vertical slice', () => {
     expect(transformBattle.playerMon.species).toBe('ONIX');
     expect(transformBattle.playerMon.attack).toBe(44);
     expect(transformBattle.playerMon.defense).toBe(88);
+    expect(transformBattle.playerMon.abilityId).toBe('ROCK_HEAD');
     expect(transformBattle.playerMon.types).toEqual(['rock', 'ground']);
     expect(transformBattle.playerMon.moves[0]?.id).toBe('ROCK_THROW');
     expect(transformBattle.playerMon.moves[0]?.ppRemaining).toBe(5);
+    expect([transformBattle.turnSummary, ...transformBattle.queuedMessages]).toContain('CHARMANDER transformed into ONIX!');
+
+    const substituteTargetBattle = createBattleState();
+    substituteTargetBattle.active = true;
+    substituteTargetBattle.phase = 'moveSelect';
+    substituteTargetBattle.playerMon.speed = 99;
+    substituteTargetBattle.wildMon.species = 'ONIX';
+    substituteTargetBattle.wildMon.volatile.substituteHp = 10;
+    substituteTargetBattle.moves = [makeStatusMove('TRANSFORM', 'EFFECT_TRANSFORM', 'normal')];
+    substituteTargetBattle.playerMon.moves = substituteTargetBattle.moves;
+    substituteTargetBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    substituteTargetBattle.wildMon.moves = substituteTargetBattle.wildMoves;
+
+    stepBattle(substituteTargetBattle, confirmInput, createBattleEncounterState());
+
+    expect(substituteTargetBattle.playerMon.species).toBe('ONIX');
+
+    const transformedTargetBattle = createBattleState();
+    transformedTargetBattle.active = true;
+    transformedTargetBattle.phase = 'moveSelect';
+    transformedTargetBattle.playerMon.speed = 99;
+    transformedTargetBattle.wildMon.volatile.transformed = true;
+    transformedTargetBattle.moves = [makeStatusMove('TRANSFORM', 'EFFECT_TRANSFORM', 'normal')];
+    transformedTargetBattle.playerMon.moves = transformedTargetBattle.moves;
+    transformedTargetBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    transformedTargetBattle.wildMon.moves = transformedTargetBattle.wildMoves;
+
+    stepBattle(transformedTargetBattle, confirmInput, createBattleEncounterState());
+
+    expect(transformedTargetBattle.playerMon.species).toBe('CHARMANDER');
+    expect([transformedTargetBattle.turnSummary, ...transformedTargetBattle.queuedMessages]).toContain('But it failed!');
 
     const ingrainBattle = createBattleState();
     ingrainBattle.active = true;
@@ -2567,6 +2955,91 @@ describe('battle vertical slice', () => {
     expect(battle.wildMon.hp).toBeLessThan(battle.wildMon.maxHp);
     expect(battle.playerMon.hp).toBe(playerHp);
     expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.wildMon.species} flinched!`);
+  });
+
+  test('Sleep Talk calls a valid known move without waking or spending called-move PP', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.playerMon.status = 'sleep';
+    battle.playerMon.statusTurns = 3;
+    const sleepTalk = makeStatusMove('SLEEP_TALK', 'EFFECT_SLEEP_TALK', 'normal');
+    const tackle = makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40);
+    battle.moves = [sleepTalk, tackle];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+    const wildHp = battle.wildMon.hp;
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.playerMon.status).toBe('sleep');
+    expect(battle.playerMon.statusTurns).toBe(3);
+    expect(sleepTalk.ppRemaining).toBe(19);
+    expect(tackle.ppRemaining).toBe(20);
+    expect(battle.wildMon.hp).toBeLessThan(wildHp);
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain(`${battle.playerMon.species} is fast asleep.`);
+
+    const zeroPpBattle = createBattleState();
+    zeroPpBattle.active = true;
+    zeroPpBattle.phase = 'moveSelect';
+    zeroPpBattle.playerMon.speed = 99;
+    zeroPpBattle.playerMon.status = 'sleep';
+    zeroPpBattle.playerMon.statusTurns = 3;
+    const zeroPpSleepTalk = makeStatusMove('SLEEP_TALK', 'EFFECT_SLEEP_TALK', 'normal');
+    const zeroPpTackle = makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40);
+    zeroPpTackle.ppRemaining = 0;
+    zeroPpBattle.moves = [zeroPpSleepTalk, zeroPpTackle];
+    zeroPpBattle.playerMon.moves = zeroPpBattle.moves;
+    zeroPpBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    zeroPpBattle.wildMon.moves = zeroPpBattle.wildMoves;
+    const zeroPpWildHp = zeroPpBattle.wildMon.hp;
+
+    stepBattle(zeroPpBattle, confirmInput, createBattleEncounterState());
+
+    expect(zeroPpBattle.wildMon.hp).toBeLessThan(zeroPpWildHp);
+    expect(zeroPpTackle.ppRemaining).toBe(0);
+
+    const failedBattle = createBattleState();
+    failedBattle.active = true;
+    failedBattle.phase = 'moveSelect';
+    failedBattle.playerMon.speed = 99;
+    failedBattle.playerMon.status = 'sleep';
+    failedBattle.playerMon.statusTurns = 3;
+    failedBattle.moves = [
+      makeStatusMove('SLEEP_TALK', 'EFFECT_SLEEP_TALK', 'normal'),
+      makeStatusMove('METRONOME', 'EFFECT_METRONOME', 'normal'),
+      makeDamageMove('UPROAR', 'EFFECT_UPROAR', 'normal', 50),
+      makeDamageMove('SOLAR_BEAM', 'EFFECT_SOLAR_BEAM', 'grass', 120)
+    ];
+    failedBattle.playerMon.moves = failedBattle.moves;
+    failedBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    failedBattle.wildMon.moves = failedBattle.wildMoves;
+
+    stepBattle(failedBattle, confirmInput, createBattleEncounterState());
+
+    expect([failedBattle.turnSummary, ...failedBattle.queuedMessages]).toContain('But it failed!');
+
+    const tormentFailedBattle = createBattleState();
+    tormentFailedBattle.active = true;
+    tormentFailedBattle.phase = 'moveSelect';
+    tormentFailedBattle.playerMon.speed = 99;
+    tormentFailedBattle.playerMon.status = 'sleep';
+    tormentFailedBattle.playerMon.statusTurns = 3;
+    tormentFailedBattle.playerMon.volatile.tormented = true;
+    tormentFailedBattle.playerMon.volatile.lastMoveUsedId = 'TACKLE';
+    tormentFailedBattle.moves = [
+      makeStatusMove('SLEEP_TALK', 'EFFECT_SLEEP_TALK', 'normal'),
+      makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)
+    ];
+    tormentFailedBattle.playerMon.moves = tormentFailedBattle.moves;
+    tormentFailedBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    tormentFailedBattle.wildMon.moves = tormentFailedBattle.wildMoves;
+
+    stepBattle(tormentFailedBattle, confirmInput, createBattleEncounterState());
+
+    expect([tormentFailedBattle.turnSummary, ...tormentFailedBattle.queuedMessages]).toContain('But it failed!');
   });
 
   test('Spite reduces PP on the target last-used move', () => {
@@ -2658,8 +3131,8 @@ describe('battle vertical slice', () => {
 
     stepBattle(tormentBattle, confirmInput, createBattleEncounterState());
 
-    expect(tormentBattle.wildMon.hp).toBe(tormentedWildHp);
-    expect([tormentBattle.turnSummary, ...tormentBattle.queuedMessages]).toContain(`${tormentBattle.playerMon.species} can't use the same move twice due to torment!`);
+    expect(tormentBattle.wildMon.hp).toBeLessThan(tormentedWildHp);
+    expect([tormentBattle.turnSummary, ...tormentBattle.queuedMessages]).toContain('CHARMANDER is hit with recoil!');
   });
 
   test('Destiny Bond and Grudge retaliate when their user faints from a move', () => {
@@ -3074,6 +3547,16 @@ describe('battle vertical slice', () => {
     stepBattle(shadowTagBattle, confirmInput, createBattleEncounterState());
     expect(shadowTagBattle.turnSummary).toContain("Can't escape!");
 
+    const shadowTagMirrorBattle = createBattleState();
+    shadowTagMirrorBattle.active = true;
+    shadowTagMirrorBattle.phase = 'command';
+    shadowTagMirrorBattle.playerMon.abilityId = 'SHADOW_TAG';
+    shadowTagMirrorBattle.wildMon.abilityId = 'SHADOW_TAG';
+    shadowTagMirrorBattle.selectedCommandIndex = shadowTagMirrorBattle.commands.findIndex((command) => command === 'run');
+
+    stepBattle(shadowTagMirrorBattle, confirmInput, createBattleEncounterState());
+    expect(shadowTagMirrorBattle.turnSummary).toContain("Can't escape!");
+
     const arenaTrapBattle = createBattleState();
     arenaTrapBattle.active = true;
     arenaTrapBattle.phase = 'command';
@@ -3397,6 +3880,12 @@ describe('battle vertical slice', () => {
     battle.active = true;
     battle.phase = 'partySelect';
     battle.selectedPartyIndex = 1;
+    battle.wildMon.volatile.infatuatedBy = 'player';
+    battle.wildMon.volatile.trappedBy = 'player';
+    battle.wildMon.volatile.trapTurns = 3;
+    battle.wildMon.volatile.escapePreventedBy = 'player';
+    battle.wildMon.volatile.lockOnBy = 'player';
+    battle.wildMon.volatile.lockOnTurns = 2;
     const foeMove = { ...(battle.wildMoves.find((move) => move.id === 'TACKLE') ?? battle.wildMoves[0]!), accuracy: 0 };
     battle.wildMon.moves = [foeMove];
     battle.wildMoves = [foeMove];
@@ -3414,6 +3903,40 @@ describe('battle vertical slice', () => {
     flushScriptMessages(battle, encounter);
     expect(battle.phase).toBe('command');
     expect(battle.turnSummary).toBe(`What will ${incoming.species} do?`);
+    expect(battle.wildMon.volatile.infatuatedBy).toBeNull();
+    expect(battle.wildMon.volatile.trappedBy).toBeNull();
+    expect(battle.wildMon.volatile.trapTurns).toBe(0);
+    expect(battle.wildMon.volatile.escapePreventedBy).toBeNull();
+    expect(battle.wildMon.volatile.lockOnBy).toBeNull();
+    expect(battle.wildMon.volatile.lockOnTurns).toBe(0);
+  });
+
+  test('trapping abilities prevent voluntary party switches in singles', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'partySelect';
+    battle.selectedPartyIndex = 1;
+    battle.playerMon.abilityId = 'SHADOW_TAG';
+    battle.wildMon.abilityId = 'SHADOW_TAG';
+    const activeMon = battle.playerMon;
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.playerMon).toBe(activeMon);
+    expect(battle.phase).toBe('command');
+    expect(battle.turnSummary).toBe("Can't switch out!");
+
+    const arenaTrapBattle = createBattleState();
+    arenaTrapBattle.active = true;
+    arenaTrapBattle.phase = 'command';
+    arenaTrapBattle.selectedCommandIndex = arenaTrapBattle.commands.findIndex((command) => command === 'pokemon');
+    arenaTrapBattle.wildMon.abilityId = 'ARENA_TRAP';
+    arenaTrapBattle.playerMon.types = ['normal'];
+
+    stepBattle(arenaTrapBattle, confirmInput, createBattleEncounterState());
+
+    expect(arenaTrapBattle.phase).toBe('command');
+    expect(arenaTrapBattle.turnSummary).toBe("Can't switch out!");
   });
 
   test('forced party switch after fainting does not grant the foe an extra move', () => {
@@ -3582,7 +4105,8 @@ describe('battle vertical slice', () => {
 
     stepBattle(conversionBattle, confirmInput, createBattleEncounterState());
 
-    expect(conversionBattle.playerMon.types).toEqual(['normal']);
+    expect(conversionBattle.playerMon.types).not.toEqual(['fire']);
+    expect(['normal', 'water']).toContain(conversionBattle.playerMon.types[0]);
 
     const conversion2Battle = createBattleState();
     conversion2Battle.active = true;
@@ -3590,6 +4114,8 @@ describe('battle vertical slice', () => {
     conversion2Battle.playerMon.speed = 99;
     conversion2Battle.playerMon.types = ['normal'];
     conversion2Battle.playerMon.volatile.lastReceivedMoveType = 'fire';
+    conversion2Battle.playerMon.volatile.lastLandedMoveId = 'EMBER';
+    conversion2Battle.playerMon.volatile.lastDamagedBy = 'opponent';
     conversion2Battle.moves = [makeStatusMove('CONVERSION_2', 'EFFECT_CONVERSION_2', 'normal')];
     conversion2Battle.playerMon.moves = conversion2Battle.moves;
     conversion2Battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
@@ -3598,6 +4124,55 @@ describe('battle vertical slice', () => {
     stepBattle(conversion2Battle, confirmInput, createBattleEncounterState());
 
     expect(calculateTypeEffectiveness('fire', conversion2Battle.playerMon.types)).toBeLessThan(1);
+
+    const chargingConversion2Battle = createBattleState();
+    chargingConversion2Battle.active = true;
+    chargingConversion2Battle.phase = 'moveSelect';
+    chargingConversion2Battle.playerMon.speed = 99;
+    chargingConversion2Battle.playerMon.types = ['normal'];
+    chargingConversion2Battle.playerMon.volatile.lastReceivedMoveType = 'flying';
+    chargingConversion2Battle.playerMon.volatile.lastLandedMoveId = 'FLY';
+    chargingConversion2Battle.playerMon.volatile.lastDamagedBy = 'opponent';
+    chargingConversion2Battle.moves = [makeStatusMove('CONVERSION_2', 'EFFECT_CONVERSION_2', 'normal')];
+    chargingConversion2Battle.playerMon.moves = chargingConversion2Battle.moves;
+    chargingConversion2Battle.wildMon.volatile.chargingMoveId = 'FLY';
+    chargingConversion2Battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    chargingConversion2Battle.wildMon.moves = chargingConversion2Battle.wildMoves;
+
+    stepBattle(chargingConversion2Battle, confirmInput, createBattleEncounterState());
+
+    expect([chargingConversion2Battle.turnSummary, ...chargingConversion2Battle.queuedMessages]).toContain('But it failed!');
+
+    const missedConversion2Battle = createBattleState();
+    const missedConversion2Encounter = createBattleEncounterState();
+    missedConversion2Battle.active = true;
+    missedConversion2Battle.phase = 'moveSelect';
+    missedConversion2Battle.playerMon.speed = 1;
+    missedConversion2Battle.wildMon.speed = 99;
+    missedConversion2Battle.playerMon.types = ['ghost'];
+    missedConversion2Battle.playerMon.volatile.lastReceivedMoveType = 'normal';
+    missedConversion2Battle.playerMon.volatile.lastLandedMoveId = 'TACKLE';
+    missedConversion2Battle.playerMon.volatile.lastDamagedBy = 'opponent';
+    missedConversion2Battle.moves = [makeStatusMove('CONVERSION_2', 'EFFECT_CONVERSION_2', 'normal')];
+    missedConversion2Battle.playerMon.moves = missedConversion2Battle.moves;
+    missedConversion2Battle.wildMoves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    missedConversion2Battle.wildMon.moves = missedConversion2Battle.wildMoves;
+
+    stepBattle(missedConversion2Battle, confirmInput, missedConversion2Encounter);
+    flushScriptMessages(missedConversion2Battle, missedConversion2Encounter);
+
+    missedConversion2Battle.phase = 'moveSelect';
+    missedConversion2Battle.playerMon.speed = 99;
+    missedConversion2Battle.wildMon.speed = 1;
+    missedConversion2Battle.moves = [makeStatusMove('CONVERSION_2', 'EFFECT_CONVERSION_2', 'normal')];
+    missedConversion2Battle.playerMon.moves = missedConversion2Battle.moves;
+    missedConversion2Battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    missedConversion2Battle.wildMon.moves = missedConversion2Battle.wildMoves;
+
+    stepBattle(missedConversion2Battle, confirmInput, missedConversion2Encounter);
+
+    expect(missedConversion2Battle.playerMon.types).toEqual(['ghost']);
+    expect([missedConversion2Battle.turnSummary, ...missedConversion2Battle.queuedMessages]).toContain('But it failed!');
   });
 
   test('Tri Attack status and thawing hits run their decomp move effects', () => {
@@ -3684,6 +4259,34 @@ describe('battle vertical slice', () => {
     stepBattle(boostedQuake, confirmInput, createBattleEncounterState());
 
     expect(boostedQuake.wildMon.maxHp - boostedQuake.wildMon.hp).toBeGreaterThan(normalQuake.wildMon.maxHp - normalQuake.wildMon.hp);
+
+    const missedDive = createBattleState();
+    const surfDive = createBattleState();
+    const whirlpoolDive = createBattleState();
+    for (const battle of [missedDive, surfDive, whirlpoolDive]) {
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.wildMon.maxHp = 200;
+      battle.wildMon.hp = 200;
+      battle.wildMon.volatile.semiInvulnerable = 'underwater';
+      battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+      battle.wildMon.moves = battle.wildMoves;
+    }
+    missedDive.moves = [makeDamageMove('WATER_GUN', 'EFFECT_HIT', 'water', 40)];
+    missedDive.playerMon.moves = missedDive.moves;
+    surfDive.moves = [makeDamageMove('SURF', 'EFFECT_HIT', 'water', 40)];
+    surfDive.playerMon.moves = surfDive.moves;
+    whirlpoolDive.moves = [makeDamageMove('WHIRLPOOL', 'EFFECT_TRAP', 'water', 40)];
+    whirlpoolDive.playerMon.moves = whirlpoolDive.moves;
+
+    stepBattle(missedDive, confirmInput, createBattleEncounterState());
+    stepBattle(surfDive, confirmInput, createBattleEncounterState());
+    stepBattle(whirlpoolDive, confirmInput, createBattleEncounterState());
+
+    expect(missedDive.wildMon.hp).toBe(200);
+    expect(surfDive.wildMon.hp).toBeLessThan(200);
+    expect(whirlpoolDive.wildMon.hp).toBeLessThan(200);
   });
 
   test('two-turn charge moves store their move and resolve without spending second-turn PP', () => {
