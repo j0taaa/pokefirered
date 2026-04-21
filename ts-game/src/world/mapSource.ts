@@ -68,12 +68,17 @@ import vermilionCityPokemonCenter1FMapJson from './maps/vermilionCityPokemonCent
 import vermilionCityPokemonCenter2FMapJson from './maps/vermilionCityPokemonCenter2F.json';
 import vermilionCityPokemonFanClubMapJson from './maps/vermilionCityPokemonFanClub.json';
 import viridianCityMapJson from './maps/viridianCity.json';
+import viridianForestMapJson from './maps/viridianForest.json';
 import viridianCityMartMapJson from './maps/viridianCityMart.json';
 import viridianCityPokemonCenter1FMapJson from './maps/viridianCityPokemonCenter1F.json';
 import viridianCityGymMapJson from './maps/viridianCityGym.json';
 import viridianCityHouseMapJson from './maps/viridianCityHouse.json';
 import viridianCitySchoolMapJson from './maps/viridianCitySchool.json';
 import type { TileMap } from './tileMap';
+import {
+  normalizeCoordEventWeatherId,
+  type CoordEventWeatherId
+} from './decompCoordEventWeather';
 
 export type TriggerFacing = 'any' | 'up' | 'down' | 'left' | 'right';
 export type TriggerConditionOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte';
@@ -111,7 +116,10 @@ export interface MapSource {
   width: number;
   height: number;
   tileSize: number;
+  regionMapSection?: string;
+  coordEventWeather?: CoordEventWeatherId;
   walkable: boolean[];
+  elevations?: number[];
   tileBehaviors?: number[];
   connections?: MapConnectionSource[];
   encounterTiles?: string[];
@@ -145,7 +153,10 @@ export interface CompactMapSource {
   width: number;
   height: number;
   tileSize: number;
+  regionMapSection?: string;
+  coordEventWeather?: CoordEventWeatherId;
   collisionRows: string[];
+  elevationRows?: string[];
   behaviorRows?: string[];
   connections?: MapConnectionSource[];
   encounterRows?: string[];
@@ -213,6 +224,10 @@ const isTileRows = (value: unknown, width: number, allowedPattern: RegExp): valu
 const isBehaviorRows = (value: unknown, width: number): value is string[] =>
   Array.isArray(value)
   && value.every((row) => typeof row === 'string' && row.length === width * 2 && /^[0-9a-f]+$/u.test(row));
+
+const isElevationRows = (value: unknown, width: number): value is string[] =>
+  Array.isArray(value)
+  && value.every((row) => typeof row === 'string' && row.length === width && /^[0-9a-f]+$/u.test(row));
 
 const isIntegerArray = (value: unknown): value is number[] =>
   Array.isArray(value) && value.every((entry) => Number.isInteger(entry));
@@ -554,12 +569,21 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.elevations && source.elevations.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has elevations length ${source.elevations.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
+    regionMapSection: source.regionMapSection,
+    coordEventWeather: source.coordEventWeather,
     walkable: [...source.walkable],
+    elevations: source.elevations ? [...source.elevations] : undefined,
     tileBehaviors: source.tileBehaviors ? [...source.tileBehaviors] : undefined,
     connections: source.connections ? [...source.connections] : [],
     encounterTiles: source.encounterTiles ? [...source.encounterTiles] : undefined,
@@ -585,6 +609,9 @@ const flattenRows = (rows: string[]): string[] => rows.flatMap((row) => [...row]
 const walkableFromCollisionRows = (collisionRows: string[]): boolean[] =>
   flattenRows(collisionRows).map((tile) => tile === '.');
 
+const elevationsFromRows = (elevationRows: string[]): number[] =>
+  flattenRows(elevationRows).map((elevation) => Number.parseInt(elevation, 16));
+
 const behaviorsFromRows = (behaviorRows: string[]): number[] =>
   behaviorRows.flatMap((row) => row.match(/../gu)?.map((behavior) => Number.parseInt(behavior, 16)) ?? []);
 
@@ -594,7 +621,10 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
+    regionMapSection: source.regionMapSection,
+    coordEventWeather: source.coordEventWeather,
     walkable: walkableFromCollisionRows(source.collisionRows),
+    elevations: source.elevationRows ? elevationsFromRows(source.elevationRows) : undefined,
     tileBehaviors: source.behaviorRows ? behaviorsFromRows(source.behaviorRows) : undefined,
     connections: source.connections,
     encounterTiles: source.encounterRows ? flattenRows(source.encounterRows) : undefined,
@@ -639,6 +669,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include tileBehaviors as an integer array.`);
   }
 
+  if (candidate.elevations !== undefined && !isIntegerArray(candidate.elevations)) {
+    throw new Error(`Map source "${id}" must include elevations as an integer array.`);
+  }
+
   if (candidate.connections !== undefined && !Array.isArray(candidate.connections)) {
     throw new Error(`Map source "${id}" connections must be an array.`);
   }
@@ -670,7 +704,10 @@ export const parseMapSource = (raw: unknown): MapSource => {
     width: candidate.width,
     height: candidate.height,
     tileSize: candidate.tileSize,
+    regionMapSection: typeof candidate.regionMapSection === 'string' ? candidate.regionMapSection : undefined,
+    coordEventWeather: normalizeCoordEventWeatherId(candidate.coordEventWeather),
     walkable: candidate.walkable,
+    elevations: candidate.elevations as number[] | undefined,
     tileBehaviors: candidate.tileBehaviors as number[] | undefined,
     connections: (candidate.connections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterTiles: candidate.encounterTiles as string[] | undefined,
@@ -727,6 +764,18 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     );
   }
 
+  if (candidate.elevationRows !== undefined && !isElevationRows(candidate.elevationRows, candidate.width)) {
+    throw new Error(
+      `Compact map source "${id}" must include elevationRows made of ${candidate.width} one-digit hex elevations.`
+    );
+  }
+
+  if (candidate.elevationRows !== undefined && candidate.elevationRows.length !== candidate.height) {
+    throw new Error(
+      `Compact map source "${id}" has ${candidate.elevationRows.length} elevation rows, expected ${candidate.height}.`
+    );
+  }
+
   if (candidate.behaviorRows !== undefined && !isBehaviorRows(candidate.behaviorRows, candidate.width)) {
     throw new Error(
       `Compact map source "${id}" must include behaviorRows made of ${candidate.width} two-digit hex behaviors.`
@@ -746,6 +795,8 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
 
   const metadataConnections = metadata?.connections ?? undefined;
   const metadataBattleScene = metadata?.battleScene;
+  const metadataRegionMapSection = metadata?.regionMapSection;
+  const metadataWeather = metadata?.weather;
 
   if (metadataConnections !== undefined && !Array.isArray(metadataConnections)) {
     throw new Error(`Compact map source "${id}" metadata.connections must be an array.`);
@@ -778,7 +829,10 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     width: candidate.width,
     height: candidate.height,
     tileSize: candidate.tileSize,
+    regionMapSection: typeof metadataRegionMapSection === 'string' ? metadataRegionMapSection : undefined,
+    coordEventWeather: normalizeCoordEventWeatherId(metadataWeather),
     collisionRows: [...candidate.collisionRows],
+    elevationRows: candidate.elevationRows ? [...candidate.elevationRows] : undefined,
     behaviorRows: candidate.behaviorRows ? [...candidate.behaviorRows] : undefined,
     connections: (metadataConnections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
@@ -1002,6 +1056,9 @@ export const loadRoute22Map = (): TileMap =>
 export const loadViridianCityMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityMapJson));
 
+export const loadViridianForestMap = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(viridianForestMapJson));
+
 export const loadViridianCityMartMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(viridianCityMartMapJson));
 
@@ -1101,6 +1158,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadRoute21SouthMap();
     case 'MAP_ROUTE22':
       return loadRoute22Map();
+    case 'MAP_VIRIDIAN_FOREST':
+      return loadViridianForestMap();
     case 'MAP_ROUTE24':
       return loadRoute24Map();
     case 'MAP_ROUTE25':

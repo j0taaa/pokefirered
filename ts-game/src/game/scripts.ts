@@ -2,6 +2,12 @@ import { openDialogueSequence, type DialogueState } from './interaction';
 import type { PlayerState } from './player';
 import { createBagState, getItemDefinition, type BagState } from './bag';
 import {
+  createBattlePokemonFromSpecies,
+  createBattlePokemonFromSpeciesWithMoves,
+  type BattleFormat,
+  type BattlePokemonSnapshot
+} from './battle';
+import {
   createDefaultParty,
   createDefaultPokedex,
   type FieldPokemon,
@@ -9,6 +15,39 @@ import {
 } from './pokemonStorage';
 import { getAllCenterScriptHandlers } from './pokemonCenterTemplate';
 import { getAllMartScriptHandlers, getMartStockForMap } from './martTemplate';
+import type { FieldScriptSessionState } from './decompFieldDialogue';
+import { runDecompFieldScript } from './decompFieldDialogue';
+import {
+  createPlayTimeCounter,
+  getTotalPlayTimeMinutes,
+  getTotalPlayTimeSeconds,
+  startPlayTimeCounter,
+  type PlayTimeCounter
+} from './decompPlayTime';
+import { DEFAULT_COINS, addCoins, getCoins, removeCoins, setCoins } from './decompCoins';
+import { DEFAULT_MONEY, getMoney, setMoney } from './decompMoney';
+import { MYSTERY_EVENT_MESSAGES } from './decompMysteryEventMsg';
+import { setUnlockedPokedexFlags } from './decompSaveLocation';
+import { getDecompTrainerDefinition, getDecompTrainerFlag } from './decompTrainerData';
+
+export interface PendingTrainerBattle {
+  trainerId: string;
+  trainerName: string;
+  defeatFlag: string;
+  trainerClass: string;
+  format: BattleFormat;
+  victoryFlags: string[];
+  trainerItems: string[];
+  trainerAiFlags: string[];
+  opponentParty: BattlePokemonSnapshot[];
+  started: boolean;
+  resolved: boolean;
+  result: 'won' | 'lost' | null;
+  continueScriptSession: {
+    speakerId: string;
+    session: FieldScriptSessionState;
+  } | null;
+}
 
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
@@ -31,49 +70,72 @@ export interface ScriptRuntimeState {
     buttonMode: 'help' | 'lr' | 'lEqualsA';
     frameType: number;
   };
+  specialSaveWarpFlags: number;
+  gcnLinkFlags: number;
+  playTime: PlayTimeCounter;
   party: FieldPokemon[];
   pokedex: PokedexState;
   bag: BagState;
+  pendingTrainerBattle: PendingTrainerBattle | null;
 }
 
 export interface ScriptContext {
   player: PlayerState;
   dialogue: DialogueState;
   runtime: ScriptRuntimeState;
+  speakerId?: string;
 }
 
 export type ScriptHandler = (context: ScriptContext) => void;
 
-export const createScriptRuntimeState = (): ScriptRuntimeState => ({
-  ...(() => {
-    const pokedex = createDefaultPokedex();
-    return {
-      vars: {},
-      flags: new Set<string>(),
-      consumedTriggerIds: new Set<string>(),
-      saveCounter: 0,
-      lastScriptId: null,
-      startMenu: {
-        mode: 'normal' as const,
-        playerName: 'PLAYER',
-        hasPokedex: true,
-        hasPokemon: true,
-        seenPokemonCount: pokedex.seenSpecies.length
-      },
-      options: {
-        textSpeed: 'mid' as const,
-        battleScene: true,
-        battleStyle: 'shift' as const,
-        sound: 'stereo' as const,
-        buttonMode: 'help' as const,
-        frameType: 0
-      },
-      party: createDefaultParty(),
-      pokedex,
-      bag: createBagState()
-    };
-  })()
-});
+export const syncLegacyPlayTimeVars = (runtime: ScriptRuntimeState): void => {
+  runtime.vars.playTimeSeconds = getTotalPlayTimeSeconds(runtime.playTime);
+  runtime.vars.playTimeMinutes = getTotalPlayTimeMinutes(runtime.playTime);
+};
+
+export const createScriptRuntimeState = (): ScriptRuntimeState => {
+  const pokedex = createDefaultPokedex();
+  const playTime = createPlayTimeCounter();
+  startPlayTimeCounter(playTime);
+
+  const runtime: ScriptRuntimeState = {
+    vars: {},
+    flags: new Set<string>(),
+    consumedTriggerIds: new Set<string>(),
+    saveCounter: 0,
+    lastScriptId: null,
+    startMenu: {
+      mode: 'normal',
+      playerName: 'PLAYER',
+      hasPokedex: true,
+      hasPokemon: true,
+      seenPokemonCount: pokedex.seenSpecies.length
+    },
+    options: {
+      textSpeed: 'mid',
+      battleScene: true,
+      battleStyle: 'shift',
+      sound: 'stereo',
+      buttonMode: 'help',
+      frameType: 0
+    },
+    specialSaveWarpFlags: 0,
+    gcnLinkFlags: 0,
+    playTime,
+    party: createDefaultParty(),
+    pokedex,
+    bag: createBagState(),
+    pendingTrainerBattle: null
+  };
+
+  if (runtime.startMenu.hasPokedex) {
+    setUnlockedPokedexFlags(runtime);
+  }
+  setCoins(runtime, DEFAULT_COINS);
+  setMoney(runtime, DEFAULT_MONEY);
+  syncLegacyPlayTimeVars(runtime);
+  return runtime;
+};
 
 export const getScriptVar = (runtime: ScriptRuntimeState, key: string): number =>
   runtime.vars[key] ?? 0;
@@ -106,6 +168,354 @@ export const openScriptDialogue = (
 ): void => {
   openDialogueSequence(dialogue, speakerId, [text]);
 };
+
+interface TrainerBattlePartyEntry {
+  species: string;
+  level: number;
+  moveIds?: string[];
+  heldItemId?: string | null;
+}
+
+interface ScriptedTrainerBattle {
+  trainerId: string;
+  trainerName: string;
+  defeatFlag: string;
+  trainerClass: string;
+  victoryFlags?: string[];
+  trainerItems?: string[];
+  trainerAiFlags?: string[];
+  party: TrainerBattlePartyEntry[];
+}
+
+const TRAINER_MONEY_VALUES: Record<string, number> = {
+  TRAINER_CLASS_LEADER: 25,
+  TRAINER_CLASS_ELITE_FOUR: 25,
+  TRAINER_CLASS_PKMN_PROF: 25,
+  TRAINER_CLASS_RIVAL_EARLY: 4,
+  TRAINER_CLASS_RIVAL_LATE: 9,
+  TRAINER_CLASS_CHAMPION: 25,
+  TRAINER_CLASS_YOUNGSTER: 4,
+  TRAINER_CLASS_BUG_CATCHER: 3,
+  TRAINER_CLASS_HIKER: 9,
+  TRAINER_CLASS_BIRD_KEEPER: 6,
+  TRAINER_CLASS_PICNICKER: 5,
+  TRAINER_CLASS_SUPER_NERD: 6,
+  TRAINER_CLASS_FISHERMAN: 9,
+  TRAINER_CLASS_TEAM_ROCKET: 8,
+  TRAINER_CLASS_LASS: 4,
+  TRAINER_CLASS_BEAUTY: 18,
+  TRAINER_CLASS_BLACK_BELT: 6,
+  TRAINER_CLASS_CUE_BALL: 6,
+  TRAINER_CLASS_CHANNELER: 8,
+  TRAINER_CLASS_ROCKER: 6,
+  TRAINER_CLASS_GENTLEMAN: 18,
+  TRAINER_CLASS_BURGLAR: 22,
+  TRAINER_CLASS_SWIMMER_M: 1,
+  TRAINER_CLASS_ENGINEER: 12,
+  TRAINER_CLASS_JUGGLER: 10,
+  TRAINER_CLASS_SAILOR: 8,
+  TRAINER_CLASS_COOLTRAINER: 9,
+  TRAINER_CLASS_POKEMANIAC: 12,
+  TRAINER_CLASS_TAMER: 10,
+  TRAINER_CLASS_CAMPER: 5,
+  TRAINER_CLASS_PSYCHIC: 5,
+  TRAINER_CLASS_BIKER: 5,
+  TRAINER_CLASS_GAMER: 18,
+  TRAINER_CLASS_SCIENTIST: 12,
+  TRAINER_CLASS_CRUSH_GIRL: 6,
+  TRAINER_CLASS_TUBER: 1,
+  TRAINER_CLASS_PKMN_BREEDER: 7,
+  TRAINER_CLASS_PKMN_RANGER: 9,
+  TRAINER_CLASS_AROMA_LADY: 7,
+  TRAINER_CLASS_RUIN_MANIAC: 12,
+  TRAINER_CLASS_LADY: 50,
+  TRAINER_CLASS_PAINTER: 4,
+  TRAINER_CLASS_TWINS: 3,
+  TRAINER_CLASS_YOUNG_COUPLE: 7,
+  TRAINER_CLASS_SIS_AND_BRO: 1,
+  TRAINER_CLASS_COOL_COUPLE: 6,
+  TRAINER_CLASS_CRUSH_KIN: 6,
+  TRAINER_CLASS_SWIMMER_F: 1,
+  TRAINER_CLASS_PLAYER: 1,
+  TRAINER_CLASS_RS_LEADER: 25,
+  TRAINER_CLASS_RS_ELITE_FOUR: 25,
+  TRAINER_CLASS_RS_LASS: 4,
+  TRAINER_CLASS_RS_YOUNGSTER: 4,
+  TRAINER_CLASS_PKMN_TRAINER: 15,
+  TRAINER_CLASS_RS_HIKER: 10,
+  TRAINER_CLASS_RS_BEAUTY: 20,
+  TRAINER_CLASS_RS_FISHERMAN: 10,
+  TRAINER_CLASS_RS_LADY: 50,
+  TRAINER_CLASS_TRIATHLETE: 10,
+  TRAINER_CLASS_TEAM_AQUA: 5,
+  TRAINER_CLASS_RS_TWINS: 3,
+  TRAINER_CLASS_RS_SWIMMER_F: 2,
+  TRAINER_CLASS_RS_BUG_CATCHER: 4,
+  TRAINER_CLASS_SCHOOL_KID: 5,
+  TRAINER_CLASS_RICH_BOY: 50,
+  TRAINER_CLASS_SR_AND_JR: 4,
+  TRAINER_CLASS_RS_BLACK_BELT: 8,
+  TRAINER_CLASS_RS_TUBER_F: 1,
+  TRAINER_CLASS_HEX_MANIAC: 6,
+  TRAINER_CLASS_RS_PKMN_BREEDER: 10,
+  TRAINER_CLASS_TEAM_MAGMA: 5,
+  TRAINER_CLASS_INTERVIEWER: 12,
+  TRAINER_CLASS_RS_TUBER_M: 1,
+  TRAINER_CLASS_RS_YOUNG_COUPLE: 8,
+  TRAINER_CLASS_GUITARIST: 8,
+  TRAINER_CLASS_RS_GENTLEMAN: 20,
+  TRAINER_CLASS_RS_CHAMPION: 50,
+  TRAINER_CLASS_MAGMA_LEADER: 20,
+  TRAINER_CLASS_BATTLE_GIRL: 6,
+  TRAINER_CLASS_RS_SWIMMER_M: 2,
+  TRAINER_CLASS_POKEFAN: 20,
+  TRAINER_CLASS_EXPERT: 10,
+  TRAINER_CLASS_DRAGON_TAMER: 12,
+  TRAINER_CLASS_RS_BIRD_KEEPER: 8,
+  TRAINER_CLASS_NINJA_BOY: 3,
+  TRAINER_CLASS_PARASOL_LADY: 10,
+  TRAINER_CLASS_BUG_MANIAC: 15,
+  TRAINER_CLASS_RS_SAILOR: 8,
+  TRAINER_CLASS_COLLECTOR: 15,
+  TRAINER_CLASS_RS_PKMN_RANGER: 12,
+  TRAINER_CLASS_MAGMA_ADMIN: 10,
+  TRAINER_CLASS_RS_AROMA_LADY: 10,
+  TRAINER_CLASS_RS_RUIN_MANIAC: 15,
+  TRAINER_CLASS_RS_COOLTRAINER: 12,
+  TRAINER_CLASS_RS_POKEMANIAC: 15,
+  TRAINER_CLASS_KINDLER: 8,
+  TRAINER_CLASS_RS_CAMPER: 4,
+  TRAINER_CLASS_RS_PICNICKER: 4,
+  TRAINER_CLASS_RS_PSYCHIC: 6,
+  TRAINER_CLASS_RS_SIS_AND_BRO: 3,
+  TRAINER_CLASS_OLD_COUPLE: 10,
+  TRAINER_CLASS_AQUA_ADMIN: 10,
+  TRAINER_CLASS_AQUA_LEADER: 20,
+  TRAINER_CLASS_BOSS: 25
+};
+
+const WHITE_OUT_MONEY_LOSS_MULTIPLIERS = [2, 4, 6, 9, 12, 16, 20, 25, 30] as const;
+const WHITE_OUT_MONEY_LOSS_BADGE_FLAGS = [
+  'FLAG_BADGE01_GET',
+  'FLAG_BADGE02_GET',
+  'FLAG_BADGE03_GET',
+  'FLAG_BADGE04_GET',
+  'FLAG_BADGE05_GET',
+  'FLAG_BADGE06_GET',
+  'FLAG_BADGE07_GET',
+  'FLAG_BADGE08_GET'
+] as const;
+
+export const getRuntimeMoney = (runtime: ScriptRuntimeState): number =>
+  getMoney(runtime);
+
+export const setRuntimeMoney = (runtime: ScriptRuntimeState, amount: number): number => {
+  return setMoney(runtime, amount);
+};
+
+export const getRuntimeCoins = (runtime: ScriptRuntimeState): number =>
+  getCoins(runtime);
+
+export const setRuntimeCoins = (runtime: ScriptRuntimeState, amount: number): number =>
+  setCoins(runtime, amount);
+
+export const addRuntimeCoins = (runtime: ScriptRuntimeState, amount: number): boolean =>
+  addCoins(runtime, amount);
+
+export const removeRuntimeCoins = (runtime: ScriptRuntimeState, amount: number): boolean =>
+  removeCoins(runtime, amount);
+
+export const getTrainerBattleMoneyReward = (
+  trainerBattle: Pick<PendingTrainerBattle, 'opponentParty' | 'trainerClass'>,
+  {
+    moneyMultiplier = 1,
+    isDoubleBattle = false
+  }: {
+    moneyMultiplier?: number;
+    isDoubleBattle?: boolean;
+  } = {}
+): number => {
+  const lastMonLevel = trainerBattle.opponentParty.at(-1)?.level ?? 0;
+  const trainerMoneyValue = TRAINER_MONEY_VALUES[trainerBattle.trainerClass] ?? 0;
+  return 4 * lastMonLevel * moneyMultiplier * (isDoubleBattle ? 2 : 1) * trainerMoneyValue;
+};
+
+export const computeWhiteOutMoneyLoss = (runtime: ScriptRuntimeState): number => {
+  const badgeCount = WHITE_OUT_MONEY_LOSS_BADGE_FLAGS.reduce((count, flag) =>
+    count + (isScriptFlagSet(runtime, flag) ? 1 : 0), 0);
+  const topLevel = runtime.party.reduce((highest, pokemon) => Math.max(highest, pokemon.level), 0);
+  const loss = topLevel * 4 * WHITE_OUT_MONEY_LOSS_MULTIPLIERS[badgeCount];
+  return Math.min(getRuntimeMoney(runtime), loss);
+};
+
+export const applyPendingTrainerBattleOutcome = (
+  runtime: ScriptRuntimeState,
+  trainerBattle: PendingTrainerBattle,
+  result: 'won' | 'lost'
+): number => {
+  if (result === 'won') {
+    setScriptFlag(runtime, trainerBattle.defeatFlag);
+    for (const flag of trainerBattle.victoryFlags) {
+      setScriptFlag(runtime, flag);
+    }
+    const reward = getTrainerBattleMoneyReward(trainerBattle);
+    setRuntimeMoney(runtime, getRuntimeMoney(runtime) + reward);
+    return reward;
+  }
+
+  const loss = computeWhiteOutMoneyLoss(runtime);
+  setRuntimeMoney(runtime, getRuntimeMoney(runtime) - loss);
+  return -loss;
+};
+
+const createTrainerBattleParty = (entries: TrainerBattlePartyEntry[]): BattlePokemonSnapshot[] =>
+  entries.map((entry) => {
+    const pokemon = entry.moveIds && entry.moveIds.length > 0
+      ? createBattlePokemonFromSpeciesWithMoves(entry.species, entry.level, entry.moveIds, { heldItemId: entry.heldItemId ?? null })
+      : createBattlePokemonFromSpecies(entry.species, entry.level);
+    pokemon.heldItemId = entry.heldItemId ?? pokemon.heldItemId;
+    return pokemon;
+  });
+
+const createScriptedTrainerBattleFromDecomp = (
+  trainerId: string,
+  {
+    defeatFlag = getDecompTrainerFlag(trainerId),
+    victoryFlags = []
+  }: {
+    defeatFlag?: string;
+    victoryFlags?: string[];
+  } = {}
+): ScriptedTrainerBattle => {
+  const definition = getDecompTrainerDefinition(trainerId);
+  if (!definition || definition.party.length === 0) {
+    throw new Error(`Missing decomp trainer definition for ${trainerId}`);
+  }
+
+  return {
+    trainerId: definition.trainerId,
+    trainerName: definition.trainerName,
+    defeatFlag,
+    trainerClass: definition.trainerClass,
+    victoryFlags,
+    trainerItems: [...definition.trainerItems],
+    trainerAiFlags: [...definition.trainerAiFlags],
+    party: definition.party.map((entry) => ({
+      species: entry.species,
+      level: entry.level,
+      moveIds: entry.moveIds,
+      heldItemId: entry.heldItemId
+    }))
+  };
+};
+
+const queueTrainerBattleRequest = (
+  runtime: ScriptRuntimeState,
+  trainerBattle: ScriptedTrainerBattle
+): void => {
+  runtime.pendingTrainerBattle = {
+    trainerId: trainerBattle.trainerId,
+    trainerName: trainerBattle.trainerName,
+    defeatFlag: trainerBattle.defeatFlag,
+    trainerClass: trainerBattle.trainerClass,
+    format: 'singles',
+    victoryFlags: [...(trainerBattle.victoryFlags ?? [])],
+    trainerItems: [...(trainerBattle.trainerItems ?? [])],
+    trainerAiFlags: [...(trainerBattle.trainerAiFlags ?? [])],
+    opponentParty: createTrainerBattleParty(trainerBattle.party),
+    started: false,
+    resolved: false,
+    result: null,
+    continueScriptSession: null
+  };
+};
+
+const startTrainerBattleDialogue = (
+  dialogue: DialogueState,
+  runtime: ScriptRuntimeState,
+  speakerId: string,
+  introLines: string[],
+  trainerBattle: ScriptedTrainerBattle
+): void => {
+  openDialogueSequence(dialogue, speakerId, introLines);
+  queueTrainerBattleRequest(runtime, trainerBattle);
+};
+
+const TRAINER_BATTLE_VIRIDIAN_TAKASHI = createScriptedTrainerBattleFromDecomp('TRAINER_BLACK_BELT_TAKASHI', {
+  defeatFlag: 'FLAG_DEFEATED_BLACK_BELT_TAKASHI'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_YUJI = createScriptedTrainerBattleFromDecomp('TRAINER_COOLTRAINER_YUJI', {
+  defeatFlag: 'FLAG_DEFEATED_COOLTRAINER_YUJI'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_ATSUSHI = createScriptedTrainerBattleFromDecomp('TRAINER_BLACK_BELT_ATSUSHI', {
+  defeatFlag: 'FLAG_DEFEATED_BLACK_BELT_ATSUSHI'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_JASON = createScriptedTrainerBattleFromDecomp('TRAINER_TAMER_JASON', {
+  defeatFlag: 'FLAG_DEFEATED_TAMER_JASON'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_COLE = createScriptedTrainerBattleFromDecomp('TRAINER_TAMER_COLE', {
+  defeatFlag: 'FLAG_DEFEATED_TAMER_COLE'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_KIYO = createScriptedTrainerBattleFromDecomp('TRAINER_BLACK_BELT_KIYO', {
+  defeatFlag: 'FLAG_DEFEATED_BLACK_BELT_KIYO'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_SAMUEL = createScriptedTrainerBattleFromDecomp('TRAINER_COOLTRAINER_SAMUEL', {
+  defeatFlag: 'FLAG_DEFEATED_COOLTRAINER_SAMUEL'
+});
+
+const TRAINER_BATTLE_VIRIDIAN_WARREN = createScriptedTrainerBattleFromDecomp('TRAINER_COOLTRAINER_WARREN', {
+  defeatFlag: 'FLAG_DEFEATED_COOLTRAINER_WARREN'
+});
+
+const TRAINER_BATTLE_BROCK = createScriptedTrainerBattleFromDecomp('TRAINER_LEADER_BROCK', {
+  defeatFlag: 'FLAG_DEFEATED_LEADER_BROCK',
+  victoryFlags: ['FLAG_BADGE01_GET']
+});
+
+const TRAINER_BATTLE_LIAM = createScriptedTrainerBattleFromDecomp('TRAINER_CAMPER_LIAM', {
+  defeatFlag: 'FLAG_DEFEATED_CAMPER_LIAM'
+});
+
+const TRAINER_BATTLE_MISTY = createScriptedTrainerBattleFromDecomp('TRAINER_LEADER_MISTY', {
+  defeatFlag: 'FLAG_DEFEATED_MISTY',
+  victoryFlags: ['FLAG_BADGE02_GET']
+});
+
+const TRAINER_BATTLE_DIANA = createScriptedTrainerBattleFromDecomp('TRAINER_PICNICKER_DIANA', {
+  defeatFlag: 'FLAG_DEFEATED_PICNICKER_DIANA'
+});
+
+const TRAINER_BATTLE_LUIS = createScriptedTrainerBattleFromDecomp('TRAINER_SWIMMER_MALE_LUIS', {
+  defeatFlag: 'FLAG_DEFEATED_SWIMMER_M_LUIS'
+});
+
+const TRAINER_BATTLE_LT_SURGE = createScriptedTrainerBattleFromDecomp('TRAINER_LEADER_LT_SURGE', {
+  defeatFlag: 'FLAG_DEFEATED_LT_SURGE',
+  victoryFlags: ['FLAG_BADGE03_GET']
+});
+
+const TRAINER_BATTLE_TUCKER = createScriptedTrainerBattleFromDecomp('TRAINER_GENTLEMAN_TUCKER', {
+  defeatFlag: 'FLAG_DEFEATED_GENTLEMAN_TUCKER'
+});
+
+const TRAINER_BATTLE_BAILY = createScriptedTrainerBattleFromDecomp('TRAINER_ENGINEER_BAILY', {
+  defeatFlag: 'FLAG_DEFEATED_ENGINEER_BAILY'
+});
+
+const TRAINER_BATTLE_DWAYNE = createScriptedTrainerBattleFromDecomp('TRAINER_SAILOR_DWAYNE', {
+  defeatFlag: 'FLAG_DEFEATED_SAILOR_DWAYNE'
+});
+
+const TRAINER_BATTLE_GIOVANNI = createScriptedTrainerBattleFromDecomp('TRAINER_LEADER_GIOVANNI', {
+  defeatFlag: 'FLAG_DEFEATED_LEADER_GIOVANNI',
+  victoryFlags: ['FLAG_BADGE08_GET']
+});
 
 
 // engine resolves script pointers from events in field_control_avatar.c.
@@ -204,29 +614,6 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       "Whew! I'm trying to memorize all my notes."
     ]);
   },
-  ViridianCity_School_EventScript_Notebook: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'system', [
-      "Let's check out the notebook.",
-      'First page…',
-      'POKe BALLS are used to catch POKeMON.',
-      'Up to six POKeMON can be carried in your party.',
-      'People who raise and battle with POKeMON are called TRAINERS.',
-      '(Notebook multi-page stub — full yes/no paging pending script engine.)'
-    ]);
-  },
-  ViridianCity_School_EventScript_Blackboard: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'system', [
-      'The blackboard lists POKeMON STATUS problems during battles.',
-      '(Blackboard multi-choice stub — Sleep, Poison, Paralysis, Burn, Freeze, Exit pending script engine.)'
-    ]);
-  },
-  ViridianCity_School_EventScript_PokemonJournal: ({ dialogue }) => {
-    openScriptDialogue(
-      dialogue,
-      'system',
-      "It's a POKeMON journal. (Content stub pending script engine.)"
-    );
-  },
   ViridianCity_House_EventScript_BaldingMan: ({ dialogue }) => {
     openDialogueSequence(dialogue, 'ViridianCity_House_ObjectEvent_BaldingMan', [
       'Coming up with nicknames is fun,',
@@ -296,12 +683,11 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_GIOVANNI', [
+    startTrainerBattleDialogue(dialogue, runtime, 'LOCALID_VIRIDIAN_GIOVANNI', [
       'So, I must say, you have finally arrived.',
       "I am GIOVANNI, the leader of TEAM ROCKET. I am the VIRIDIAN GYM's LEADER.",
       "I've waited a long time for a challenger like you.",
-      '(Giovanni battle stub — trainer battle pending script engine.)'
-    ]);
+    ], TRAINER_BATTLE_GIOVANNI);
   },
   ViridianCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
     const defeated = isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_GIOVANNI');
@@ -320,45 +706,110 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'Also, I heard that the TRAINERS here like GROUND-type POKeMON.'
     ]);
   },
-  ViridianCity_Gym_EventScript_Takashi: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Takashi', [
-      '(Takashi trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Takashi: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_BLACK_BELT_TAKASHI')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Takashi', [
+        "The POKeMON LEAGUE?",
+        "You? Don't get cocky!"
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Takashi', [
+      "I'm the KARATE KING!",
+      'Your fate rests with me!'
+    ], TRAINER_BATTLE_VIRIDIAN_TAKASHI);
   },
-  ViridianCity_Gym_EventScript_Yuji: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Yuji', [
-      '(Yuji trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Yuji: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_COOLTRAINER_YUJI')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Yuji', [
+        "You'll need power to keep up with",
+        'our GYM LEADER.'
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Yuji', [
+      'Heh!',
+      'You must be running out of steam',
+      'by now!'
+    ], TRAINER_BATTLE_VIRIDIAN_YUJI);
   },
-  ViridianCity_Gym_EventScript_Atsushi: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Atsushi', [
-      '(Atsushi trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Atsushi: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_BLACK_BELT_ATSUSHI')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Atsushi', [
+        "I'm still not worthy!"
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Atsushi', [
+      'Rrrroar!',
+      "I'm working myself into a rage!"
+    ], TRAINER_BATTLE_VIRIDIAN_ATSUSHI);
   },
-  ViridianCity_Gym_EventScript_Jason: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Jason', [
-      '(Jason trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Jason: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_TAMER_JASON')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Jason', [
+        'Do you know the identity of our',
+        'GYM LEADER?'
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Jason', [
+      'POKéMON and I, we make wonderful',
+      'music together!'
+    ], TRAINER_BATTLE_VIRIDIAN_JASON);
   },
-  ViridianCity_Gym_EventScript_Cole: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Cole', [
-      '(Cole trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Cole: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_TAMER_COLE')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Cole', [
+        'Wait!',
+        'I was just careless!'
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Cole', [
+      'Your POKéMON will cower at the',
+      'crack of my whip!'
+    ], TRAINER_BATTLE_VIRIDIAN_COLE);
   },
-  ViridianCity_Gym_EventScript_Kiyo: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Kiyo', [
-      '(Kiyo trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Kiyo: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_BLACK_BELT_KIYO')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Kiyo', [
+        'If my POKéMON were as good at',
+        'karate as I…'
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Kiyo', [
+      'Karate is the ultimate form of',
+      'martial arts!'
+    ], TRAINER_BATTLE_VIRIDIAN_KIYO);
   },
-  ViridianCity_Gym_EventScript_Samuel: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Samuel', [
-      '(Samuel trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Samuel: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_COOLTRAINER_SAMUEL')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Samuel', [
+        'You can go on to the POKéMON',
+        'LEAGUE only by defeating our GYM',
+        'LEADER!'
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Samuel', [
+      'VIRIDIAN GYM was closed for a',
+      'long time.',
+      'But now, our LEADER is back!'
+    ], TRAINER_BATTLE_VIRIDIAN_SAMUEL);
   },
-  ViridianCity_Gym_EventScript_Warren: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Warren', [
-      '(Warren trainer battle stub — pending battle system.)'
-    ]);
+  ViridianCity_Gym_EventScript_Warren: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_COOLTRAINER_WARREN')) {
+      openDialogueSequence(dialogue, 'ViridianCity_Gym_ObjectEvent_Warren', [
+        'The LEADER will scold me for',
+        'losing this way…'
+      ]);
+      return;
+    }
+    startTrainerBattleDialogue(dialogue, runtime, 'ViridianCity_Gym_ObjectEvent_Warren', [
+      'The truly talented win with style.'
+    ], TRAINER_BATTLE_VIRIDIAN_WARREN);
   },
   PewterCity_Gym_EventScript_Brock: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_BROCK')) {
@@ -370,7 +821,7 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'PewterCity_Gym_ObjectEvent_Brock', [
+    startTrainerBattleDialogue(dialogue, runtime, 'PewterCity_Gym_ObjectEvent_Brock', [
       "So, you're here. I'm BROCK.",
       "I'm PEWTER's GYM LEADER.",
       'My rock-hard willpower is evident even in my POKéMON.',
@@ -378,9 +829,8 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       "That's right - my POKéMON are all the ROCK type!",
       "Fuhaha! You're going to challenge me knowing that you'll lose?",
       "That's the TRAINER's honor that compels you to challenge me.",
-      'Fine, then! Show me your best!',
-      '(Brock battle stub — trainer battle pending script engine.)'
-    ]);
+      'Fine, then! Show me your best!'
+    ], TRAINER_BATTLE_BROCK);
   },
   PewterCity_Gym_EventScript_Liam: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_CAMPER_LIAM')) {
@@ -391,11 +841,10 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       );
       return;
     }
-    openDialogueSequence(dialogue, 'PewterCity_Gym_ObjectEvent_Liam', [
+    startTrainerBattleDialogue(dialogue, runtime, 'PewterCity_Gym_ObjectEvent_Liam', [
       "Stop right there, kid!",
-      "You're ten thousand light-years from facing BROCK!",
-      '(Liam trainer battle stub — pending battle system.)'
-    ]);
+      "You're ten thousand light-years from facing BROCK!"
+    ], TRAINER_BATTLE_LIAM);
   },
   PewterCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
     const defeated = isScriptFlagSet(runtime, 'FLAG_DEFEATED_LEADER_BROCK');
@@ -707,12 +1156,11 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Misty', [
+    startTrainerBattleDialogue(dialogue, runtime, 'CeruleanCity_Gym_ObjectEvent_Misty', [
       "Hi, you're a new face!",
       'Only those TRAINERS who have a policy about POKéMON can turn pro.',
       'My policy is an all-out offensive with WATER-type POKéMON!',
-      '(Misty battle stub — trainer battle pending script engine.)'
-    ]);
+    ], TRAINER_BATTLE_MISTY);
   },
   CeruleanCity_Gym_EventScript_Diana: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_PICNICKER_DIANA')) {
@@ -723,12 +1171,11 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       );
       return;
     }
-    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Diana', [
+    startTrainerBattleDialogue(dialogue, runtime, 'CeruleanCity_Gym_ObjectEvent_Diana', [
       'What? You?',
       "I'm more than good enough for you!",
-      "MISTY won't have to be bothered.",
-      '(Diana trainer battle stub — pending battle system.)'
-    ]);
+      "MISTY won't have to be bothered."
+    ], TRAINER_BATTLE_DIANA);
   },
   CeruleanCity_Gym_EventScript_Luis: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_SWIMMER_M_LUIS')) {
@@ -738,12 +1185,11 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Luis', [
+    startTrainerBattleDialogue(dialogue, runtime, 'CeruleanCity_Gym_ObjectEvent_Luis', [
       'Splash!',
       "I'm first up!",
-      "Let's do it!",
-      '(Luis trainer battle stub — pending battle system.)'
-    ]);
+      "Let's do it!"
+    ], TRAINER_BATTLE_LUIS);
   },
   CeruleanCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_MISTY')) {
@@ -769,13 +1215,6 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
         ? 'CERULEAN POKéMON GYM\nLEADER: MISTY\nWINNING TRAINERS:\nRIVAL, PLAYER'
         : 'CERULEAN POKéMON GYM\nLEADER: MISTY\nWINNING TRAINERS:\nRIVAL'
     );
-  },
-  CeruleanCity_House1_EventScript_BadgeGuy: ({ dialogue }) => {
-    openDialogueSequence(dialogue, 'CeruleanCity_House1_ObjectEvent_BadgeGuy', [
-      'Only skilled TRAINERS can collect POKéMON BADGES.',
-      'Those BADGES have amazing secrets, did you know?',
-      '(Badge description list stub — pending multichoice script support.)'
-    ]);
   },
   CeruleanCity_House2_EventScript_Hiker: ({ dialogue, runtime }) => {
     openDialogueSequence(
@@ -920,11 +1359,10 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     );
   },
   MysteryEventClub_EventScript_Woman: ({ dialogue }) => {
-    openScriptDialogue(
-      dialogue,
-      'MysteryEventClub_ObjectEvent_Woman',
-      'Welcome to the MYSTERY EVENT CLUB! (Mystery event stub — pending connectivity.)'
-    );
+    openDialogueSequence(dialogue, 'MysteryEventClub_ObjectEvent_Woman', [
+      'Welcome to the MYSTERY EVENT CLUB!',
+      MYSTERY_EVENT_MESSAGES.cantBeUsed
+    ]);
   },
   VermilionCity_Gym_EventScript_LtSurge: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LT_SURGE')) {
@@ -944,14 +1382,13 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
+    startTrainerBattleDialogue(dialogue, runtime, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
       'Hey, kid! What do you think you\'re doing here?',
       'You won\'t live long in combat! Not with your puny power!',
       'I tell you, kid, electric POKéMON saved me during the war!',
       'They zapped my enemies into paralysis!',
-      'The same as I\'ll do to you!',
-      '(Lt. Surge battle stub — trainer battle pending script engine.)'
-    ]);
+      'The same as I\'ll do to you!'
+    ], TRAINER_BATTLE_LT_SURGE);
   },
   VermilionCity_Gym_EventScript_Tucker: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_GENTLEMAN_TUCKER')) {
@@ -961,11 +1398,10 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Tucker', [
+    startTrainerBattleDialogue(dialogue, runtime, 'VermilionCity_Gym_ObjectEvent_Tucker', [
       'When I was in the Army, LT. SURGE was my strict CO.',
-      'He was a hard taskmaster.',
-      '(Tucker trainer battle stub — pending battle system.)'
-    ]);
+      'He was a hard taskmaster.'
+    ], TRAINER_BATTLE_TUCKER);
   },
   VermilionCity_Gym_EventScript_Baily: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_ENGINEER_BAILY')) {
@@ -975,11 +1411,10 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Baily', [
+    startTrainerBattleDialogue(dialogue, runtime, 'VermilionCity_Gym_ObjectEvent_Baily', [
       'I\'m a lightweight, but I\'m good with electricity!',
-      'That\'s why I joined this GYM.',
-      '(Baily trainer battle stub — pending battle system.)'
-    ]);
+      'That\'s why I joined this GYM.'
+    ], TRAINER_BATTLE_BAILY);
   },
   VermilionCity_Gym_EventScript_Dwayne: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_SAILOR_DWAYNE')) {
@@ -990,10 +1425,9 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       ]);
       return;
     }
-    openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_Dwayne', [
-      'This is no place for kids! Not even if you\'re good!',
-      '(Dwayne trainer battle stub — pending battle system.)'
-    ]);
+    startTrainerBattleDialogue(dialogue, runtime, 'VermilionCity_Gym_ObjectEvent_Dwayne', [
+      'This is no place for kids! Not even if you\'re good!'
+    ], TRAINER_BATTLE_DWAYNE);
   },
   VermilionCity_Gym_EventScript_GymGuy: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LT_SURGE')) {
@@ -1125,6 +1559,14 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'VermilionCity_Mart_ObjectEvent_CooltrainerF',
       'I think POKéMON can be good or bad. It depends on the TRAINER.'
     );
+  },
+  CeruleanCity_House1_EventScript_BadgeGuy: ({ dialogue, runtime, player, speakerId }) => {
+    runDecompFieldScript('CeruleanCity_House1_EventScript_BadgeGuy', {
+      runtime,
+      player,
+      dialogue,
+      speakerId: speakerId ?? 'CeruleanCity_House1_ObjectEvent_BadgeGuy'
+    });
   },
   VermilionCity_Mart_EventScript_BaldingMan: ({ dialogue }) => {
     openDialogueSequence(dialogue, 'VermilionCity_Mart_ObjectEvent_BaldingMan', [
@@ -1258,11 +1700,22 @@ export const runScriptById = (
   registry: Record<string, ScriptHandler> = prototypeScriptRegistry
 ): boolean => {
   const handler = registry[scriptId];
-  if (!handler) {
+  if (handler) {
+    handler(context);
+    context.runtime.lastScriptId = scriptId;
+    return true;
+  }
+
+  const ranDecompScript = runDecompFieldScript(scriptId, {
+    runtime: context.runtime,
+    player: context.player,
+    dialogue: context.dialogue,
+    speakerId: context.speakerId ?? 'system'
+  });
+  if (!ranDecompScript) {
     return false;
   }
 
-  handler(context);
   context.runtime.lastScriptId = scriptId;
   return true;
 };

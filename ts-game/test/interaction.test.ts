@@ -128,6 +128,198 @@ describe('interaction stepping', () => {
     expect(runtime.lastScriptId).toBe('object.npc-test.interact');
   });
 
+  test('falls back to simple decomp dialogue for npc scripts without a custom handler', () => {
+    const dialogue = createDialogueState();
+    const player = createTestPlayer();
+    const runtime = createScriptRuntimeState();
+    const npc = {
+      ...createTestNpc(),
+      interactScriptId: 'Route2_ViridianForest_NorthEntrance_EventScript_Youngster',
+      dialogueLines: []
+    };
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+
+    expect(dialogue.active).toBe(true);
+    expect(dialogue.speakerId).toBe(npc.id);
+    expect(dialogue.queue[0]).toContain('Many POK');
+    expect(dialogue.queue[1]).toContain('persistent');
+    expect(runtime.lastScriptId).toBe('Route2_ViridianForest_NorthEntrance_EventScript_Youngster');
+  });
+
+  test('can talk to an npc across a counter tile like FireRed object interactions', () => {
+    const dialogue = createDialogueState();
+    const player: PlayerState = {
+      position: vec2(4 * 16, 4 * 16),
+      facing: 'up',
+      moving: false,
+      animationTime: 0
+    };
+    const npc: NpcState = {
+      ...createTestNpc(),
+      position: vec2(4 * 16, 2 * 16),
+      dialogueLines: ['Counter hello']
+    };
+    const tileBehaviors = Array.from({ length: 8 * 8 }, () => 0);
+    tileBehaviors[3 * 8 + 4] = 0x80;
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      undefined,
+      undefined,
+      [],
+      8,
+      tileBehaviors
+    );
+
+    expect(dialogue.active).toBe(true);
+    expect(dialogue.text).toBe('Counter hello');
+    expect(dialogue.speakerId).toBe(npc.id);
+  });
+
+  test('runs original yes-no notebook flow from the decomp scripts', () => {
+    const dialogue = createDialogueState();
+    const player = createTestPlayer();
+    const runtime = createScriptRuntimeState();
+    const npc = {
+      ...createTestNpc(),
+      interactScriptId: 'ViridianCity_School_EventScript_Notebook',
+      dialogueLines: []
+    };
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+
+    expect(dialogue.queue[0]).toContain("Let's check out the notebook.");
+
+    for (let i = 0; i < 5; i += 1) {
+      stepInteraction(
+        dialogue,
+        { ...neutralInput, interact: true, interactPressed: true },
+        player,
+        [npc],
+        16,
+        [],
+        runtime
+      );
+    }
+
+    expect(dialogue.text).toBe('Turn the page?');
+    expect(dialogue.choice?.options).toEqual(['YES', 'NO']);
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, down: true, downPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+    expect(dialogue.choice?.selectedIndex).toBe(1);
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+
+    expect(dialogue.active).toBe(false);
+    expect(dialogue.scriptSession).toBeNull();
+  });
+
+  test('runs original multichoice blackboard flow from the decomp scripts', () => {
+    const dialogue = createDialogueState();
+    const player = createTestPlayer();
+    const runtime = createScriptRuntimeState();
+    const npc = {
+      ...createTestNpc(),
+      interactScriptId: 'ViridianCity_School_EventScript_Blackboard',
+      dialogueLines: []
+    };
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+    expect(dialogue.text).toContain('STATUS problems');
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+    expect(dialogue.text).toBe('Which topic do you want to read?');
+    expect(dialogue.choice?.options).toEqual(['SLP', 'PSN', 'PAR', 'BRN', 'FRZ', 'EXIT']);
+    expect(dialogue.choice?.columns).toBe(3);
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, down: true, downPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, right: true, rightPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+    expect(dialogue.choice?.selectedIndex).toBe(4);
+
+    stepInteraction(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      player,
+      [npc],
+      16,
+      [],
+      runtime
+    );
+
+    expect(dialogue.text).toContain('A frozen POK');
+    expect(runtime.lastScriptId).toBe('ViridianCity_School_EventScript_Blackboard');
+  });
+
   test('runs facing trigger when there is no npc in front', () => {
     const dialogue = createDialogueState();
     const player = createTestPlayer();

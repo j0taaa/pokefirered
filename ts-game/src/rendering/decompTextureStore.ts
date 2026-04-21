@@ -1,6 +1,7 @@
 import type { CameraState } from '../core/camera';
 import type { PlayerState } from '../game/player';
 import type { TileMap } from '../world/tileMap';
+import { getMetatileLayerPass, type FieldMapLayerPass } from './fieldRenderOrder';
 
 const MAP_TILE_SIZE = 16;
 const SUB_TILE_SIZE = 8;
@@ -8,8 +9,6 @@ const NUM_TILES_IN_PRIMARY = 640;
 const NUM_METATILES_IN_PRIMARY = 640;
 const METATILE_ENTRIES = 8;
 const NUM_PALS_IN_PRIMARY = 7;
-
-const METATILE_LAYER_TYPE_COVERED = 1;
 
 const BG_TILE_INDEX_MASK = 0x03ff;
 const BG_TILE_HFLIP_MASK = 0x0400;
@@ -35,8 +34,9 @@ interface LoadedGraphic {
 }
 
 interface MapVisualTexture {
-  base: HTMLCanvasElement;
-  cover: HTMLCanvasElement | null;
+  bottom: HTMLCanvasElement;
+  middle: HTMLCanvasElement;
+  top: HTMLCanvasElement;
 }
 
 type PaletteColor = [number, number, number, number];
@@ -51,8 +51,11 @@ interface TilesetRenderSource {
 
 interface PreparedMapTextures {
   visuals: NonNullable<TileMap['visual']>;
-  metatiles: Map<number, MapVisualTexture>;
+  metatiles: Map<string, MapVisualTexture>;
 }
+
+export const getMapTextureKey = (metatileId: number, layerType: number): string =>
+  `${metatileId}:${layerType}`;
 
 const objectGraphicModules = import.meta.glob('../../../graphics/object_events/pics/**/*.png', {
   eager: true,
@@ -243,14 +246,15 @@ const buildMetatileTexture = (
   primarySource: TilesetRenderSource,
   secondarySource: TilesetRenderSource
 ): MapVisualTexture => {
-  const base = createTextureCanvas();
-  const baseCtx = base.getContext('2d');
-  if (!baseCtx) {
+  const bottom = createTextureCanvas();
+  const middle = createTextureCanvas();
+  const top = createTextureCanvas();
+  const bottomCtx = bottom.getContext('2d');
+  const middleCtx = middle.getContext('2d');
+  const topCtx = top.getContext('2d');
+  if (!bottomCtx || !middleCtx || !topCtx) {
     throw new Error('Unable to create map texture canvas.');
   }
-
-  const cover = layerType === METATILE_LAYER_TYPE_COVERED ? null : createTextureCanvas();
-  const coverCtx = cover?.getContext('2d') ?? null;
   const positions: Array<[number, number]> = [
     [0, 0],
     [SUB_TILE_SIZE, 0],
@@ -260,11 +264,21 @@ const buildMetatileTexture = (
 
   for (let index = 0; index < METATILE_ENTRIES; index += 1) {
     const [destX, destY] = positions[index % 4];
-    const targetCtx = index < 4 || coverCtx === null ? baseCtx : coverCtx;
+    const targetCtx = (() => {
+      switch (getMetatileLayerPass(layerType, index)) {
+        case 'bottom':
+          return bottomCtx;
+        case 'top':
+          return topCtx;
+        case 'middle':
+        default:
+          return middleCtx;
+      }
+    })();
     drawSubTile(targetCtx, entries[index], primarySource, secondarySource, destX, destY);
   }
 
-  return { base, cover };
+  return { bottom, middle, top };
 };
 
 const normalizeGraphicsId = (graphicsId: string): string =>
@@ -381,39 +395,26 @@ export class DecompTextureStore {
     this.mapTextureLoads.set(map.id, loadPromise);
   }
 
-  drawMapBase(
-    ctx: CanvasRenderingContext2D,
-    map: TileMap,
-    camera: CameraState,
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number
-  ): boolean {
-    const prepared = this.mapTextureCache.get(map.id);
-    if (!prepared || !map.visual) {
-      return false;
-    }
-
-    this.drawMapPass(ctx, prepared, map, camera, startX, startY, endX, endY, 'base');
-    return true;
+  hasMapTextures(map: TileMap): boolean {
+    return !!(map.visual && this.mapTextureCache.get(map.id));
   }
 
-  drawMapCover(
+  drawMapLayer(
     ctx: CanvasRenderingContext2D,
     map: TileMap,
     camera: CameraState,
     startX: number,
     startY: number,
     endX: number,
-    endY: number
+    endY: number,
+    pass: FieldMapLayerPass
   ): boolean {
     const prepared = this.mapTextureCache.get(map.id);
     if (!prepared || !map.visual) {
       return false;
     }
 
-    this.drawMapPass(ctx, prepared, map, camera, startX, startY, endX, endY, 'cover');
+    this.drawMapPass(ctx, prepared, map, camera, startX, startY, endX, endY, pass);
     return true;
   }
 
@@ -457,10 +458,12 @@ export class DecompTextureStore {
       loadBinary(secondaryMetatileUrl)
     ]);
 
-    const metatiles = new Map<number, MapVisualTexture>();
+    const metatiles = new Map<string, MapVisualTexture>();
     for (let tileIndex = 0; tileIndex < map.visual.metatileIds.length; tileIndex += 1) {
       const metatileId = map.visual.metatileIds[tileIndex];
-      if (metatiles.has(metatileId)) {
+      const layerType = map.visual.layerTypes[tileIndex] ?? 0;
+      const textureKey = getMapTextureKey(metatileId, layerType);
+      if (metatiles.has(textureKey)) {
         continue;
       }
 
@@ -472,12 +475,8 @@ export class DecompTextureStore {
         : metatileId - NUM_METATILES_IN_PRIMARY;
       const start = localMetatileId * METATILE_ENTRIES;
       const entries = sourceMetatiles.slice(start, start + METATILE_ENTRIES);
-      const layerType = map.visual.layerTypes[tileIndex] ?? 0;
 
-      metatiles.set(
-        metatileId,
-        buildMetatileTexture(layerType, entries, primarySource, secondarySource)
-      );
+      metatiles.set(textureKey, buildMetatileTexture(layerType, entries, primarySource, secondarySource));
     }
 
     return {
@@ -495,21 +494,19 @@ export class DecompTextureStore {
     startY: number,
     endX: number,
     endY: number,
-    pass: 'base' | 'cover'
+    pass: FieldMapLayerPass
   ): void {
     for (let tileY = startY; tileY < endY; tileY += 1) {
       for (let tileX = startX; tileX < endX; tileX += 1) {
         const tileIndex = tileY * map.width + tileX;
         const metatileId = prepared.visuals.metatileIds[tileIndex];
-        const texture = prepared.metatiles.get(metatileId);
+        const layerType = prepared.visuals.layerTypes[tileIndex] ?? 0;
+        const texture = prepared.metatiles.get(getMapTextureKey(metatileId, layerType));
         if (!texture) {
           continue;
         }
 
-        const image = pass === 'base' ? texture.base : texture.cover;
-        if (!image) {
-          continue;
-        }
+        const image = texture[pass];
 
         ctx.drawImage(
           image,

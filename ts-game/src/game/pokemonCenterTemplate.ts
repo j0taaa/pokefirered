@@ -1,7 +1,15 @@
 import { healParty, type FieldPokemon } from './pokemonStorage';
+import {
+  getHealLocationById,
+  getHealLocationForMap,
+  getHealLocationIdForCenterMap,
+  getRespawnLocation,
+  HEAL_LOCATIONS,
+  setRespawn,
+  type CenterRuntimeState as HealLocationRuntimeState
+} from './decompHealLocation';
 
-export interface CenterRuntimeState {
-  vars: Record<string, number>;
+export interface CenterRuntimeState extends HealLocationRuntimeState {
   party: FieldPokemon[];
 }
 
@@ -31,243 +39,6 @@ const openDialogue = (
   dialogue.queue = [...lines];
   dialogue.queueIndex = 0;
   dialogue.text = dialogue.queue[0];
-};
-
-export interface HealLocation {
-  id: string;
-  map: string;
-  x: number;
-  y: number;
-  respawnMap: string;
-  respawnNpc: string;
-  respawnX: number;
-  respawnY: number;
-}
-
-export const HEAL_LOCATIONS: HealLocation[] = [
-  {
-    id: 'HEAL_LOCATION_PALLET_TOWN',
-    map: 'MAP_PALLET_TOWN',
-    x: 6,
-    y: 8,
-    respawnMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F',
-    respawnNpc: 'LOCALID_MOM',
-    respawnX: 8,
-    respawnY: 5
-  },
-  {
-    id: 'HEAL_LOCATION_VIRIDIAN_CITY',
-    map: 'MAP_VIRIDIAN_CITY',
-    x: 26,
-    y: 27,
-    respawnMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_VIRIDIAN_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_PEWTER_CITY',
-    map: 'MAP_PEWTER_CITY',
-    x: 17,
-    y: 26,
-    respawnMap: 'MAP_PEWTER_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_PEWTER_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_CERULEAN_CITY',
-    map: 'MAP_CERULEAN_CITY',
-    x: 22,
-    y: 20,
-    respawnMap: 'MAP_CERULEAN_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_CERULEAN_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_LAVENDER_TOWN',
-    map: 'MAP_LAVENDER_TOWN',
-    x: 6,
-    y: 6,
-    respawnMap: 'MAP_LAVENDER_TOWN_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_LAVENDER_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_VERMILION_CITY',
-    map: 'MAP_VERMILION_CITY',
-    x: 15,
-    y: 7,
-    respawnMap: 'MAP_VERMILION_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_VERMILION_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_CELADON_CITY',
-    map: 'MAP_CELADON_CITY',
-    x: 48,
-    y: 12,
-    respawnMap: 'MAP_CELADON_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_CELADON_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_FUCHSIA_CITY',
-    map: 'MAP_FUCHSIA_CITY',
-    x: 25,
-    y: 32,
-    respawnMap: 'MAP_FUCHSIA_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_FUCHSIA_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_CINNABAR_ISLAND',
-    map: 'MAP_CINNABAR_ISLAND',
-    x: 14,
-    y: 12,
-    respawnMap: 'MAP_CINNABAR_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_CINNABAR_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_INDIGO_PLATEAU',
-    map: 'MAP_INDIGO_PLATEAU_EXTERIOR',
-    x: 11,
-    y: 7,
-    respawnMap: 'MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_LEAGUE_NURSE',
-    respawnX: 13,
-    respawnY: 12
-  },
-  {
-    id: 'HEAL_LOCATION_SAFFRON_CITY',
-    map: 'MAP_SAFFRON_CITY',
-    x: 24,
-    y: 39,
-    respawnMap: 'MAP_SAFFRON_CITY_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_SAFFRON_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_ROUTE4',
-    map: 'MAP_ROUTE4',
-    x: 12,
-    y: 6,
-    respawnMap: 'MAP_ROUTE4_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_ROUTE4_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_ROUTE10',
-    map: 'MAP_ROUTE10',
-    x: 13,
-    y: 21,
-    respawnMap: 'MAP_ROUTE10_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_ROUTE10_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_ONE_ISLAND',
-    map: 'MAP_ONE_ISLAND',
-    x: 14,
-    y: 6,
-    respawnMap: 'MAP_ONE_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_ONE_ISLAND_NURSE',
-    respawnX: 5,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_TWO_ISLAND',
-    map: 'MAP_TWO_ISLAND',
-    x: 21,
-    y: 8,
-    respawnMap: 'MAP_TWO_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_TWO_ISLAND_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_THREE_ISLAND',
-    map: 'MAP_THREE_ISLAND',
-    x: 14,
-    y: 28,
-    respawnMap: 'MAP_THREE_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_THREE_ISLAND_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_FOUR_ISLAND',
-    map: 'MAP_FOUR_ISLAND',
-    x: 18,
-    y: 21,
-    respawnMap: 'MAP_FOUR_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_FOUR_ISLAND_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_FIVE_ISLAND',
-    map: 'MAP_FIVE_ISLAND',
-    x: 18,
-    y: 7,
-    respawnMap: 'MAP_FIVE_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_FIVE_ISLAND_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_SIX_ISLAND',
-    map: 'MAP_SIX_ISLAND',
-    x: 11,
-    y: 12,
-    respawnMap: 'MAP_SIX_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_SIX_ISLAND_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  },
-  {
-    id: 'HEAL_LOCATION_SEVEN_ISLAND',
-    map: 'MAP_SEVEN_ISLAND',
-    x: 12,
-    y: 4,
-    respawnMap: 'MAP_SEVEN_ISLAND_POKEMON_CENTER_1F',
-    respawnNpc: 'LOCALID_SEVEN_ISLAND_NURSE',
-    respawnX: 7,
-    respawnY: 4
-  }
-];
-
-const RESPAWN_VAR = 'lastHealLocationId';
-
-export const getHealLocationById = (id: string): HealLocation | undefined =>
-  HEAL_LOCATIONS.find((loc) => loc.id === id);
-
-export const getHealLocationForMap = (centerMapId: string): HealLocation | undefined =>
-  HEAL_LOCATIONS.find((loc) => loc.respawnMap === centerMapId);
-
-export const setRespawn = (runtime: CenterRuntimeState, healLocationId: string): void => {
-  const loc = getHealLocationById(healLocationId);
-  if (loc) {
-    runtime.vars[RESPAWN_VAR] = HEAL_LOCATIONS.indexOf(loc);
-  }
-};
-
-export const getRespawnLocation = (runtime: CenterRuntimeState): HealLocation | undefined => {
-  const idx = runtime.vars[RESPAWN_VAR];
-  if (typeof idx === 'number' && idx >= 0 && idx < HEAL_LOCATIONS.length) {
-    return HEAL_LOCATIONS[idx];
-  }
-  return HEAL_LOCATIONS[0];
 };
 
 export const NURSE_DIALOGUE = {
@@ -302,13 +73,14 @@ export const createNurseScriptHandler = (
   };
 };
 
-const CENTER_MAP_TO_HEAL_LOCATION: Record<string, string> = {};
-for (const loc of HEAL_LOCATIONS) {
-  CENTER_MAP_TO_HEAL_LOCATION[loc.respawnMap] = loc.id;
-}
-
-export const getHealLocationIdForCenterMap = (centerMapId: string): string | undefined =>
-  CENTER_MAP_TO_HEAL_LOCATION[centerMapId];
+export {
+  getHealLocationById,
+  getHealLocationForMap,
+  getHealLocationIdForCenterMap,
+  getRespawnLocation,
+  HEAL_LOCATIONS,
+  setRespawn
+};
 
 export interface CenterNpcDialogue {
   scriptId: string;

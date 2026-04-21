@@ -7,6 +7,8 @@ import type { MapHiddenItemSource } from '../world/mapSource';
 import { addBagItem, getBagPocketByItemId, getBagPocketLabel, getItemDefinition } from './bag';
 import type { ScriptHandler, ScriptRuntimeState } from './scripts';
 import { runScriptById, setScriptFlag } from './scripts';
+import type { DialogueChoiceState, FieldScriptSessionState } from './decompFieldDialogue';
+import { stepDecompFieldDialogue } from './decompFieldDialogue';
 import { tryRunFacingTrigger } from './triggers';
 
 export interface DialogueState {
@@ -15,14 +17,20 @@ export interface DialogueState {
   text: string;
   queue: string[];
   queueIndex: number;
+  choice: DialogueChoiceState | null;
+  scriptSession: FieldScriptSessionState | null;
 }
+
+const MB_COUNTER = 0x80;
 
 export const createDialogueState = (): DialogueState => ({
   active: false,
   speakerId: null,
   text: '',
   queue: [],
-  queueIndex: 0
+  queueIndex: 0,
+  choice: null,
+  scriptSession: null
 });
 
 export const openDialogueSequence = (
@@ -44,6 +52,8 @@ export const openDialogueSequence = (
   dialogue.queue = [...lines];
   dialogue.queueIndex = 0;
   dialogue.text = dialogue.queue[0];
+  dialogue.choice = null;
+  dialogue.scriptSession = null;
 };
 
 export const closeDialogue = (dialogue: DialogueState): void => {
@@ -52,6 +62,8 @@ export const closeDialogue = (dialogue: DialogueState): void => {
   dialogue.text = '';
   dialogue.queue = [];
   dialogue.queueIndex = 0;
+  dialogue.choice = null;
+  dialogue.scriptSession = null;
 };
 
 export const advanceDialogue = (dialogue: DialogueState): void => {
@@ -101,10 +113,25 @@ const toInteractionTile = (position: Vec2, tileSize: number): Vec2 =>
     Math.floor((position.y + 12) / tileSize)
   );
 
+const getTileBehavior = (
+  tileBehaviors: number[] | undefined,
+  mapWidth: number | undefined,
+  tile: Vec2
+): number | null => {
+  if (!tileBehaviors || !mapWidth || tile.x < 0 || tile.y < 0) {
+    return null;
+  }
+
+  const index = tile.y * mapWidth + tile.x;
+  return index >= 0 && index < tileBehaviors.length ? tileBehaviors[index] : null;
+};
+
 const findNpcInFront = (
   player: PlayerState,
   npcs: NpcState[],
-  tileSize: number
+  tileSize: number,
+  mapWidth?: number,
+  tileBehaviors?: number[]
 ): NpcState | null => {
   const playerTile = toInteractionTile(player.position, tileSize);
   const direction = facingVector(player.facing);
@@ -113,6 +140,18 @@ const findNpcInFront = (
   for (const npc of npcs) {
     const npcTile = toInteractionTile(npc.position, tileSize);
     if (npcTile.x === targetTile.x && npcTile.y === targetTile.y) {
+      return npc;
+    }
+  }
+
+  if (getTileBehavior(tileBehaviors, mapWidth, targetTile) !== MB_COUNTER) {
+    return null;
+  }
+
+  const counterFarTile = vec2(targetTile.x + direction.x, targetTile.y + direction.y);
+  for (const npc of npcs) {
+    const npcTile = toInteractionTile(npc.position, tileSize);
+    if (npcTile.x === counterFarTile.x && npcTile.y === counterFarTile.y) {
       return npc;
     }
   }
@@ -159,13 +198,19 @@ export const stepInteraction = (
   triggers: TriggerZone[] = [],
   runtime?: ScriptRuntimeState,
   scriptRegistry?: Record<string, ScriptHandler>,
-  hiddenItems: MapHiddenItemSource[] = []
+  hiddenItems: MapHiddenItemSource[] = [],
+  mapWidth?: number,
+  tileBehaviors?: number[]
 ): DialogueState => {
-  if (!input.interactPressed) {
-    return dialogue;
-  }
-
   if (dialogue.active) {
+    if (runtime && stepDecompFieldDialogue(dialogue, input, runtime, player)) {
+      return dialogue;
+    }
+
+    if (!input.interactPressed && !input.cancelPressed) {
+      return dialogue;
+    }
+
     // Mirrors the A-button message flow in the original field engine:
     // while a text printer is active, interaction advances message state before
     // returning to normal object-event processing.
@@ -173,9 +218,13 @@ export const stepInteraction = (
     return dialogue;
   }
 
+  if (!input.interactPressed) {
+    return dialogue;
+  }
+
   // Matches field_control_avatar.c interaction priority:
   // object events first, then background/facing triggers.
-  const npc = findNpcInFront(player, npcs, tileSize);
+  const npc = findNpcInFront(player, npcs, tileSize, mapWidth, tileBehaviors);
   if (npc) {
     npc.facing = oppositeFacing(player.facing);
     npc.moving = false;
@@ -191,7 +240,8 @@ export const stepInteraction = (
         {
           player,
           dialogue,
-          runtime
+          runtime,
+          speakerId: npc.id
         },
         scriptRegistry
       );

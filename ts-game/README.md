@@ -19,7 +19,7 @@ The app currently implements a functional runtime slice:
 - START menu flow with FireRed-like dynamic option composition and submenu callbacks
 - START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
 - START > BAG now uses a decomp-derived shared inventory state with `ITEMS` / `KEY ITEMS` / `POKé BALLS` pockets, per-pocket cursor memory, item pickup persistence, and a dedicated FireRed-style bag overlay
-- Battle parity foundation: decomp-backed move metadata and learnsets, script-shaped single wild-battle sequencing, decomp terrain mapping, a renderer-backed canvas battle scene instead of the old DOM battle overlay, and new battle-runtime scaffolding for side/party/battler state plus deterministic trace events
+- Battle parity foundation: decomp-backed move metadata and learnsets, parsed battle-script / battle-AI / trainer-battle data from the decomp, script-shaped single wild-battle sequencing, decomp terrain mapping, a renderer-backed canvas battle scene instead of the old DOM battle overlay, and battle-runtime scaffolding for side/party/battler state plus deterministic trace events
 - Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
 - Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
 
@@ -28,7 +28,7 @@ The app currently implements a functional runtime slice:
 - `src/core` — runtime primitives (loop, vectors, camera)
 - `src/input` — browser input adapters / snapshots
 - `src/world` — map and collision data structures
-- `src/game` — gameplay state stepping, including decomp-backed battle data and battle engine state
+- `src/game` — gameplay state stepping, including decomp-backed battle data, decomp parser modules, and battle engine state
 - `src/rendering` — canvas rendering adapter, including the battle scene renderer
 - `src/ui` — lightweight DOM HUD bindings
 - `test` — Vitest unit tests
@@ -124,4 +124,4 @@ Near-term next increments:
 2. Replace remaining START-menu placeholder panels with fully interactive menu scenes (party/player + deeper save UX parity).
 3. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
 4. Expand decomp-backed overworld parity beyond Route 2 with richer object movement patterns and more map fixtures.
-5. Keep battle implementation aligned to the decompiled sources (`battle_main.c`, `battle_script_commands.c`, `battle_bg.c`, `battle_interface.c`) as more mechanics and UI states are ported, using the new config-driven battle state / trace scaffolding as the migration path toward fuller trainer and multi-battler parity.
+5. Keep battle implementation aligned to the decompiled sources (`battle_main.c`, `battle_script_commands.c`, `battle_bg.c`, `battle_interface.c`, `battle_ai_script_commands.c`, `battle_ai_switch_items.c`) as more mechanics and UI states are ported, using the current decomp parser layer plus the config-driven battle state, battle-VM scaffolding, structured post-battle result pipeline, and trace serialization as the migration path toward fuller trainer and multi-battler parity.

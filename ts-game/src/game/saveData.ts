@@ -2,6 +2,13 @@ import type { PlayerState } from './player';
 import type { ScriptRuntimeState } from './scripts';
 import { isValidBagState, sanitizeBagState } from './bag';
 import {
+  clonePlayTimeCounter,
+  createPlayTimeCounterFromSeconds,
+  startPlayTimeCounter,
+  type PlayTimeCounter
+} from './decompPlayTime';
+import { UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK } from './decompSaveLocation';
+import {
   cloneParty,
   clonePokedex,
   type FieldPokemon,
@@ -14,6 +21,7 @@ export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v6';
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
 }
 
 export interface SaveSnapshot {
@@ -32,6 +40,14 @@ export interface SaveSnapshot {
     consumedTriggerIds: string[];
     startMenu: ScriptRuntimeState['startMenu'];
     options: ScriptRuntimeState['options'];
+    specialSaveWarpFlags: number;
+    gcnLinkFlags: number;
+    playTime: {
+      hours: number;
+      minutes: number;
+      seconds: number;
+      vblanks: number;
+    };
     party: ScriptRuntimeState['party'];
     pokedex: ScriptRuntimeState['pokedex'];
     bag: ScriptRuntimeState['bag'];
@@ -58,6 +74,25 @@ const isObjectWithNumberValues = (value: unknown): value is Record<string, numbe
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 
+const isPlayTimeCounterLike = (value: unknown): value is Omit<PlayTimeCounter, 'state'> => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.hours)
+    && Number.isInteger(candidate.minutes)
+    && Number.isInteger(candidate.seconds)
+    && Number.isInteger(candidate.vblanks)
+    && (candidate.hours as number) >= 0
+    && (candidate.minutes as number) >= 0
+    && (candidate.minutes as number) <= 59
+    && (candidate.seconds as number) >= 0
+    && (candidate.seconds as number) <= 59
+    && (candidate.vblanks as number) >= 0
+    && (candidate.vblanks as number) <= 59;
+};
+
 const isFieldPokemon = (value: unknown): value is FieldPokemon => {
   if (!value || typeof value !== 'object') {
     return false;
@@ -76,6 +111,7 @@ const isFieldPokemon = (value: unknown): value is FieldPokemon => {
     && typeof candidate.catchRate === 'number'
     && Array.isArray(candidate.types)
     && candidate.types.every((entry) => typeof entry === 'string')
+    && (candidate.championRibbon === undefined || typeof candidate.championRibbon === 'boolean')
     && (candidate.status === 'none' || candidate.status === 'poison');
 };
 
@@ -109,6 +145,12 @@ export const createSaveSnapshot = (
   runtime: ScriptRuntimeState,
   savedAt = nowIso()
 ): SaveSnapshot => {
+  const playTime = clonePlayTimeCounter(runtime.playTime);
+  const vars = {
+    ...runtime.vars,
+    playTimeSeconds: (playTime.hours * 3600) + (playTime.minutes * 60) + playTime.seconds,
+    playTimeMinutes: (playTime.hours * 60) + playTime.minutes
+  };
   // FireRed rotates save sectors with a monotonically increasing save index.
   // We mirror that concept with runtime.saveCounter and persist it for deterministic resumes.
   const saveIndex = runtime.saveCounter + 1;
@@ -123,11 +165,19 @@ export const createSaveSnapshot = (
       facing: player.facing
     },
     runtime: {
-      vars: { ...runtime.vars },
+      vars,
       flags: [...runtime.flags],
       consumedTriggerIds: [...runtime.consumedTriggerIds],
       startMenu: { ...runtime.startMenu },
       options: { ...runtime.options },
+      specialSaveWarpFlags: runtime.specialSaveWarpFlags,
+      gcnLinkFlags: runtime.gcnLinkFlags,
+      playTime: {
+        hours: playTime.hours,
+        minutes: playTime.minutes,
+        seconds: playTime.seconds,
+        vblanks: playTime.vblanks
+      },
       party: cloneParty(runtime.party),
       pokedex: clonePokedex(runtime.pokedex),
       bag: JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag']
@@ -203,9 +253,27 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
+  if (runtime.specialSaveWarpFlags !== undefined && !Number.isInteger(runtime.specialSaveWarpFlags)) {
+    return null;
+  }
+
+  if (runtime.gcnLinkFlags !== undefined && !Number.isInteger(runtime.gcnLinkFlags)) {
+    return null;
+  }
+
   if (!isFieldPokemonArray(runtime.party) || !isPokedexState(runtime.pokedex)) {
     return null;
   }
+
+  const parsedPlayTime = isPlayTimeCounterLike(runtime.playTime)
+    ? createPlayTimeCounterFromSeconds(
+        (((runtime.playTime as Record<string, number>).hours ?? 0) * 3600)
+        + (((runtime.playTime as Record<string, number>).minutes ?? 0) * 60)
+        + ((runtime.playTime as Record<string, number>).seconds ?? 0),
+        (runtime.playTime as Record<string, number>).vblanks ?? 0
+      )
+    : createPlayTimeCounterFromSeconds((runtime.vars as Record<string, number>).playTimeSeconds ?? 0);
+  startPlayTimeCounter(parsedPlayTime);
 
   if (!isValidBagState(runtime.bag)) {
     return null;
@@ -239,6 +307,15 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
         sound: options.sound,
         buttonMode: options.buttonMode,
         frameType: options.frameType as number
+      },
+      specialSaveWarpFlags: (runtime.specialSaveWarpFlags as number | undefined) ?? 0,
+      gcnLinkFlags: (runtime.gcnLinkFlags as number | undefined)
+        ?? (startMenu.hasPokedex ? UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK : 0),
+      playTime: {
+        hours: parsedPlayTime.hours,
+        minutes: parsedPlayTime.minutes,
+        seconds: parsedPlayTime.seconds,
+        vblanks: parsedPlayTime.vblanks
       },
       party: cloneParty(runtime.party as FieldPokemon[]),
       pokedex: clonePokedex(runtime.pokedex as PokedexState),
@@ -281,6 +358,18 @@ export const loadGameFromStorage = (
   }
 };
 
+export const clearSavedGameFromStorage = (
+  storage: StorageLike,
+  key = DEFAULT_SAVE_SLOT_KEY
+): void => {
+  if (typeof storage.removeItem === 'function') {
+    storage.removeItem(key);
+    return;
+  }
+
+  storage.setItem(key, '');
+};
+
 export const applySaveSnapshot = (
   snapshot: SaveSnapshot,
   mapId: string,
@@ -302,9 +391,18 @@ export const applySaveSnapshot = (
   runtime.consumedTriggerIds = new Set<string>(snapshot.runtime.consumedTriggerIds);
   runtime.startMenu = { ...snapshot.runtime.startMenu };
   runtime.options = { ...snapshot.runtime.options };
+  runtime.specialSaveWarpFlags = snapshot.runtime.specialSaveWarpFlags;
+  runtime.gcnLinkFlags = snapshot.runtime.gcnLinkFlags;
+  runtime.playTime = createPlayTimeCounterFromSeconds(
+    (snapshot.runtime.playTime.hours * 3600) + (snapshot.runtime.playTime.minutes * 60) + snapshot.runtime.playTime.seconds,
+    snapshot.runtime.playTime.vblanks
+  );
+  startPlayTimeCounter(runtime.playTime);
   runtime.party = cloneParty(snapshot.runtime.party);
   runtime.pokedex = clonePokedex(snapshot.runtime.pokedex);
   runtime.bag = sanitizeBagState(JSON.parse(JSON.stringify(snapshot.runtime.bag)) as ScriptRuntimeState['bag']);
+  runtime.vars.playTimeSeconds = (runtime.playTime.hours * 3600) + (runtime.playTime.minutes * 60) + runtime.playTime.seconds;
+  runtime.vars.playTimeMinutes = (runtime.playTime.hours * 60) + runtime.playTime.minutes;
   runtime.saveCounter = snapshot.saveIndex;
   return true;
 };

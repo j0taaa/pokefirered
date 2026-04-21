@@ -4,8 +4,10 @@ import { fileURLToPath } from 'node:url';
 
 const MAPGRID_COLLISION_MASK = 0x0c00;
 const MAPGRID_COLLISION_SHIFT = 10;
+const MAPGRID_ELEVATION_MASK = 0xf000;
+const MAPGRID_ELEVATION_SHIFT = 12;
 const MAPGRID_METATILE_ID_MASK = 0x03ff;
-const NUM_METATILES_IN_PRIMARY = 0x200;
+const NUM_METATILES_IN_PRIMARY = 640;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_MASK = 0x07000000;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_SHIFT = 24;
 const METATILE_ATTRIBUTE_BEHAVIOR_MASK = 0x000001ff;
@@ -256,6 +258,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
   const secondaryAttributes = readBinary(tilesetAttributePath(layout.secondary_tileset));
   const collisionRows = [];
   const encounterRows = [];
+  const elevationRows = [];
   const behaviorRows = [];
   const metatileIds = [];
   const layerTypes = [];
@@ -263,16 +266,19 @@ const exportMap = (mapName, gameName = 'FireRed') => {
   for (let y = 0; y < layout.height; y += 1) {
     let collisionRow = '';
     let encounterRow = '';
+    let elevationRow = '';
     let behaviorRow = '';
 
     for (let x = 0; x < layout.width; x += 1) {
       const block = blockData.readUInt16LE((y * layout.width + x) * 2);
       const collision = (block & MAPGRID_COLLISION_MASK) >> MAPGRID_COLLISION_SHIFT;
+      const elevation = (block & MAPGRID_ELEVATION_MASK) >> MAPGRID_ELEVATION_SHIFT;
       const metatileId = block & MAPGRID_METATILE_ID_MASK;
       const attributes = readMetatileAttributes(primaryAttributes, secondaryAttributes, metatileId);
 
       collisionRow += collision === 0 ? '.' : '#';
       encounterRow += toEncounterMarker(attributes);
+      elevationRow += elevation.toString(16);
       behaviorRow += (attributes & METATILE_ATTRIBUTE_BEHAVIOR_MASK).toString(16).padStart(2, '0');
       metatileIds.push(metatileId);
       layerTypes.push(
@@ -282,6 +288,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
 
     collisionRows.push(collisionRow);
     encounterRows.push(encounterRow);
+    elevationRows.push(elevationRow);
     behaviorRows.push(behaviorRow);
   }
 
@@ -313,6 +320,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
     },
     collisionRows,
     encounterRows,
+    elevationRows,
     behaviorRows,
     triggers: [
       ...map.coord_events.map(coordEventToTrigger),

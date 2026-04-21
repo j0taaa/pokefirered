@@ -165,6 +165,7 @@ describe('map connections', () => {
 
   test('loads Route 22 through the shared map loader', () => {
     expect(loadMapById('MAP_ROUTE22')?.id).toBe('MAP_ROUTE22');
+    expect(loadMapById('MAP_VIRIDIAN_FOREST')?.id).toBe('MAP_VIRIDIAN_FOREST');
   });
 
   test('loads Pallet Town and Route 21 North through the shared map loader', () => {

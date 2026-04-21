@@ -1,9 +1,20 @@
 export type FieldPokemonStatus = 'none' | 'poison';
 
+export interface FieldPokemonEvs {
+  hp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  spAttack: number;
+  spDefense: number;
+}
+
 export interface FieldPokemon {
   species: string;
   level: number;
   expProgress?: number;
+  evs?: FieldPokemonEvs;
+  championRibbon?: boolean;
   maxHp: number;
   hp: number;
   attack: number;
@@ -72,6 +83,7 @@ export const createDefaultPokedex = (): PokedexState => ({
 
 export const cloneFieldPokemon = (pokemon: FieldPokemon): FieldPokemon => ({
   ...pokemon,
+  evs: pokemon.evs ? { ...pokemon.evs } : undefined,
   types: [...pokemon.types]
 });
 

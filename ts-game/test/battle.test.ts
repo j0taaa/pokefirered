@@ -4,6 +4,7 @@ import {
   calculateCaptureOdds,
   calculateDamagePreview,
   calculateTypeEffectiveness,
+  applyBattleRewards,
   createBattleEncounterState,
   createBattleState,
   getBallCatchMultiplierTenths,
@@ -12,6 +13,7 @@ import {
   performCaptureAttempt,
   shouldStartWildEncounter,
   startConfiguredBattle,
+  startTrainerBattle,
   stepBattle,
   tryStartWildBattle
 } from '../src/game/battle';
@@ -195,6 +197,885 @@ describe('battle vertical slice', () => {
     expect(battle.battleTrace.some((event) => event.type === 'message' && event.text?.includes('used'))).toBe(true);
     expect(battle.battleTrace.some((event) => event.type === 'hp' && event.battler === 'opponent')).toBe(true);
     expect(battle.battleTrace.some((event) => event.type === 'phase' && event.text === 'script')).toBe(true);
+    expect(['BattleScript_EFFECT_HIT', 'BattleScript_EFFECT_SPLASH']).toContain(battle.vm.currentLabel);
+    expect(battle.vm.pendingCommands.some((command) => command.type === 'script' && command.label === battle.vm.currentLabel)).toBe(true);
+    expect(battle.vm.pendingMessages.some((message) => message.includes('used'))).toBe(true);
+  });
+
+  test('battle state supports config-driven format, control mode, partner party, and active battler scaffolding', () => {
+    const battle = createBattleState({
+      format: 'doubles',
+      controlMode: 'partner',
+      playerParty: [
+        {
+          species: 'BULBASAUR',
+          level: 12,
+          expProgress: 0.1,
+          maxHp: 31,
+          hp: 31,
+          attack: 15,
+          defense: 15,
+          speed: 14,
+          spAttack: 18,
+          spDefense: 17,
+          catchRate: 45,
+          types: ['grass', 'poison'],
+          status: 'none'
+        },
+        {
+          species: 'PIDGEY',
+          level: 11,
+          expProgress: 0.2,
+          maxHp: 28,
+          hp: 28,
+          attack: 16,
+          defense: 13,
+          speed: 19,
+          spAttack: 12,
+          spDefense: 12,
+          catchRate: 255,
+          types: ['normal', 'flying'],
+          status: 'none'
+        }
+      ],
+      partnerParty: [
+        {
+          species: 'PIKACHU',
+          level: 10,
+          expProgress: 0.3,
+          maxHp: 26,
+          hp: 26,
+          attack: 14,
+          defense: 11,
+          speed: 21,
+          spAttack: 15,
+          spDefense: 14,
+          catchRate: 190,
+          types: ['electric'],
+          status: 'none'
+        }
+      ],
+      opponentParty: [
+        {
+          species: 'RATTATA',
+          level: 10,
+          expProgress: 0,
+          maxHp: 24,
+          hp: 24,
+          attack: 14,
+          defense: 10,
+          speed: 20,
+          spAttack: 9,
+          spDefense: 10,
+          catchRate: 255,
+          types: ['normal'],
+          status: 'none'
+        },
+        {
+          species: 'SPEAROW',
+          level: 10,
+          expProgress: 0,
+          maxHp: 25,
+          hp: 25,
+          attack: 15,
+          defense: 10,
+          speed: 20,
+          spAttack: 10,
+          spDefense: 10,
+          catchRate: 255,
+          types: ['normal', 'flying'],
+          status: 'none'
+        }
+      ],
+      activeBattlers: [
+        { battlerId: 0, side: 'player', partyIndex: 0, active: true, absent: false },
+        { battlerId: 1, side: 'opponent', partyIndex: 0, active: true, absent: false },
+        { battlerId: 2, side: 'player', partyIndex: 1, active: true, absent: false },
+        { battlerId: 3, side: 'opponent', partyIndex: 1, active: true, absent: false }
+      ]
+    });
+
+    expect(battle.format).toBe('doubles');
+    expect(battle.controlMode).toBe('partner');
+    expect(battle.partnerParty.map((pokemon) => pokemon.species)).toEqual(['PIKACHU']);
+    expect(battle.playerSide.activePartyIndexes).toEqual([0, 1]);
+    expect(battle.opponentSide.activePartyIndexes).toEqual([0, 1]);
+    expect(battle.battlers).toEqual([
+      expect.objectContaining({ battlerId: 0, side: 'player', partyIndex: 0, active: true, absent: false }),
+      expect.objectContaining({ battlerId: 1, side: 'opponent', partyIndex: 0, active: true, absent: false }),
+      expect.objectContaining({ battlerId: 2, side: 'player', partyIndex: 1, active: true, absent: false }),
+      expect.objectContaining({ battlerId: 3, side: 'opponent', partyIndex: 1, active: true, absent: false })
+    ]);
+  });
+
+  test('startTrainerBattle queues trainer intro flow and blocks capture attempts', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'GEODUDE',
+        level: 12,
+        expProgress: 0.15,
+        maxHp: 30,
+        hp: 30,
+        attack: 18,
+        defense: 22,
+        speed: 9,
+        spAttack: 10,
+        spDefense: 12,
+        catchRate: 255,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+
+    expect(battle.mode).toBe('trainer');
+    expect(battle.phase).toBe('script');
+    expect(battle.turnSummary).toContain('BROCK wants to battle!');
+    expect(battle.queuedMessages).toContain('BROCK sent out GEODUDE!');
+    expect(battle.queuedMessages).toContain(`Go! ${battle.playerMon.species}!`);
+    expect(performCaptureAttempt(battle, encounter).blockedReason).toBe('trainer');
+
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.phase).toBe('command');
+    expect(battle.turnSummary).toBe(`What will ${battle.playerMon.species} do?`);
+  });
+
+  test('trainer battles send out the next opponent party member after a faint', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      battleStyle: 'set',
+      opponentParty: [
+        {
+          species: 'GEODUDE',
+          level: 12,
+          expProgress: 0.15,
+          maxHp: 30,
+          hp: 1,
+          attack: 18,
+          defense: 22,
+          speed: 9,
+          spAttack: 10,
+          spDefense: 12,
+          catchRate: 255,
+          types: ['rock', 'ground'],
+          status: 'none'
+        },
+        {
+          species: 'ONIX',
+          level: 14,
+          expProgress: 0.25,
+          maxHp: 35,
+          hp: 35,
+          attack: 18,
+          defense: 28,
+          speed: 12,
+          spAttack: 9,
+          spDefense: 14,
+          catchRate: 45,
+          types: ['rock', 'ground'],
+          status: 'none'
+        }
+      ]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain('Foe GEODUDE fainted!');
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('gained') && message.includes('EXP. Points!'))).toBe(true);
+    expect(battle.queuedMessages).toContain('BROCK sent out ONIX!');
+
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.wildMon.species).toBe('ONIX');
+    expect(battle.opponentSide.activePartyIndexes).toEqual([1]);
+    expect(battle.phase).toBe('command');
+    expect(battle.turnSummary).toBe(`What will ${battle.playerMon.species} do?`);
+  });
+
+  test('shift-style trainer battles offer a switch prompt before the next opponent is sent out', () => {
+    const battle = createBattleState({ battleStyle: 'shift' });
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      battleStyle: 'shift',
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [
+        {
+          species: 'GEODUDE',
+          level: 12,
+          expProgress: 0.15,
+          maxHp: 30,
+          hp: 1,
+          attack: 18,
+          defense: 22,
+          speed: 9,
+          spAttack: 10,
+          spDefense: 12,
+          catchRate: 255,
+          types: ['rock', 'ground'],
+          status: 'none'
+        },
+        {
+          species: 'ONIX',
+          level: 14,
+          expProgress: 0.25,
+          maxHp: 35,
+          hp: 35,
+          attack: 18,
+          defense: 28,
+          speed: 12,
+          spAttack: 9,
+          spDefense: 14,
+          catchRate: 45,
+          types: ['rock', 'ground'],
+          status: 'none'
+        }
+      ]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.phase).toBe('shiftPrompt');
+    expect(battle.pendingOpponentPartyIndex).toBe(1);
+    expect(battle.turnSummary).toBe(`Will ${battle.playerSide.name} change POKeMON?`);
+
+    battle.selectedShiftPromptIndex = 1;
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.wildMon.species).toBe('ONIX');
+    expect(battle.pendingOpponentPartyIndex).toBeNull();
+    expect(battle.turnSummary).toBe('BROCK sent out ONIX!');
+
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.phase).toBe('command');
+    expect(battle.turnSummary).toBe(`What will ${battle.playerMon.species} do?`);
+  });
+
+  test('shift-style trainer battles let the player switch before the next opponent is sent out', () => {
+    const battle = createBattleState({ battleStyle: 'shift' });
+    const encounter = createBattleEncounterState();
+    const incoming = battle.party[1]!;
+    const incomingHp = incoming.hp;
+
+    startTrainerBattle(battle, {
+      battleStyle: 'shift',
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [
+        {
+          species: 'GEODUDE',
+          level: 12,
+          expProgress: 0.15,
+          maxHp: 30,
+          hp: 1,
+          attack: 18,
+          defense: 22,
+          speed: 9,
+          spAttack: 10,
+          spDefense: 12,
+          catchRate: 255,
+          types: ['rock', 'ground'],
+          status: 'none'
+        },
+        {
+          species: 'ONIX',
+          level: 14,
+          expProgress: 0.25,
+          maxHp: 35,
+          hp: 35,
+          attack: 18,
+          defense: 28,
+          speed: 12,
+          spAttack: 9,
+          spDefense: 14,
+          catchRate: 45,
+          types: ['rock', 'ground'],
+          status: 'none'
+        }
+      ]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.phase).toBe('shiftPrompt');
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('partySelect');
+
+    battle.selectedPartyIndex = 1;
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.playerMon.species).toBe(incoming.species);
+    expect(battle.playerMon.hp).toBe(incomingHp);
+    expect(battle.playerSide.activePartyIndexes).toEqual([1]);
+    expect(battle.wildMon.species).toBe('ONIX');
+    expect(battle.pendingOpponentPartyIndex).toBeNull();
+    expect(battle.queuedMessages).toContain(`Go! ${incoming.species}!`);
+    expect(battle.queuedMessages).toContain('BROCK sent out ONIX!');
+    expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(false);
+
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.phase).toBe('command');
+    expect(battle.turnSummary).toBe(`What will ${incoming.species} do?`);
+  });
+
+  test('backing out of the shift party menu returns to the yes-no prompt', () => {
+    const battle = createBattleState({ battleStyle: 'shift' });
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      battleStyle: 'shift',
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [
+        {
+          species: 'GEODUDE',
+          level: 12,
+          expProgress: 0.15,
+          maxHp: 30,
+          hp: 1,
+          attack: 18,
+          defense: 22,
+          speed: 9,
+          spAttack: 10,
+          spDefense: 12,
+          catchRate: 255,
+          types: ['rock', 'ground'],
+          status: 'none'
+        },
+        {
+          species: 'ONIX',
+          level: 14,
+          expProgress: 0.25,
+          maxHp: 35,
+          hp: 35,
+          attack: 18,
+          defense: 28,
+          speed: 12,
+          spAttack: 9,
+          spDefense: 14,
+          catchRate: 45,
+          types: ['rock', 'ground'],
+          status: 'none'
+        }
+      ]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+    flushScriptMessages(battle, encounter);
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('partySelect');
+
+    stepBattle(battle, { ...neutralInput, cancel: true, cancelPressed: true }, encounter);
+
+    expect(battle.phase).toBe('shiftPrompt');
+    expect(battle.turnSummary).toBe(`Will ${battle.playerSide.name} change POKeMON?`);
+  });
+
+  test('set-style trainer battles immediately send out the next opponent after a faint', () => {
+    const battle = createBattleState({ battleStyle: 'set' });
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      battleStyle: 'set',
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [
+        {
+          species: 'GEODUDE',
+          level: 12,
+          expProgress: 0.15,
+          maxHp: 30,
+          hp: 1,
+          attack: 18,
+          defense: 22,
+          speed: 9,
+          spAttack: 10,
+          spDefense: 12,
+          catchRate: 255,
+          types: ['rock', 'ground'],
+          status: 'none'
+        },
+        {
+          species: 'ONIX',
+          level: 14,
+          expProgress: 0.25,
+          maxHp: 35,
+          hp: 35,
+          attack: 18,
+          defense: 28,
+          speed: 12,
+          spAttack: 9,
+          spDefense: 14,
+          catchRate: 45,
+          types: ['rock', 'ground'],
+          status: 'none'
+        }
+      ]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.queuedMessages).toContain('BROCK sent out ONIX!');
+
+    flushScriptMessages(battle, encounter);
+
+    expect(battle.phase).toBe('command');
+    expect(battle.wildMon.species).toBe('ONIX');
+    expect(battle.pendingOpponentPartyIndex).toBeNull();
+  });
+
+  test('trainer opponents can spend their action on healing items instead of attacking', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'MISTY',
+      trainerId: 'TRAINER_MISTY',
+      opponentTrainerItems: ['ITEM_SUPER_POTION'],
+      opponentParty: [{
+        species: 'STARMIE',
+        level: 21,
+        expProgress: 0.3,
+        maxHp: 60,
+        hp: 20,
+        attack: 22,
+        defense: 20,
+        speed: 30,
+        spAttack: 28,
+        spDefense: 24,
+        catchRate: 60,
+        types: ['water', 'psychic'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.wildMon.hp).toBe(60);
+    expect(battle.opponentTrainerItems).toEqual([]);
+    expect(battle.turnSummary).toBe('MISTY used SUPER POTION!');
+    expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(false);
+
+    flushScriptMessages(battle, encounter);
+    battle.phase = 'moveSelect';
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.turnSummary).toContain('Foe STARMIE used TACKLE!');
+  });
+
+  test('trainer opponents can cure status with Full Heal instead of attacking', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'LT. SURGE',
+      trainerId: 'TRAINER_LT_SURGE',
+      opponentTrainerItems: ['ITEM_FULL_HEAL'],
+      opponentParty: [{
+        species: 'RAICHU',
+        level: 24,
+        expProgress: 0.4,
+        maxHp: 70,
+        hp: 70,
+        attack: 24,
+        defense: 20,
+        speed: 35,
+        spAttack: 30,
+        spDefense: 24,
+        catchRate: 75,
+        types: ['electric'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+    battle.wildMon.status = 'paralysis';
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeDamageMove('THUNDERSHOCK', 'EFFECT_HIT', 'electric', 40)];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.phase).toBe('script');
+    expect(battle.wildMon.status).toBe('none');
+    expect(battle.opponentTrainerItems).toEqual([]);
+    expect(battle.turnSummary).toBe('LT. SURGE used FULL HEAL!');
+    expect(battle.queuedMessages).toContain("RAICHU's status returned to normal!");
+    expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(false);
+  });
+
+  test('trainer AI prefers stronger effective moves over random wild-like choices', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState(0x1234);
+
+    startTrainerBattle(battle, {
+      opponentName: 'MISTY',
+      trainerId: 'TRAINER_MISTY',
+      opponentTrainerAiFlags: ['AI_SCRIPT_CHECK_BAD_MOVE', 'AI_SCRIPT_TRY_TO_FAINT', 'AI_SCRIPT_CHECK_VIABILITY'],
+      opponentParty: [{
+        species: 'STARMIE',
+        level: 21,
+        expProgress: 0.3,
+        maxHp: 60,
+        hp: 60,
+        attack: 22,
+        defense: 20,
+        speed: 30,
+        spAttack: 28,
+        spDefense: 24,
+        catchRate: 60,
+        types: ['water', 'psychic'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.types = ['fire'];
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [
+      makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 35),
+      makeDamageMove('WATER_GUN', 'EFFECT_HIT', 'water', 40)
+    ];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.turnSummary).toContain('Foe STARMIE used WATER GUN!');
+    expect(battle.vm.locals.aiRootScripts).toBe('AI_CheckBadMove,AI_TryToFaint,AI_CheckViability');
+  });
+
+  test('battle rewards grant EXP after a win and can level up the participating Pokemon', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'CHANSEY',
+        level: 20,
+        expProgress: 0,
+        maxHp: 120,
+        hp: 1,
+        attack: 10,
+        defense: 10,
+        speed: 10,
+        spAttack: 10,
+        spDefense: 10,
+        catchRate: 30,
+        types: ['normal'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.playerMon.expProgress = 0.99;
+    const previousLevel = battle.playerMon.level;
+    const previousMaxHp = battle.playerMon.maxHp;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('EXP. Points!'))).toBe(true);
+
+    flushScriptMessages(battle, encounter);
+    applyBattleRewards(battle);
+
+    expect(battle.playerMon.level).toBeGreaterThan(previousLevel);
+    expect(battle.playerMon.maxHp).toBeGreaterThan(previousMaxHp);
+    expect(battle.playerMon.expProgress).toBeGreaterThanOrEqual(0);
+    expect(battle.rewardsApplied).toBe(true);
+    expect(battle.battleTrace.some((event) => event.type === 'reward' && event.text?.includes('EXP'))).toBe(true);
+  });
+
+  test('EXP Share gives bench holders their FireRed share when a foe faints', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'GEODUDE',
+        level: 20,
+        expProgress: 0,
+        maxHp: 35,
+        hp: 1,
+        attack: 18,
+        defense: 22,
+        speed: 9,
+        spAttack: 10,
+        spDefense: 12,
+        catchRate: 255,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    const benchMon = battle.party[1]!;
+    const previousBenchLevel = benchMon.level;
+    benchMon.heldItemId = 'ITEM_EXP_SHARE';
+    const previousBenchExp = benchMon.expProgress;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(benchMon.level > previousBenchLevel || benchMon.expProgress !== previousBenchExp).toBe(true);
+    expect(battle.battleTrace.some((event) => event.type === 'reward' && event.text?.includes(benchMon.species))).toBe(true);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes(benchMon.species) && message.includes('EXP. Points!'))).toBe(true);
+  });
+
+  test('Lucky Egg boosts EXP after the FireRed share split', () => {
+    const plainBattle = createBattleState();
+    const luckyBattle = createBattleState();
+    const plainEncounter = createBattleEncounterState();
+    const luckyEncounter = createBattleEncounterState();
+
+    startTrainerBattle(plainBattle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'GEODUDE',
+        level: 20,
+        expProgress: 0,
+        maxHp: 35,
+        hp: 1,
+        attack: 18,
+        defense: 22,
+        speed: 9,
+        spAttack: 10,
+        spDefense: 12,
+        catchRate: 255,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+    startTrainerBattle(luckyBattle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'GEODUDE',
+        level: 20,
+        expProgress: 0,
+        maxHp: 35,
+        hp: 1,
+        attack: 18,
+        defense: 22,
+        speed: 9,
+        spAttack: 10,
+        spDefense: 12,
+        catchRate: 255,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(plainBattle, plainEncounter);
+    flushScriptMessages(luckyBattle, luckyEncounter);
+
+    luckyBattle.playerMon.heldItemId = 'ITEM_LUCKY_EGG';
+    for (const currentBattle of [plainBattle, luckyBattle]) {
+      currentBattle.phase = 'moveSelect';
+      currentBattle.playerMon.speed = 99;
+      currentBattle.wildMon.speed = 1;
+      currentBattle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+      currentBattle.playerMon.moves = currentBattle.moves;
+      currentBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+      currentBattle.wildMon.moves = currentBattle.wildMoves;
+    }
+
+    stepBattle(plainBattle, confirmInput, plainEncounter);
+    stepBattle(luckyBattle, confirmInput, luckyEncounter);
+
+    const plainReward = plainBattle.battleTrace.find((event) => event.type === 'reward' && event.battler === 'player')?.value ?? 0;
+    const luckyReward = luckyBattle.battleTrace.find((event) => event.type === 'reward' && event.battler === 'player')?.value ?? 0;
+
+    expect(luckyReward).toBeGreaterThan(plainReward);
+  });
+
+  test('defeated-species EV yields are applied, and Macho Brace doubles them', () => {
+    const plainBattle = createBattleState();
+    const machoBattle = createBattleState();
+    const plainEncounter = createBattleEncounterState();
+    const machoEncounter = createBattleEncounterState();
+
+    for (const currentBattle of [plainBattle, machoBattle]) {
+      startTrainerBattle(currentBattle, {
+        opponentName: 'BROCK',
+        trainerId: 'TRAINER_BROCK',
+        opponentParty: [{
+          species: 'CHANSEY',
+          level: 20,
+          expProgress: 0,
+          maxHp: 120,
+          hp: 1,
+          attack: 10,
+          defense: 10,
+          speed: 10,
+          spAttack: 10,
+          spDefense: 10,
+          catchRate: 30,
+          types: ['normal'],
+          status: 'none'
+        }]
+      });
+    }
+    flushScriptMessages(plainBattle, plainEncounter);
+    flushScriptMessages(machoBattle, machoEncounter);
+
+    machoBattle.playerMon.heldItemId = 'ITEM_MACHO_BRACE';
+    for (const currentBattle of [plainBattle, machoBattle]) {
+      currentBattle.phase = 'moveSelect';
+      currentBattle.playerMon.speed = 99;
+      currentBattle.wildMon.speed = 1;
+      currentBattle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+      currentBattle.playerMon.moves = currentBattle.moves;
+      currentBattle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+      currentBattle.wildMon.moves = currentBattle.wildMoves;
+    }
+
+    stepBattle(plainBattle, confirmInput, plainEncounter);
+    stepBattle(machoBattle, confirmInput, machoEncounter);
+
+    expect(plainBattle.playerMon.evs.hp).toBeGreaterThan(0);
+    expect(machoBattle.playerMon.evs.hp).toBeGreaterThan(plainBattle.playerMon.evs.hp);
+  });
+
+  test('fainted participants do not receive EXP when the foe goes down', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      opponentParty: [{
+        species: 'GEODUDE',
+        level: 20,
+        expProgress: 0,
+        maxHp: 35,
+        hp: 1,
+        attack: 18,
+        defense: 22,
+        speed: 9,
+        spAttack: 10,
+        spDefense: 12,
+        catchRate: 255,
+        types: ['rock', 'ground'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.playerMon.hp = 0;
+    battle.playerParticipantPartyIndexes = [battle.playerSide.activePartyIndexes[0] ?? 0];
+    const previousExpProgress = battle.playerMon.expProgress;
+    battle.phase = 'resolved';
+    battle.defeatedOpponentPartyIndexes = [0];
+    battle.rewardedOpponentPartyIndexes = [];
+    battle.rewardsApplied = false;
+
+    applyBattleRewards(battle);
+
+    expect(battle.playerMon.expProgress).toBe(previousExpProgress);
+    expect(battle.battleTrace.some((event) => event.type === 'reward')).toBe(false);
+    expect(battle.rewardsApplied).toBe(true);
   });
 
   test('applies Gen 3 STAB/type modifiers with integer truncation in type-table order', () => {
@@ -1055,7 +1936,7 @@ describe('battle vertical slice', () => {
       makeStatusMove('PROTECT', 'EFFECT_PROTECT', 'normal')
     ];
     sleepTalkProtectBattle.playerMon.moves = sleepTalkProtectBattle.moves;
-    sleepTalkProtectEncounter.rngState = 2;
+    sleepTalkProtectEncounter.rngState = 4;
 
     stepBattle(sleepTalkProtectBattle, confirmInput, sleepTalkProtectEncounter);
 
@@ -3434,6 +4315,39 @@ describe('battle vertical slice', () => {
     expect(battle.wildMon.species).toMatch(/RATTATA|PIDGEY|CATERPIE/);
   });
 
+  test('can start Safari wild battles with carried-over Safari Ball count', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    encounter.rngState = 0;
+
+    let started = false;
+    for (let i = 0; i < 40; i += 1) {
+      started = tryStartWildBattle(
+        battle,
+        encounter,
+        true,
+        true,
+        routeLikeLandEncounters,
+        undefined,
+        undefined,
+        {
+          mode: 'safari',
+          battleTypeFlags: ['safari'],
+          safariBalls: 12
+        }
+      );
+      if (started) {
+        break;
+      }
+    }
+
+    expect(started).toBe(true);
+    expect(battle.mode).toBe('safari');
+    expect(battle.battleTypeFlags).toContain('safari');
+    expect(battle.commands).toEqual(['safariBall', 'safariBait', 'safariRock', 'run']);
+    expect(battle.safariBalls).toBe(12);
+  });
+
   test('cooldown alone does not guarantee an encounter every step', () => {
     const encounter = createBattleEncounterState();
     encounter.encounterRate = 21;
@@ -3844,6 +4758,10 @@ describe('battle vertical slice', () => {
 
     stepBattle(battle, confirmInput, encounter);
     expect(battle.phase).toBe('resolved');
+    expect(battle.postResult).toMatchObject({
+      outcome: 'caught',
+      caughtSpecies: battle.wildMon.species
+    });
   });
 
   test('failed ball throw also spends the player action before the foe moves', () => {
@@ -3894,7 +4812,8 @@ describe('battle vertical slice', () => {
     stepBattle(battle, confirmInput, encounter);
 
     expect(battle.phase).toBe('script');
-    expect(battle.playerMon).toBe(incoming);
+    expect(battle.playerMon.species).toBe(incoming.species);
+    expect(battle.playerSide.activePartyIndexes).toEqual([1]);
     expect(incoming.hp).toBeLessThan(incomingHp);
     expect(battle.turnSummary).toContain('come back');
     expect(battle.queuedMessages).toContain(`Go! ${incoming.species}!`);
@@ -3955,7 +4874,8 @@ describe('battle vertical slice', () => {
     stepBattle(battle, confirmInput, encounter);
 
     expect(battle.phase).toBe('script');
-    expect(battle.playerMon).toBe(incoming);
+    expect(battle.playerMon.species).toBe(incoming.species);
+    expect(battle.playerSide.activePartyIndexes).toEqual([1]);
     expect(incoming.hp).toBe(incomingHp);
     expect(battle.turnSummary).toBe(`Go! ${incoming.species}!`);
     expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(false);

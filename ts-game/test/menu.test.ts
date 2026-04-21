@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { listMenuStepFireRed } from '../src/game/decompPokedexUi';
 import { createDialogueState, openDialogueSequence } from '../src/game/interaction';
 import { createStartMenuState, stepStartMenu } from '../src/game/menu';
-import { createScriptRuntimeState } from '../src/game/scripts';
+import { createScriptRuntimeState, setScriptFlag } from '../src/game/scripts';
 
 const neutralInput = {
   up: false,
@@ -167,12 +167,18 @@ describe('start menu stepping', () => {
     const menu = createStartMenuState();
     const dialogue = createDialogueState();
     const runtime = createScriptRuntimeState();
+    setScriptFlag(runtime, 'FLAG_BADGE01_GET');
+    setScriptFlag(runtime, 'FLAG_BADGE02_GET');
 
     stepStartMenu(menu, { ...neutralInput, start: true, startPressed: true }, dialogue, runtime);
     menu.selectedIndex = menu.options.findIndex((entry) => entry.id === 'SAVE');
     stepStartMenu(menu, { ...neutralInput, interact: true, interactPressed: true }, dialogue, runtime);
 
     expect(menu.panel?.id).toBe('SAVE');
+    if (menu.panel?.kind === 'save') {
+      expect(menu.panel.statsRows).toContain('BADGES 2');
+      expect(menu.panel.statsRows).toContain('LOCATION FIELD');
+    }
 
     stepStartMenu(
       menu,

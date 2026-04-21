@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { vec2 } from '../src/core/vec2';
-import { createPlayer } from '../src/game/player';
+import { createPlayer, stepPlayer } from '../src/game/player';
 import {
   findWarpAtTile,
   isArrowWarpMetatileBehavior,
   isWarpMetatileBehavior,
+  resolveFacingDoorWarpTransition,
   resolveWarpTransition
 } from '../src/game/warps';
 import {
@@ -42,7 +43,10 @@ import {
   loadViridianCityMap,
   loadViridianCityMartMap,
   loadViridianCityPokemonCenter1FMap,
+  loadViridianForestMap,
   loadViridianCitySchoolMap,
+  loadRoute2ViridianForestNorthEntranceMap,
+  loadRoute2ViridianForestSouthEntranceMap,
   mapFromCompactSource,
   parseCompactMapSource,
   type CompactMapSource
@@ -127,7 +131,7 @@ describe('warp runtime', () => {
       sourceWarp: { x: 11, y: 16, elevation: 3, destMap: 'MAP_INDIGO_PLATEAU_EXTERIOR', destWarpId: 0 },
       destinationMap: loadIndigoPlateauExteriorMap(),
       destinationWarp: { x: 11, y: 6, elevation: 0, destMap: 'MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F', destWarpId: 0 },
-      playerPosition: { x: 11 * 16, y: 6 * 16 }
+      playerPosition: { x: 11 * 16, y: 7 * 16 }
     });
   });
 
@@ -157,7 +161,35 @@ describe('warp runtime', () => {
       sourceWarp: { x: 7, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 },
       destinationMap: loadViridianCityMap(),
       destinationWarp: { x: 26, y: 26, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F', destWarpId: 1 },
-      playerPosition: { x: 26 * 16, y: 26 * 16 }
+      playerPosition: { x: 25 * 16, y: 27 * 16 }
+    });
+  });
+
+  test('preserves doorway side when exiting the Viridian City Pokemon Center', () => {
+    const map = loadViridianCityPokemonCenter1FMap();
+
+    const leftPlayer = createPlayer();
+    leftPlayer.position = vec2(6 * map.tileSize, 8 * map.tileSize);
+    leftPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(map, leftPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 6, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 },
+      destinationMap: loadViridianCityMap(),
+      destinationWarp: { x: 26, y: 26, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F', destWarpId: 1 },
+      playerPosition: { x: 24 * 16, y: 27 * 16 }
+    });
+
+    const rightPlayer = createPlayer();
+    rightPlayer.position = vec2(8 * map.tileSize, 8 * map.tileSize);
+    rightPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(map, rightPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 8, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 },
+      destinationMap: loadViridianCityMap(),
+      destinationWarp: { x: 26, y: 26, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F', destWarpId: 1 },
+      playerPosition: { x: 26 * 16, y: 27 * 16 }
     });
   });
 
@@ -187,7 +219,7 @@ describe('warp runtime', () => {
       sourceWarp: { x: 4, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 4 },
       destinationMap: loadViridianCityMap(),
       destinationWarp: { x: 36, y: 19, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_MART', destWarpId: 1 },
-      playerPosition: { x: 36 * 16, y: 19 * 16 }
+      playerPosition: { x: 35 * 16, y: 20 * 16 }
     });
   });
 
@@ -217,7 +249,7 @@ describe('warp runtime', () => {
       sourceWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 3 },
       destinationMap: loadViridianCityMap(),
       destinationWarp: { x: 25, y: 18, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_SCHOOL', destWarpId: 1 },
-      playerPosition: { x: 25 * 16, y: 18 * 16 }
+      playerPosition: { x: 24 * 16, y: 19 * 16 }
     });
   });
 
@@ -247,8 +279,133 @@ describe('warp runtime', () => {
       sourceWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
       destinationMap: loadViridianCityMap(),
       destinationWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
-      playerPosition: { x: 25 * 16, y: 11 * 16 }
+      playerPosition: { x: 24 * 16, y: 12 * 16 }
     });
+  });
+
+  test('preserves doorway side when exiting the Viridian City house', () => {
+    const map = loadViridianCityHouseMap();
+
+    const leftPlayer = createPlayer();
+    leftPlayer.position = vec2(3 * map.tileSize, 7 * map.tileSize);
+    leftPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(map, leftPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 3, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
+      destinationMap: loadViridianCityMap(),
+      destinationWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
+      playerPosition: { x: 23 * 16, y: 12 * 16 }
+    });
+
+    const rightPlayer = createPlayer();
+    rightPlayer.position = vec2(5 * map.tileSize, 7 * map.tileSize);
+    rightPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(map, rightPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 5, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
+      destinationMap: loadViridianCityMap(),
+      destinationWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
+      playerPosition: { x: 25 * 16, y: 12 * 16 }
+    });
+  });
+
+  test('matches decomp door-warp behavior for blocked outdoor entrances', () => {
+    const map = loadViridianCityMap();
+    const player = createPlayer();
+    player.position = vec2(25 * map.tileSize, 12 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveFacingDoorWarpTransition(map, player, 'up', loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
+      destinationMap: loadViridianCityHouseMap(),
+      destinationWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
+      playerPosition: { x: 4 * 16, y: 7 * 16 }
+    });
+  });
+
+  test('does not door-warp unless the player is actively pressing up into the entrance', () => {
+    const map = loadPalletTownMap();
+    const player = createPlayer();
+    player.position = vec2(6 * map.tileSize, 8 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveFacingDoorWarpTransition(map, player, null, loadMapById)).toEqual({ status: 'none' });
+    expect(resolveFacingDoorWarpTransition(map, player, 'left', loadMapById)).toEqual({ status: 'none' });
+  });
+
+  test('resolves blocked Poke Center and mart entrances from the tile south of the door', () => {
+    const outdoorCases = [
+      {
+        map: loadPewterCityMap(),
+        standingTile: { x: 17, y: 26 },
+        sourceWarp: { x: 17, y: 25, elevation: 0, destMap: 'MAP_PEWTER_CITY_POKEMON_CENTER_1F', destWarpId: 1 }
+      },
+      {
+        map: loadVermilionCityMap(),
+        standingTile: { x: 29, y: 18 },
+        sourceWarp: { x: 29, y: 17, elevation: 0, destMap: 'MAP_VERMILION_CITY_MART', destWarpId: 1 }
+      }
+    ];
+
+    for (const testCase of outdoorCases) {
+      const player = createPlayer();
+      player.position = vec2(
+        testCase.standingTile.x * testCase.map.tileSize,
+        testCase.standingTile.y * testCase.map.tileSize
+      );
+      player.facing = 'up';
+
+      const result = resolveFacingDoorWarpTransition(testCase.map, player, 'up', loadMapById);
+      expect(result.status).toBe('resolved');
+      if (result.status !== 'resolved') continue;
+
+      expect(result.sourceWarp).toEqual(testCase.sourceWarp);
+      expect(result.destinationMap).toBeTruthy();
+      expect(result.destinationWarp).toEqual(result.destinationMap!.warps[testCase.sourceWarp.destWarpId]);
+    }
+  });
+
+  test('places outdoor exits on a walkable tile so the player can move immediately', () => {
+    const map = loadPalletTownPlayersHouse1FMap();
+    const player = createPlayer();
+    player.position = vec2(4 * map.tileSize, 8 * map.tileSize);
+    player.facing = 'down';
+
+    const result = resolveWarpTransition(map, player, loadMapById);
+    expect(result.status).toBe('resolved');
+    if (result.status !== 'resolved' || !result.destinationMap || !result.playerPosition) return;
+
+    const outdoorPlayer = createPlayer();
+    outdoorPlayer.position = vec2(result.playerPosition.x, result.playerPosition.y);
+    outdoorPlayer.facing = 'down';
+
+    stepPlayer(
+      outdoorPlayer,
+      {
+        up: false,
+        down: true,
+        left: false,
+        right: false,
+        upPressed: false,
+        downPressed: true,
+        leftPressed: false,
+        rightPressed: false,
+        run: false,
+        interact: false,
+        interactPressed: false,
+        start: false,
+        startPressed: false,
+        cancel: false,
+        cancelPressed: false
+      },
+      result.destinationMap,
+      0.1
+    );
+
+    expect(outdoorPlayer.position.y).toBeGreaterThan(result.playerPosition.y);
   });
 
   test('resolves the Pallet Town front door warp into the loaded Players House 1F', () => {
@@ -337,7 +494,65 @@ describe('warp runtime', () => {
       sourceWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 },
       destinationMap: loadPalletTownMap(),
       destinationWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
-      playerPosition: { x: 6 * 16, y: 7 * 16 }
+      playerPosition: { x: 5 * 16, y: 8 * 16 }
+    });
+  });
+
+  test('preserves doorway side when exiting the Players House 1F', () => {
+    const map = loadPalletTownPlayersHouse1FMap();
+
+    const leftPlayer = createPlayer();
+    leftPlayer.position = vec2(4 * map.tileSize, 8 * map.tileSize);
+    leftPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(map, leftPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 },
+      destinationMap: loadPalletTownMap(),
+      destinationWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
+      playerPosition: { x: 5 * 16, y: 8 * 16 }
+    });
+
+    const rightPlayer = createPlayer();
+    rightPlayer.position = vec2(5 * map.tileSize, 8 * map.tileSize);
+    rightPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(map, rightPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 5, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 },
+      destinationMap: loadPalletTownMap(),
+      destinationWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
+      playerPosition: { x: 6 * 16, y: 8 * 16 }
+    });
+  });
+
+  test('resolves Route 2 Viridian Forest entrance warps into the loaded forest map', () => {
+    const southEntrance = loadRoute2ViridianForestSouthEntranceMap();
+    const northEntrance = loadRoute2ViridianForestNorthEntranceMap();
+    const viridianForest = loadViridianForestMap();
+
+    const southPlayer = createPlayer();
+    southPlayer.position = vec2(7 * southEntrance.tileSize, 1 * southEntrance.tileSize);
+    southPlayer.facing = 'up';
+
+    expect(resolveWarpTransition(southEntrance, southPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 7, y: 1, elevation: 3, destMap: 'MAP_VIRIDIAN_FOREST', destWarpId: 0 },
+      destinationMap: viridianForest,
+      destinationWarp: { x: 29, y: 62, elevation: 3, destMap: 'MAP_ROUTE2_VIRIDIAN_FOREST_SOUTH_ENTRANCE', destWarpId: 3 },
+      playerPosition: { x: 29 * 16, y: 62 * 16 }
+    });
+
+    const northPlayer = createPlayer();
+    northPlayer.position = vec2(7 * northEntrance.tileSize, 10 * northEntrance.tileSize);
+    northPlayer.facing = 'down';
+
+    expect(resolveWarpTransition(northEntrance, northPlayer, loadMapById)).toEqual({
+      status: 'resolved',
+      sourceWarp: { x: 7, y: 10, elevation: 3, destMap: 'MAP_VIRIDIAN_FOREST', destWarpId: 2 },
+      destinationMap: viridianForest,
+      destinationWarp: { x: 5, y: 9, elevation: 3, destMap: 'MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE', destWarpId: 1 },
+      playerPosition: { x: 4 * 16, y: 9 * 16 }
     });
   });
 
@@ -352,7 +567,7 @@ describe('warp runtime', () => {
       sourceWarp: { x: 4, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 1 },
       destinationMap: loadPalletTownMap(),
       destinationWarp: { x: 15, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_RIVALS_HOUSE', destWarpId: 0 },
-      playerPosition: { x: 15 * 16, y: 7 * 16 }
+      playerPosition: { x: 14 * 16, y: 8 * 16 }
     });
   });
 
@@ -367,7 +582,7 @@ describe('warp runtime', () => {
       sourceWarp: { x: 6, y: 12, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 2 },
       destinationMap: loadPalletTownMap(),
       destinationWarp: { x: 16, y: 13, elevation: 0, destMap: 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB', destWarpId: 0 },
-      playerPosition: { x: 16 * 16, y: 13 * 16 }
+      playerPosition: { x: 15 * 16, y: 14 * 16 }
     });
   });
 
@@ -463,7 +678,7 @@ describe('warp runtime', () => {
     expect(result.sourceWarp).toEqual({ x: 17, y: 22, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 2 });
     expect(result.destinationMap!.id).toBe(viridianMap.id);
     expect(result.destinationWarp).toEqual(viridianMap.warps[2]);
-    expect(result.playerPosition).toEqual({ x: 36 * 16, y: 10 * 16 });
+    expect(result.playerPosition).toEqual({ x: 35 * 16, y: 11 * 16 });
   });
 
   test('resolves Pewter City Gym door warp into the loaded gym map', () => {
@@ -532,7 +747,7 @@ describe('warp runtime', () => {
     const museum1F = loadPewterCityMuseum1FMap();
     const player = createPlayer();
     player.position = vec2(8 * museum1F.tileSize, 8 * museum1F.tileSize);
-    player.facing = 'up';
+    player.facing = 'right';
 
     const result = resolveWarpTransition(museum1F, player, loadMapById);
     expect(result.status).toBe('resolved');
@@ -547,7 +762,7 @@ describe('warp runtime', () => {
     const museum2F = loadPewterCityMuseum2FMap();
     const player = createPlayer();
     player.position = vec2(11 * museum2F.tileSize, 8 * museum2F.tileSize);
-    player.facing = 'down';
+    player.facing = 'left';
 
     const result = resolveWarpTransition(museum2F, player, loadMapById);
     expect(result.status).toBe('resolved');

@@ -19,6 +19,14 @@ export type DecompTypeId =
   | 'dark'
   | 'steel';
 
+export type DecompGrowthRate =
+  | 'GROWTH_MEDIUM_FAST'
+  | 'GROWTH_ERRATIC'
+  | 'GROWTH_FLUCTUATING'
+  | 'GROWTH_MEDIUM_SLOW'
+  | 'GROWTH_FAST'
+  | 'GROWTH_SLOW';
+
 export interface DecompSpeciesInfo {
   species: string;
   baseHp: number;
@@ -27,8 +35,18 @@ export interface DecompSpeciesInfo {
   baseSpeed: number;
   baseSpAttack: number;
   baseSpDefense: number;
+  evYield: {
+    hp: number;
+    attack: number;
+    defense: number;
+    speed: number;
+    spAttack: number;
+    spDefense: number;
+  };
   catchRate: number;
   safariZoneFleeRate: number;
+  expYield: number;
+  growthRate: DecompGrowthRate;
   types: DecompTypeId[];
   abilities: string[];
 }
@@ -78,8 +96,18 @@ const parseSpeciesInfo = (source: string): Map<string, DecompSpeciesInfo> => {
       baseSpeed: Number.parseInt(block.match(/\.baseSpeed = (\d+)/u)?.[1] ?? '1', 10),
       baseSpAttack: Number.parseInt(block.match(/\.baseSpAttack = (\d+)/u)?.[1] ?? '1', 10),
       baseSpDefense: Number.parseInt(block.match(/\.baseSpDefense = (\d+)/u)?.[1] ?? '1', 10),
+      evYield: {
+        hp: Number.parseInt(block.match(/\.evYield_HP = (\d+)/u)?.[1] ?? '0', 10),
+        attack: Number.parseInt(block.match(/\.evYield_Attack = (\d+)/u)?.[1] ?? '0', 10),
+        defense: Number.parseInt(block.match(/\.evYield_Defense = (\d+)/u)?.[1] ?? '0', 10),
+        speed: Number.parseInt(block.match(/\.evYield_Speed = (\d+)/u)?.[1] ?? '0', 10),
+        spAttack: Number.parseInt(block.match(/\.evYield_SpAttack = (\d+)/u)?.[1] ?? '0', 10),
+        spDefense: Number.parseInt(block.match(/\.evYield_SpDefense = (\d+)/u)?.[1] ?? '0', 10)
+      },
       catchRate: Number.parseInt(block.match(/\.catchRate = (\d+)/u)?.[1] ?? '255', 10),
       safariZoneFleeRate: Number.parseInt(block.match(/\.safariZoneFleeRate = (\d+)/u)?.[1] ?? '0', 10),
+      expYield: Number.parseInt(block.match(/\.expYield = (\d+)/u)?.[1] ?? '0', 10),
+      growthRate: (block.match(/\.growthRate = (GROWTH_\w+)/u)?.[1] ?? 'GROWTH_MEDIUM_FAST') as DecompGrowthRate,
       types,
       abilities
     });

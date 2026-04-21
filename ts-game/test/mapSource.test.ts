@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { loadRoute2Map, mapFromSource, parseMapSource } from '../src/world/mapSource';
+import {
+  loadRoute2Map,
+  loadRoute2ViridianForestNorthEntranceMap,
+  loadViridianCityPokemonCenter1FMap,
+  loadViridianForestMap,
+  mapFromSource,
+  parseMapSource
+} from '../src/world/mapSource';
 
 describe('map source loading', () => {
   test('loads the Route 2 compact map into runtime shape', () => {
@@ -11,12 +18,44 @@ describe('map source loading', () => {
     expect(map.tileSize).toBe(16);
     expect(map.walkable.length).toBe(1920);
     expect(map.encounterTiles?.length).toBe(1920);
+    expect(map.elevations?.length).toBe(1920);
     expect(map.wildEncounters?.land?.encounterRate).toBe(21);
     expect(map.triggers.length).toBeGreaterThan(0);
     expect(map.visual?.metatileIds).toHaveLength(1920);
     expect(map.visual?.layerTypes).toHaveLength(1920);
     expect(map.visual?.primaryTileset).toBe('general');
     expect(map.npcs.length).toBeGreaterThan(0);
+    expect(map.coordEventWeather).toBe('WEATHER_SUNNY');
+  });
+
+  test('preserves metadata weather on compact maps', () => {
+    expect(loadViridianForestMap().coordEventWeather).toBe('WEATHER_SHADE');
+  });
+
+  test('keeps Route 2 north entrance mats on the covered layer from the decomp export', () => {
+    const map = loadRoute2ViridianForestNorthEntranceMap();
+    const tileIndex = 10 * map.width + 7;
+
+    expect(map.visual?.metatileIds[tileIndex]).toBe(710);
+    expect(map.visual?.layerTypes[tileIndex]).toBe(1);
+  });
+
+  test('keeps the shared Pokemon Center layout aligned with decomp tile attributes', () => {
+    const map = loadViridianCityPokemonCenter1FMap();
+    const tileAt = (x: number, y: number) => {
+      const tileIndex = y * map.width + x;
+      return {
+        metatileId: map.visual?.metatileIds[tileIndex],
+        layerType: map.visual?.layerTypes[tileIndex],
+        behavior: map.tileBehaviors?.[tileIndex],
+        elevation: map.elevations?.[tileIndex]
+      };
+    };
+
+    expect(tileAt(7, 8)).toEqual({ metatileId: 707, layerType: 1, behavior: 0x65, elevation: 3 });
+    expect(tileAt(1, 6)).toEqual({ metatileId: 729, layerType: 1, behavior: 0x6a, elevation: 4 });
+    expect(tileAt(5, 3)).toEqual({ metatileId: 700, layerType: 1, behavior: 0x80, elevation: 0 });
+    expect(tileAt(11, 1)).toEqual({ metatileId: 98, layerType: 1, behavior: 0x83, elevation: 0 });
   });
 
   test('throws when walkable length does not match map size', () => {
@@ -42,6 +81,19 @@ describe('map source loading', () => {
         encounterTiles: ['L', '.', 'L']
       })
     ).toThrow(/encounterTiles length/i);
+  });
+
+  test('throws when elevations length does not match map size', () => {
+    expect(() =>
+      mapFromSource({
+        id: 'broken-elevations',
+        width: 2,
+        height: 2,
+        tileSize: 16,
+        walkable: [true, false, true, false],
+        elevations: [3, 3, 3]
+      })
+    ).toThrow(/elevations length/i);
   });
 
   test('validates raw map source payloads', () => {

@@ -1,4 +1,5 @@
 import type { Vec2 } from '../core/vec2';
+import type { CoordEventWeatherId } from './decompCoordEventWeather';
 import {
   loadPrototypeRouteMap,
   loadCeruleanCityMap,
@@ -27,7 +28,10 @@ export interface TileMap {
   width: number;
   height: number;
   tileSize: number;
+  regionMapSection?: string;
+  coordEventWeather?: CoordEventWeatherId;
   walkable: boolean[];
+  elevations?: number[];
   tileBehaviors?: number[];
   connections: MapConnectionSource[];
   encounterTiles?: string[];

@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { vec2 } from '../src/core/vec2';
+import { createPlayTimeCounterFromSeconds } from '../src/game/decompPlayTime';
+import {
+  POKECENTER_SAVEWARP,
+  UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK,
+  trySetMapSaveWarpStatus
+} from '../src/game/decompSaveLocation';
 import {
   applySaveSnapshot,
+  clearSavedGameFromStorage,
   loadGameFromStorage,
   saveGameToStorage,
   type StorageLike
@@ -19,6 +26,10 @@ class MemoryStorage implements StorageLike {
 
   setItem(key: string, value: string): void {
     this.values.set(key, value);
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key);
   }
 }
 
@@ -40,8 +51,11 @@ describe('save persistence', () => {
     runtime.options.sound = 'mono';
     runtime.options.buttonMode = 'lr';
     runtime.options.frameType = 4;
+    runtime.playTime = createPlayTimeCounterFromSeconds(3723, 17);
+    runtime.party[0]!.championRibbon = true;
     runtime.consumedTriggerIds.add('route-warning');
     setScriptFlag(runtime, 'story.route-warning');
+    trySetMapSaveWarpStatus(runtime, 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F');
 
     const result = saveGameToStorage(storage, mapId, player, runtime, 'slot');
     expect(result.ok).toBe(true);
@@ -72,6 +86,11 @@ describe('save persistence', () => {
     expect(newRuntime.options.sound).toBe('mono');
     expect(newRuntime.options.buttonMode).toBe('lr');
     expect(newRuntime.options.frameType).toBe(4);
+    expect(newRuntime.specialSaveWarpFlags & POKECENTER_SAVEWARP).toBe(POKECENTER_SAVEWARP);
+    expect(newRuntime.gcnLinkFlags & UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK)
+      .toBe(UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK);
+    expect(newRuntime.playTime).toMatchObject({ hours: 1, minutes: 2, seconds: 3, vblanks: 17 });
+    expect(newRuntime.party[0]?.championRibbon).toBe(true);
     expect(newRuntime.saveCounter).toBe(1);
   });
 
@@ -109,5 +128,66 @@ describe('save persistence', () => {
     expect(applied).toBe(false);
     expect(targetPlayer.position.x).toBe(10);
     expect(targetRuntime.saveCounter).toBe(0);
+  });
+
+  test('loads older save payloads without an explicit playTime block', () => {
+    const storage = new MemoryStorage();
+    const legacyRuntime = createScriptRuntimeState();
+    storage.setItem('slot', JSON.stringify({
+      schemaVersion: 6,
+      mapId,
+      saveIndex: 3,
+      savedAt: '2026-04-21T12:00:00.000Z',
+      player: { x: 32, y: 32, facing: 'up' },
+      runtime: {
+        vars: { playTimeSeconds: 3665 },
+        flags: [],
+        consumedTriggerIds: [],
+        startMenu: {
+          mode: 'normal',
+          playerName: 'PLAYER',
+          hasPokedex: true,
+          hasPokemon: true,
+          seenPokemonCount: 0
+        },
+        options: {
+          textSpeed: 'mid',
+          battleScene: true,
+          battleStyle: 'shift',
+          sound: 'stereo',
+          buttonMode: 'help',
+          frameType: 0
+        },
+        party: legacyRuntime.party,
+        pokedex: legacyRuntime.pokedex,
+        bag: legacyRuntime.bag
+      }
+    }));
+
+    const loaded = loadGameFromStorage(storage, 'slot');
+    expect(loaded?.runtime.playTime).toEqual({
+      hours: 1,
+      minutes: 1,
+      seconds: 5,
+      vblanks: 0
+    });
+    expect(loaded?.runtime.specialSaveWarpFlags).toBe(0);
+    expect(loaded?.runtime.gcnLinkFlags).toBe(UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK);
+  });
+
+  test('clears stored saves through the shared saveData helper', () => {
+    const storage = new MemoryStorage();
+    const player: PlayerState = {
+      position: vec2(32, 32),
+      facing: 'up',
+      moving: false,
+      animationTime: 0
+    };
+
+    saveGameToStorage(storage, mapId, player, createScriptRuntimeState(), 'slot');
+    expect(loadGameFromStorage(storage, 'slot')).not.toBeNull();
+
+    clearSavedGameFromStorage(storage, 'slot');
+    expect(loadGameFromStorage(storage, 'slot')).toBeNull();
   });
 });

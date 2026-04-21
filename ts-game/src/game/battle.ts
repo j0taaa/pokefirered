@@ -2,6 +2,7 @@ import type { InputSnapshot } from '../input/inputState';
 import { getBagQuantity, getItemDefinition, removeBagItem, type BagState } from './bag';
 import type { DecompTypeId } from './decompSpecies';
 import { getDecompSpeciesInfo } from './decompSpecies';
+import { getExperienceForLevel, getLevelForExperience } from './decompExperience';
 import { getDecompPokedexEntry } from './decompPokedex';
 import {
   getAllDecompBattleMoves,
@@ -12,8 +13,21 @@ import {
   type DecompBattleTerrainId,
   type DecompBattleMove
 } from './decompBattleData';
+import { nextDecompRandomFromSeed, seedDecompRng } from './decompRandom';
 import type { FieldPokemon } from './pokemonStorage';
 import type { WildEncounterGroup } from '../world/mapSource';
+import {
+  beginBattleMoveVm,
+  cloneBattlePostResult,
+  createBattlePostResult,
+  createBattleVmState,
+  finalizeBattleMoveVm,
+  resetBattlePostResult,
+  resetBattleVmState,
+  type BattlePostResult,
+  type BattleVmState
+} from './battleScriptVm';
+import { chooseTrainerMoveIndex } from './battleAiVm';
 
 export type PokemonType = DecompTypeId;
 export type StatusCondition = 'none' | 'poison' | 'badPoison' | 'burn' | 'paralysis' | 'sleep' | 'freeze';
@@ -29,6 +43,15 @@ export interface BattleStatStages {
 }
 
 export interface BattleIvs {
+  hp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  spAttack: number;
+  spDefense: number;
+}
+
+export interface BattleEvs {
   hp: number;
   attack: number;
   defense: number;
@@ -161,6 +184,7 @@ export interface BattlePokemonSnapshot {
   knockedOff: boolean;
   abilityId: string | null;
   ivs: BattleIvs;
+  evs: BattleEvs;
   moves: BattleMove[];
   statStages: BattleStatStages;
   volatile: BattleVolatileState;
@@ -173,12 +197,14 @@ export interface BattleEncounterState {
 }
 
 export type BattleCommand = 'fight' | 'bag' | 'pokemon' | 'run' | 'safariBall' | 'safariBait' | 'safariRock';
-export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'partySelect' | 'bagSelect' | 'script' | 'resolved';
+export type BattlePhase = 'intro' | 'command' | 'moveSelect' | 'shiftPrompt' | 'partySelect' | 'bagSelect' | 'script' | 'resolved';
 export type BattleWeather = 'none' | 'rain' | 'sun' | 'sandstorm' | 'hail';
 export type BattleTypeFlag = 'ghost' | 'trainer' | 'oldManTutorial' | 'pokedude' | 'safari';
 export type BattleMode = 'wild' | 'trainer' | 'safari' | 'ghost' | 'oldManTutorial' | 'pokedude';
 export type BattleSideId = 'player' | 'opponent';
 export type BattleBattlerId = 0 | 1 | 2 | 3;
+export type BattleFormat = 'singles' | 'doubles';
+export type BattleControlMode = 'singlePlayer' | 'partner' | 'link';
 export type BattleBallItemId =
   | 'ITEM_MASTER_BALL'
   | 'ITEM_ULTRA_BALL'
@@ -209,7 +235,7 @@ export interface BattleBattlerRuntime {
 }
 
 export interface BattleTraceEvent {
-  type: 'init' | 'script' | 'message' | 'hp' | 'status' | 'phase';
+  type: 'init' | 'script' | 'message' | 'hp' | 'status' | 'phase' | 'reward';
   mode: BattleMode;
   turn: number;
   phase: BattlePhase;
@@ -223,16 +249,29 @@ export interface BattleStartConfig {
   mode?: BattleMode;
   terrain?: DecompBattleTerrainId;
   mapBattleScene?: string;
+  battleStyle?: 'shift' | 'set';
+  format?: BattleFormat;
+  controlMode?: BattleControlMode;
   playerName?: string;
   opponentName?: string;
   trainerId?: string | null;
   playerParty?: Array<FieldPokemon | BattlePokemonSnapshot>;
+  partnerParty?: Array<FieldPokemon | BattlePokemonSnapshot>;
   opponentParty?: Array<FieldPokemon | BattlePokemonSnapshot>;
   activePlayerPartyIndex?: number;
   activeOpponentPartyIndex?: number;
+  activeBattlers?: BattleBattlerRuntime[];
+  opponentTrainerItems?: string[];
+  opponentTrainerAiFlags?: string[];
   battleTypeFlags?: BattleTypeFlag[];
   safariBalls?: number;
   caughtSpeciesIds?: string[];
+}
+
+export interface WildBattleStartConfig {
+  mode?: BattleMode;
+  battleTypeFlags?: BattleTypeFlag[];
+  safariBalls?: number;
 }
 
 export interface BattleControllerCommand {
@@ -247,10 +286,20 @@ export interface BattleState {
   active: boolean;
   phase: BattlePhase;
   mode: BattleMode;
+  format: BattleFormat;
+  controlMode: BattleControlMode;
   terrain: DecompBattleTerrainId;
   mapBattleScene: string;
+  battleStyle: 'shift' | 'set';
   playerSide: BattleParticipantState;
+  partnerParty: BattlePokemonSnapshot[];
   opponentSide: BattleParticipantState;
+  opponentTrainerItems: string[];
+  opponentTrainerAiFlags: string[];
+  playerParticipantPartyIndexes: number[];
+  defeatedOpponentPartyIndexes: number[];
+  rewardedOpponentPartyIndexes: number[];
+  rewardsApplied: boolean;
   battlers: BattleBattlerRuntime[];
   playerMon: BattlePokemonSnapshot;
   party: BattlePokemonSnapshot[];
@@ -274,6 +323,7 @@ export interface BattleState {
   payDayMoney: number;
   selectedMoveIndex: number;
   selectedCommandIndex: number;
+  selectedShiftPromptIndex: number;
   commands: BattleCommand[];
   selectedPartyIndex: number;
   selectedBagIndex: number;
@@ -284,6 +334,7 @@ export interface BattleState {
   } | null;
   runAttempts: number;
   battleTurnCounter: number;
+  pendingOpponentPartyIndex: number | null;
   caughtSpeciesIds: string[];
   bag: {
     pokeBalls: number;
@@ -295,6 +346,8 @@ export interface BattleState {
   queuedControllerCommands: BattleControllerCommand[];
   battleTrace: BattleTraceEvent[];
   currentScriptLabel: string | null;
+  vm: BattleVmState;
+  postResult: BattlePostResult;
   resumePhase: Exclude<BattlePhase, 'script'>;
   resumeSummary: string;
 }
@@ -315,8 +368,6 @@ export interface BattleBagChoice {
   isExit: boolean;
 }
 
-const RAND_MULT = 1103515245;
-const ISO_RANDOMIZE2_ADD = 12345;
 const DEFAULT_BATTLE_SCENE = 'MAP_BATTLE_SCENE_NORMAL';
 
 const TYPE_CHART: Partial<Record<PokemonType, Partial<Record<PokemonType, number>>>> = {
@@ -490,6 +541,15 @@ const createBattleIvs = (): BattleIvs => ({
   spDefense: 0
 });
 
+const createBattleEvs = (): BattleEvs => ({
+  hp: 0,
+  attack: 0,
+  defense: 0,
+  speed: 0,
+  spAttack: 0,
+  spDefense: 0
+});
+
 const createVolatileState = (): BattleVolatileState => ({
   confusionTurns: 0,
   flinched: false,
@@ -582,6 +642,7 @@ const cloneBattlePokemon = (pokemon: BattlePokemonSnapshot): BattlePokemonSnapsh
   types: [...pokemon.types],
   moves: pokemon.moves.map(cloneMove),
   ivs: { ...pokemon.ivs },
+  evs: { ...pokemon.evs },
   statStages: { ...pokemon.statStages },
   volatile: { ...pokemon.volatile }
 });
@@ -617,14 +678,92 @@ const clampPartyIndex = (party: BattlePokemonSnapshot[], index: number | undefin
   return Math.max(0, Math.min(index ?? 0, party.length - 1));
 };
 
+const getBattlerSide = (battlerId: BattleBattlerId): BattleSideId =>
+  battlerId === 0 || battlerId === 2 ? 'player' : 'opponent';
+
+const getDefaultActivePartyIndexes = (
+  party: BattlePokemonSnapshot[],
+  primaryIndex: number | undefined,
+  format: BattleFormat
+): number[] => {
+  if (party.length === 0) {
+    return [];
+  }
+
+  const activeIndexes = [clampPartyIndex(party, primaryIndex)];
+  if (format === 'doubles' && party.length > 1) {
+    const secondaryIndex = party.findIndex((_, index) => index !== activeIndexes[0]);
+    if (secondaryIndex >= 0) {
+      activeIndexes.push(secondaryIndex);
+    }
+  }
+
+  return activeIndexes;
+};
+
+const normalizeActivePartyIndexes = (
+  party: BattlePokemonSnapshot[],
+  indexes: number[],
+  format: BattleFormat
+): number[] => {
+  const limit = format === 'doubles' ? 2 : 1;
+  const normalized = indexes
+    .map((index) => clampPartyIndex(party, index))
+    .filter((index, position, array) => array.indexOf(index) === position)
+    .slice(0, limit);
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  return getDefaultActivePartyIndexes(party, 0, format);
+};
+
+const getConfiguredActivePartyIndexes = (
+  config: BattleStartConfig,
+  side: BattleSideId,
+  party: BattlePokemonSnapshot[],
+  fallbackPrimaryIndex: number | undefined,
+  format: BattleFormat
+): number[] => {
+  const configured = (config.activeBattlers ?? [])
+    .filter((battler) =>
+      getBattlerSide(battler.battlerId) === side
+      && battler.active
+      && !battler.absent
+      && battler.partyIndex !== null
+    )
+    .sort((left, right) => left.battlerId - right.battlerId)
+    .map((battler) => battler.partyIndex as number);
+
+  return normalizeActivePartyIndexes(
+    party,
+    configured.length > 0 ? configured : getDefaultActivePartyIndexes(party, fallbackPrimaryIndex, format),
+    format
+  );
+};
+
 const createBattlerRuntimeState = (
-  playerActiveIndex: number,
-  opponentActiveIndex: number
+  playerActiveIndexes: number[],
+  opponentActiveIndexes: number[],
+  format: BattleFormat
 ): BattleBattlerRuntime[] => ([
-  { battlerId: 0, side: 'player', partyIndex: playerActiveIndex, active: true, absent: false },
-  { battlerId: 1, side: 'opponent', partyIndex: opponentActiveIndex, active: true, absent: false },
-  { battlerId: 2, side: 'player', partyIndex: null, active: false, absent: true },
-  { battlerId: 3, side: 'opponent', partyIndex: null, active: false, absent: true }
+  { battlerId: 0, side: 'player', partyIndex: playerActiveIndexes[0] ?? null, active: true, absent: false },
+  { battlerId: 1, side: 'opponent', partyIndex: opponentActiveIndexes[0] ?? null, active: true, absent: false },
+  {
+    battlerId: 2,
+    side: 'player',
+    partyIndex: format === 'doubles' ? playerActiveIndexes[1] ?? null : null,
+    active: format === 'doubles' && playerActiveIndexes[1] !== undefined,
+    absent: format !== 'doubles' || playerActiveIndexes[1] === undefined
+  },
+  {
+    battlerId: 3,
+    side: 'opponent',
+    partyIndex: format === 'doubles' ? opponentActiveIndexes[1] ?? null : null,
+    active: format === 'doubles' && opponentActiveIndexes[1] !== undefined,
+    absent: format !== 'doubles' || opponentActiveIndexes[1] === undefined
+  }
 ]);
 
 const appendBattleTraceEvent = (
@@ -644,6 +783,10 @@ const emitControllerCommand = (
   command: BattleControllerCommand
 ): void => {
   battle.queuedControllerCommands.push(command);
+  battle.vm.pendingCommands.push(command);
+  if (command.type === 'message' && command.text) {
+    battle.vm.pendingMessages.push(command.text);
+  }
   appendBattleTraceEvent(battle, {
     type: command.type,
     battler: command.battler,
@@ -655,14 +798,24 @@ const emitControllerCommand = (
 
 const syncBattleRuntimeParticipants = (battle: BattleState): void => {
   battle.party = battle.playerSide.party;
-  const playerPartyIndex = clampPartyIndex(battle.playerSide.party, battle.playerSide.activePartyIndexes[0]);
-  const opponentPartyIndex = clampPartyIndex(battle.opponentSide.party, battle.opponentSide.activePartyIndexes[0]);
+  const playerPartyIndexes = normalizeActivePartyIndexes(
+    battle.playerSide.party,
+    battle.playerSide.activePartyIndexes,
+    battle.format
+  );
+  const opponentPartyIndexes = normalizeActivePartyIndexes(
+    battle.opponentSide.party,
+    battle.opponentSide.activePartyIndexes,
+    battle.format
+  );
+  const playerPartyIndex = playerPartyIndexes[0]!;
+  const opponentPartyIndex = opponentPartyIndexes[0]!;
 
-  battle.playerSide.activePartyIndexes = [playerPartyIndex];
-  battle.opponentSide.activePartyIndexes = [opponentPartyIndex];
+  battle.playerSide.activePartyIndexes = playerPartyIndexes;
+  battle.opponentSide.activePartyIndexes = opponentPartyIndexes;
   battle.playerMon = battle.playerSide.party[playerPartyIndex]!;
   battle.wildMon = battle.opponentSide.party[opponentPartyIndex]!;
-  battle.battlers = createBattlerRuntimeState(playerPartyIndex, opponentPartyIndex);
+  battle.battlers = createBattlerRuntimeState(playerPartyIndexes, opponentPartyIndexes, battle.format);
 };
 
 const setActiveBattlePartyMember = (
@@ -674,13 +827,67 @@ const setActiveBattlePartyMember = (
   const nextIndex = participant.party.findIndex((member) => member === target);
   if (nextIndex >= 0) {
     participant.activePartyIndexes = [nextIndex];
+    if (side === 'player' && !battle.playerParticipantPartyIndexes.includes(nextIndex)) {
+      battle.playerParticipantPartyIndexes.push(nextIndex);
+    }
   }
   syncBattleRuntimeParticipants(battle);
 };
 
+export const getBattlerSnapshot = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattlePokemonSnapshot | null => {
+  const runtime = battle.battlers.find((entry) => entry.battlerId === battlerId);
+  if (!runtime || runtime.partyIndex === null) {
+    return null;
+  }
+
+  const participant = runtime.side === 'player' ? battle.playerSide : battle.opponentSide;
+  return participant.party[runtime.partyIndex] ?? null;
+};
+
+export const getBattlerMoves = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleMove[] => getBattlerSnapshot(battle, battlerId)?.moves ?? [];
+
+export const getBattlerSideState = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleSideState => battle.sideState[getBattlerSide(battlerId)];
+
+export const getOpponentBattlers = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleBattlerRuntime[] => battle.battlers.filter((entry) => entry.side !== getBattlerSide(battlerId) && entry.active && !entry.absent);
+
+export const setBattlerPartyIndex = (
+  battle: BattleState,
+  battlerId: BattleBattlerId,
+  partyIndex: number | null
+): void => {
+  const runtime = battle.battlers.find((entry) => entry.battlerId === battlerId);
+  if (!runtime) {
+    return;
+  }
+
+  runtime.partyIndex = partyIndex;
+  runtime.active = partyIndex !== null;
+  runtime.absent = partyIndex === null;
+  const participant = runtime.side === 'player' ? battle.playerSide : battle.opponentSide;
+  const nextIndexes = battle.battlers
+    .filter((entry) => entry.side === runtime.side && entry.active && !entry.absent && entry.partyIndex !== null)
+    .sort((left, right) => left.battlerId - right.battlerId)
+    .map((entry) => entry.partyIndex as number);
+  participant.activePartyIndexes = normalizeActivePartyIndexes(participant.party, nextIndexes, battle.format);
+  syncBattleRuntimeParticipants(battle);
+};
+
 const nextBattleRng = (state: BattleEncounterState): number => {
-  state.rngState = (RAND_MULT * state.rngState + ISO_RANDOMIZE2_ADD) >>> 0;
-  return state.rngState >>> 16;
+  const roll = nextDecompRandomFromSeed(state.rngState);
+  state.rngState = roll.nextSeed;
+  return roll.value;
 };
 
 const nextEncounterRoll = (state: BattleEncounterState, maxExclusive: number): number => {
@@ -707,7 +914,7 @@ const decompMoveToBattleMove = (move: DecompBattleMove): BattleMove => ({
   flags: [...move.flags]
 });
 
-const getRegisteredBattleMove = (moveId: string): BattleMove | null => {
+export const createBattleMoveFromId = (moveId: string): BattleMove | null => {
   const move = getDecompBattleMove(moveId);
   return move ? decompMoveToBattleMove(move) : null;
 };
@@ -718,29 +925,32 @@ const getRegisteredBattleMoves = (): BattleMove[] =>
 const getStruggleMove = (): BattleMove =>
   decompMoveToBattleMove(getDecompBattleMove('STRUGGLE') ?? getDecompBattleMove('TACKLE') ?? getFallbackBattleMoves()[0]!);
 
+const getRegisteredBattleMove = (moveId: string): BattleMove | null =>
+  createBattleMoveFromId(moveId);
+
 const getKnownMovesForSpecies = (species: string, level: number): BattleMove[] => {
   const learned = getDecompLevelUpMoves(species, level);
   const fallback = learned.length > 0 ? learned : getFallbackBattleMoves();
   return fallback.map(decompMoveToBattleMove);
 };
 
-const calculateStat = (base: number, level: number, isHp: boolean): number => {
-  const iv = 0;
-  const ev = 0;
+const calculateStat = (base: number, level: number, isHp: boolean, iv = 0, ev = 0): number => {
   const core = Math.floor(((2 * base) + iv + Math.floor(ev / 4)) * level / 100);
   return isHp ? core + level + 10 : core + 5;
 };
 
 const normalizeSpecies = (species: string): string => species.replace(/^SPECIES_/u, '').toUpperCase();
 
-const createBattlePokemonFromSpecies = (
+export const createBattlePokemonFromSpecies = (
   species: string,
   level: number,
   status: StatusCondition = 'none'
 ): BattlePokemonSnapshot => {
   const normalizedSpecies = normalizeSpecies(species);
   const speciesInfo = getDecompSpeciesInfo(normalizedSpecies);
-  const maxHp = calculateStat(speciesInfo?.baseHp ?? 10, level, true);
+  const ivs = createBattleIvs();
+  const evs = createBattleEvs();
+  const maxHp = calculateStat(speciesInfo?.baseHp ?? 10, level, true, ivs.hp, evs.hp);
 
   return {
     species: normalizedSpecies,
@@ -748,11 +958,11 @@ const createBattlePokemonFromSpecies = (
     expProgress: 0,
     maxHp,
     hp: maxHp,
-    attack: calculateStat(speciesInfo?.baseAttack ?? 10, level, false),
-    defense: calculateStat(speciesInfo?.baseDefense ?? 10, level, false),
-    speed: calculateStat(speciesInfo?.baseSpeed ?? 10, level, false),
-    spAttack: calculateStat(speciesInfo?.baseSpAttack ?? 10, level, false),
-    spDefense: calculateStat(speciesInfo?.baseSpDefense ?? 10, level, false),
+    attack: calculateStat(speciesInfo?.baseAttack ?? 10, level, false, ivs.attack, evs.attack),
+    defense: calculateStat(speciesInfo?.baseDefense ?? 10, level, false, ivs.defense, evs.defense),
+    speed: calculateStat(speciesInfo?.baseSpeed ?? 10, level, false, ivs.speed, evs.speed),
+    spAttack: calculateStat(speciesInfo?.baseSpAttack ?? 10, level, false, ivs.spAttack, evs.spAttack),
+    spDefense: calculateStat(speciesInfo?.baseSpDefense ?? 10, level, false, ivs.spDefense, evs.spDefense),
     catchRate: speciesInfo?.catchRate ?? 255,
     types: (speciesInfo?.types ?? ['normal']) as PokemonType[],
     status,
@@ -762,11 +972,37 @@ const createBattlePokemonFromSpecies = (
     recycledItemId: null,
     knockedOff: false,
     abilityId: speciesInfo?.abilities[0] ?? null,
-    ivs: createBattleIvs(),
+    ivs,
+    evs,
     moves: getKnownMovesForSpecies(normalizedSpecies, level),
     statStages: createStatStages(),
     volatile: createVolatileState()
   };
+};
+
+export const createBattlePokemonFromSpeciesWithMoves = (
+  species: string,
+  level: number,
+  moveIds: string[],
+  {
+    heldItemId = null,
+    status = 'none'
+  }: {
+    heldItemId?: string | null;
+    status?: StatusCondition;
+  } = {}
+): BattlePokemonSnapshot => {
+  const pokemon = createBattlePokemonFromSpecies(species, level, status);
+  const moves = moveIds
+    .filter((moveId) => moveId !== 'MOVE_NONE' && moveId !== 'NONE')
+    .map((moveId) => createBattleMoveFromId(moveId.replace(/^MOVE_/u, '')))
+    .filter((move): move is BattleMove => move !== null);
+
+  if (moves.length > 0) {
+    pokemon.moves = moves;
+  }
+  pokemon.heldItemId = heldItemId;
+  return pokemon;
 };
 
 export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): BattlePokemonSnapshot => ({
@@ -790,6 +1026,7 @@ export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): Batt
   knockedOff: false,
   abilityId: getDecompSpeciesInfo(pokemon.species)?.abilities[0] ?? null,
   ivs: createBattleIvs(),
+  evs: pokemon.evs ? { ...pokemon.evs } : createBattleEvs(),
   moves: getKnownMovesForSpecies(pokemon.species, pokemon.level),
   statStages: createStatStages(),
   volatile: createVolatileState()
@@ -842,6 +1079,13 @@ const queueMessages = (
   battle.resumePhase = resumePhase;
   battle.resumeSummary = resumeSummary;
 };
+
+const getShiftPromptQuestion = (battle: BattleState): string => `Will ${battle.playerSide.name} change POKeMON?`;
+
+const getShiftPromptMessages = (battle: BattleState, opponentMon: BattlePokemonSnapshot): string[] => ([
+  `${battle.opponentSide.name} is about to use ${opponentMon.species}.`,
+  getShiftPromptQuestion(battle)
+]);
 
 const advanceQueuedMessages = (battle: BattleState): void => {
   if (battle.queuedMessages.length > 0) {
@@ -1552,10 +1796,78 @@ const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterSta
     return -1;
   }
 
+  if (hasBattleTypeFlag(battle, 'trainer') && battle.opponentTrainerAiFlags.length > 0) {
+    const aiDecision = chooseTrainerMoveIndex(
+      usable.map(({ index }) => {
+        const move = battle.wildMoves[index]!;
+        return {
+          index,
+          move,
+          effectiveness: getBattleTypeEffectiveness(move, battle.playerMon),
+          maxDamage: move.power > 0 ? calculateDamagePreview(battle.wildMon, battle.playerMon, move).max : 0,
+          targetStatus: battle.playerMon.status
+        };
+      }),
+      battle.opponentTrainerAiFlags,
+      battle.playerMon.hp,
+      (maxExclusive) => nextEncounterRoll(encounter, maxExclusive)
+    );
+
+    if (aiDecision) {
+      battle.vm.locals.aiRootScripts = aiDecision.scoredMoves[0]?.rootScripts.join(',') ?? null;
+      return aiDecision.selectedIndex;
+    }
+  }
+
   return usable[nextEncounterRoll(encounter, usable.length)]?.index ?? usable[0].index;
 };
 
 const hasUsableMove = (moves: BattleMove[]): boolean => moves.some((move) => move.ppRemaining > 0);
+
+const getTrainerItemHealAmount = (itemId: string): number => {
+  switch (itemId) {
+    case 'ITEM_SUPER_POTION':
+      return 50;
+    case 'ITEM_HYPER_POTION':
+      return 200;
+    default:
+      return 0;
+  }
+};
+
+const tryUseOpponentTrainerItem = (battle: BattleState, messages: string[]): boolean => {
+  if (!hasBattleTypeFlag(battle, 'trainer') || battle.opponentTrainerItems.length === 0 || battle.wildMon.hp <= 0) {
+    return false;
+  }
+
+  const statusItemIndex = battle.opponentTrainerItems.findIndex((itemId) =>
+    itemId === 'ITEM_FULL_HEAL' && battle.wildMon.status !== 'none'
+  );
+  if (statusItemIndex >= 0) {
+    const [itemId] = battle.opponentTrainerItems.splice(statusItemIndex, 1);
+    battle.wildMon.status = 'none';
+    battle.wildMon.statusTurns = 0;
+    battle.wildMon.volatile.toxicCounter = 0;
+    messages.push(`${battle.opponentSide.name} used ${getItemDefinition(itemId!).name}!`);
+    messages.push(`${battle.wildMon.species}'s status returned to normal!`);
+    return true;
+  }
+
+  const healItemIndex = battle.opponentTrainerItems.findIndex((itemId) =>
+    getTrainerItemHealAmount(itemId) > 0
+    && battle.wildMon.hp > 0
+    && battle.wildMon.hp <= Math.floor(battle.wildMon.maxHp / 2)
+    && battle.wildMon.hp < battle.wildMon.maxHp
+  );
+  if (healItemIndex >= 0) {
+    const [itemId] = battle.opponentTrainerItems.splice(healItemIndex, 1);
+    messages.push(`${battle.opponentSide.name} used ${getItemDefinition(itemId!).name}!`);
+    healBattler(battle, 'opponent', battle.wildMon, getTrainerItemHealAmount(itemId!), messages);
+    return true;
+  }
+
+  return false;
+};
 
 const getEnemyTurnMove = (battle: BattleState, encounter: BattleEncounterState): BattleMove | null => {
   const enemyMoveIndex = chooseEnemyMoveIndex(battle, encounter);
@@ -1610,6 +1922,209 @@ const getPlayerTurnMove = (battle: BattleState): BattleMove | null => {
 
 const hasLivingBenchMon = (battle: BattleState): boolean =>
   battle.party.some((member) => member !== battle.playerMon && member.hp > 0);
+
+const hasLivingOpponentBenchMon = (battle: BattleState): boolean =>
+  battle.opponentSide.party.some((member) => member !== battle.wildMon && member.hp > 0);
+
+const getNextLivingOpponentPartyIndex = (battle: BattleState): number | null => {
+  const nextIndex = battle.opponentSide.party.findIndex((member) => member !== battle.wildMon && member.hp > 0);
+  return nextIndex >= 0 ? nextIndex : null;
+};
+
+const getBattlePokemonTotalExperience = (pokemon: BattlePokemonSnapshot): number => {
+  const speciesInfo = getDecompSpeciesInfo(pokemon.species);
+  if (!speciesInfo) {
+    return 0;
+  }
+
+  const currentLevelExp = getExperienceForLevel(speciesInfo.growthRate, pokemon.level);
+  if (pokemon.level >= 100) {
+    return currentLevelExp;
+  }
+
+  const nextLevelExp = getExperienceForLevel(speciesInfo.growthRate, pokemon.level + 1);
+  const expRange = Math.max(1, nextLevelExp - currentLevelExp);
+  return Math.min(nextLevelExp, currentLevelExp + Math.floor(expRange * pokemon.expProgress));
+};
+
+const updateBattlePokemonStatsForLevel = (
+  pokemon: BattlePokemonSnapshot,
+  previousMaxHp: number
+): void => {
+  const speciesInfo = getDecompSpeciesInfo(pokemon.species);
+  if (!speciesInfo) {
+    return;
+  }
+
+  pokemon.maxHp = calculateStat(speciesInfo.baseHp, pokemon.level, true, pokemon.ivs.hp, pokemon.evs.hp);
+  pokemon.attack = calculateStat(speciesInfo.baseAttack, pokemon.level, false, pokemon.ivs.attack, pokemon.evs.attack);
+  pokemon.defense = calculateStat(speciesInfo.baseDefense, pokemon.level, false, pokemon.ivs.defense, pokemon.evs.defense);
+  pokemon.speed = calculateStat(speciesInfo.baseSpeed, pokemon.level, false, pokemon.ivs.speed, pokemon.evs.speed);
+  pokemon.spAttack = calculateStat(speciesInfo.baseSpAttack, pokemon.level, false, pokemon.ivs.spAttack, pokemon.evs.spAttack);
+  pokemon.spDefense = calculateStat(speciesInfo.baseSpDefense, pokemon.level, false, pokemon.ivs.spDefense, pokemon.evs.spDefense);
+  pokemon.hp = Math.min(pokemon.maxHp, pokemon.hp + Math.max(0, pokemon.maxHp - previousMaxHp));
+};
+
+const gainBattlePokemonEvs = (pokemon: BattlePokemonSnapshot, defeatedSpecies: string): void => {
+  const speciesInfo = getDecompSpeciesInfo(defeatedSpecies);
+  if (!speciesInfo) {
+    return;
+  }
+
+  const evOrder: Array<keyof BattleEvs> = ['hp', 'attack', 'defense', 'speed', 'spAttack', 'spDefense'];
+  let totalEvs = evOrder.reduce((sum, stat) => sum + pokemon.evs[stat], 0);
+  if (totalEvs >= 510) {
+    return;
+  }
+
+  const multiplier = getHeldItemHoldEffect(pokemon) === 'HOLD_EFFECT_MACHO_BRACE' ? 2 : 1;
+  for (const stat of evOrder) {
+    if (totalEvs >= 510) {
+      break;
+    }
+
+    let increase = speciesInfo.evYield[stat] * multiplier;
+    if (increase <= 0) {
+      continue;
+    }
+
+    increase = Math.min(increase, 510 - totalEvs);
+    increase = Math.min(increase, 255 - pokemon.evs[stat]);
+    if (increase <= 0) {
+      continue;
+    }
+
+    pokemon.evs[stat] += increase;
+    totalEvs += increase;
+  }
+};
+
+const awardBattleExperience = (battle: BattleState, messages: string[] = []): void => {
+  const pendingDefeatedPartyIndexes = battle.defeatedOpponentPartyIndexes
+    .filter((partyIndex) => !battle.rewardedOpponentPartyIndexes.includes(partyIndex));
+  if (pendingDefeatedPartyIndexes.length === 0) {
+    battle.rewardsApplied = true;
+    return;
+  }
+
+  if (battle.playerParticipantPartyIndexes.length === 0) {
+    battle.rewardsApplied = true;
+    return;
+  }
+
+  const participants = battle.playerParticipantPartyIndexes
+    .map((partyIndex) => ({ partyIndex, pokemon: battle.playerSide.party[partyIndex] }))
+    .filter((entry): entry is { partyIndex: number; pokemon: BattlePokemonSnapshot } => !!entry.pokemon && entry.pokemon.hp > 0 && entry.pokemon.level < 100);
+  const expShareRecipients = battle.playerSide.party
+    .map((pokemon, partyIndex) => ({ partyIndex, pokemon }))
+    .filter((entry) =>
+      !!entry.pokemon
+      && entry.pokemon.hp > 0
+      && entry.pokemon.level < 100
+      && getHeldItemHoldEffect(entry.pokemon) === 'HOLD_EFFECT_EXP_SHARE'
+    );
+
+  if (participants.length === 0 && expShareRecipients.length === 0) {
+    battle.rewardsApplied = true;
+    return;
+  }
+
+  for (const defeatedPartyIndex of pendingDefeatedPartyIndexes) {
+    const faintedMon = battle.opponentSide.party[defeatedPartyIndex];
+    const speciesInfo = faintedMon ? getDecompSpeciesInfo(faintedMon.species) : null;
+    if (!faintedMon || !speciesInfo) {
+      battle.rewardedOpponentPartyIndexes.push(defeatedPartyIndex);
+      continue;
+    }
+
+    const baseExp = Math.max(1, Math.floor((speciesInfo.expYield * faintedMon.level) / 7));
+    const participantShare = expShareRecipients.length > 0
+      ? (participants.length > 0 ? Math.max(1, Math.floor(Math.floor(baseExp / 2) / participants.length)) : 0)
+      : (participants.length > 0 ? Math.max(1, Math.floor(baseExp / participants.length)) : 0);
+    const expShareShare = expShareRecipients.length > 0
+      ? Math.max(1, Math.floor(Math.floor(baseExp / 2) / expShareRecipients.length))
+      : 0;
+
+    const rewardRecipients = battle.playerSide.party
+      .map((pokemon, partyIndex) => ({ partyIndex, pokemon }))
+      .filter((entry): entry is { partyIndex: number; pokemon: BattlePokemonSnapshot } => !!entry.pokemon && entry.pokemon.hp > 0 && entry.pokemon.level < 100)
+      .filter(({ partyIndex, pokemon }) =>
+        battle.playerParticipantPartyIndexes.includes(partyIndex)
+        || getHeldItemHoldEffect(pokemon) === 'HOLD_EFFECT_EXP_SHARE'
+      );
+
+    for (const { partyIndex, pokemon } of rewardRecipients) {
+      const growthInfo = getDecompSpeciesInfo(pokemon.species);
+      if (!growthInfo) {
+        continue;
+      }
+
+      let reward = 0;
+      if (battle.playerParticipantPartyIndexes.includes(partyIndex)) {
+        reward += participantShare;
+      }
+      if (getHeldItemHoldEffect(pokemon) === 'HOLD_EFFECT_EXP_SHARE') {
+        reward += expShareShare;
+      }
+      if (reward <= 0) {
+        continue;
+      }
+      gainBattlePokemonEvs(pokemon, faintedMon.species);
+      if (getHeldItemHoldEffect(pokemon) === 'HOLD_EFFECT_LUCKY_EGG') {
+        reward = Math.max(1, Math.floor((reward * 150) / 100));
+      }
+      if (hasBattleTypeFlag(battle, 'trainer')) {
+        reward = Math.max(1, Math.floor((reward * 150) / 100));
+      }
+
+      const currentTotalExp = getBattlePokemonTotalExperience(pokemon);
+      const nextTotalExp = Math.min(
+        getExperienceForLevel(growthInfo.growthRate, 100),
+        currentTotalExp + reward
+      );
+      const previousLevel = pokemon.level;
+      const previousMaxHp = pokemon.maxHp;
+
+      const nextLevel = getLevelForExperience(growthInfo.growthRate, nextTotalExp);
+      pokemon.level = nextLevel;
+      const currentLevelExp = getExperienceForLevel(growthInfo.growthRate, pokemon.level);
+      const nextLevelExp = pokemon.level >= 100
+        ? currentLevelExp
+        : getExperienceForLevel(growthInfo.growthRate, pokemon.level + 1);
+      pokemon.expProgress = pokemon.level >= 100 || nextLevelExp <= currentLevelExp
+        ? 0
+        : (nextTotalExp - currentLevelExp) / (nextLevelExp - currentLevelExp);
+
+      if (nextLevel > previousLevel) {
+        updateBattlePokemonStatsForLevel(pokemon, previousMaxHp);
+        pokemon.friendship = Math.min(255, pokemon.friendship + 3);
+        battle.postResult.levelUps.push({
+          side: 'player',
+          species: pokemon.species,
+          level: nextLevel
+        });
+        battle.postResult.pendingMoveLearn = true;
+      }
+
+      appendBattleTraceEvent(battle, {
+        type: 'reward',
+        battler: 'player',
+        value: reward,
+        text: `${pokemon.species} gained ${reward} EXP`
+      });
+      messages.push(`${pokemon.species} gained ${reward} EXP. Points!`);
+      if (nextLevel > previousLevel) {
+        messages.push(`${pokemon.species} grew to LV. ${nextLevel}!`);
+        battle.currentScriptLabel = 'BattleScript_LevelUp';
+      }
+    }
+
+    battle.rewardedOpponentPartyIndexes.push(defeatedPartyIndex);
+  }
+
+  battle.rewardsApplied = battle.defeatedOpponentPartyIndexes
+    .every((partyIndex) => battle.rewardedOpponentPartyIndexes.includes(partyIndex));
+};
 
 const isSwitchPrevented = (pokemon: BattlePokemonSnapshot): boolean =>
   pokemon.volatile.rooted
@@ -4140,47 +4655,33 @@ const executeMove = (
   const attacker = attackerSide === 'player' ? battle.playerMon : battle.wildMon;
   const defender = attackerSide === 'player' ? battle.wildMon : battle.playerMon;
   const defenderSide = attackerSide === 'player' ? 'opponent' : 'player';
-  let resultingMoveHandledByCalledMove = false;
-  let moveWasAttempted = false;
-
-  battle.currentScriptLabel = move.effectScriptLabel;
-  emitControllerCommand(battle, { type: 'script', label: move.effectScriptLabel });
 
   const isChargingSecondTurn = attacker.volatile.chargingMoveId === move.id;
   const isLockedMultiTurn = attacker.volatile.rampageMoveId === move.id
     || attacker.volatile.uproarMoveId === move.id
     || (attacker.volatile.bideMoveId === move.id && attacker.volatile.bideTurns > 0);
+  const vmPrelude = beginBattleMoveVm(
+    battle,
+    attackerSide,
+    attacker,
+    move,
+    {
+      ...options,
+      consumePp: !isChargingSecondTurn && !isLockedMultiTurn && (options.consumePp ?? true)
+    },
+    {
+      canMoveThisTurn: () => canMoveThisTurn(battle, attackerSide, attacker, move, encounterState, messages, options.sleepTalk),
+      emitCommand: (command) => emitControllerCommand(battle, command),
+      pushMessage: (text) => pushMessage(messages, battle, text),
+      getActorLabel: () => getActorLabel(attackerSide, battle)
+    }
+  );
+  let { resultingMoveHandledByCalledMove, moveWasAttempted, previousLastMoveUsedId } = vmPrelude;
+
   try {
-    if (!canMoveThisTurn(battle, attackerSide, attacker, move, encounterState, messages, options.sleepTalk)) {
+    if (!vmPrelude.shouldContinue) {
       return messages;
     }
-
-    const consumePp = options.consumePp ?? true;
-    const announce = options.announce ?? true;
-
-    if (!isChargingSecondTurn && !isLockedMultiTurn && consumePp && move.ppRemaining <= 0 && move.id !== 'STRUGGLE') {
-      pushMessage(messages, battle, `There's no PP left for ${move.name}!`);
-      return messages;
-    }
-
-    if (!isChargingSecondTurn && !isLockedMultiTurn && consumePp && move.id !== 'STRUGGLE' && move.ppRemaining > 0) {
-      move.ppRemaining -= 1;
-    }
-
-    if (move.effect === 'EFFECT_FOCUS_PUNCH' && attacker.volatile.tookDamageThisTurn) {
-      pushMessage(messages, battle, `${attacker.species} lost its focus and couldn't move!`);
-      return messages;
-    }
-
-    if (announce) {
-      pushMessage(messages, battle, `${getActorLabel(attackerSide, battle)} used ${move.name}!`);
-      attacker.volatile.lastPrintedMoveId = move.id;
-    }
-    const previousLastMoveUsedId = attacker.volatile.lastMoveUsedId;
-    if (!options.preserveLastMoveUsed) {
-      attacker.volatile.lastMoveUsedId = move.id;
-    }
-    moveWasAttempted = true;
 
     if (move.target !== 'MOVE_TARGET_USER' && attackerSide !== defenderSide) {
       defender.volatile.lastLandedMoveId = null;
@@ -4989,19 +5490,22 @@ const executeMove = (
 
     return messages;
   } finally {
-    if (
-      moveWasAttempted
-      && getHeldItemHoldEffect(attacker) === 'HOLD_EFFECT_CHOICE_BAND'
-      && move.id !== 'STRUGGLE'
-      && !getChoicedMoveId(attacker)
-      && !(move.effect === 'EFFECT_BATON_PASS' && !messages.includes('But it failed!'))
-    ) {
-      attacker.volatile.choicedMoveId = move.id;
-    }
-
-    if (!resultingMoveHandledByCalledMove && move.effect !== 'EFFECT_BATON_PASS') {
-      attacker.volatile.lastSuccessfulMoveId = move.id;
-    }
+    finalizeBattleMoveVm(
+      attacker,
+      move,
+      {
+        moveWasAttempted,
+        resultingMoveHandledByCalledMove
+      },
+      {
+        choiceBandActive: moveWasAttempted
+          && getHeldItemHoldEffect(attacker) === 'HOLD_EFFECT_CHOICE_BAND'
+          && move.id !== 'STRUGGLE'
+          && !getChoicedMoveId(attacker)
+          && !(move.effect === 'EFFECT_BATON_PASS' && !messages.includes('But it failed!')),
+        skipLastSuccessfulMove: move.effect === 'EFFECT_BATON_PASS'
+      }
+    );
   }
 };
 
@@ -5131,11 +5635,47 @@ const enqueueTurnMessages = (battle: BattleState, messages: string[]): void => {
       queueMessages(battle, messages, 'partySelect', 'Choose a Pokémon.');
       return;
     }
+    battle.postResult.outcome = 'lost';
+    battle.postResult.whiteout = hasBattleTypeFlag(battle, 'trainer');
+    battle.postResult.blackout = !hasBattleTypeFlag(battle, 'trainer');
     queueMessages(battle, messages, 'resolved');
     return;
   }
 
   if (battle.wildMon.hp === 0) {
+    const defeatedOpponentPartyIndex = battle.opponentSide.activePartyIndexes[0] ?? 0;
+    if (!battle.defeatedOpponentPartyIndexes.includes(defeatedOpponentPartyIndex)) {
+      battle.defeatedOpponentPartyIndexes.push(defeatedOpponentPartyIndex);
+      battle.rewardsApplied = false;
+    }
+    awardBattleExperience(battle, messages);
+    if (hasBattleTypeFlag(battle, 'trainer') && hasLivingOpponentBenchMon(battle)) {
+      battle.pendingOpponentPartyIndex = getNextLivingOpponentPartyIndex(battle);
+      if (
+        battle.pendingOpponentPartyIndex !== null
+        && battle.battleStyle === 'shift'
+        && battle.playerMon.hp > 0
+        && hasLivingBenchMon(battle)
+      ) {
+        const nextOpponentMon = battle.opponentSide.party[battle.pendingOpponentPartyIndex];
+        if (nextOpponentMon) {
+          battle.selectedShiftPromptIndex = 0;
+          queueMessages(
+            battle,
+            [...messages, ...getShiftPromptMessages(battle, nextOpponentMon)],
+            'shiftPrompt',
+            getShiftPromptQuestion(battle)
+          );
+          return;
+        }
+      }
+      if (sendOutPendingOpponent(battle, messages)) {
+        return;
+      }
+    }
+
+    battle.postResult.outcome = 'won';
+    battle.postResult.payDayTotal = battle.payDayMoney;
     queueMessages(battle, messages, 'resolved');
     return;
   }
@@ -5158,11 +5698,22 @@ const enqueueTurnMessages = (battle: BattleState, messages: string[]): void => {
   queueMessages(battle, messages, 'command', getPromptSummary(battle));
 };
 
+const hasPendingOpponentSendOut = (battle: BattleState): boolean =>
+  battle.pendingOpponentPartyIndex !== null && battle.wildMon.hp === 0;
+
 const resolveEnemyOnlyTurn = (battle: BattleState, encounterState: BattleEncounterState, leadingMessages: string[]): void => {
   battle.queuedControllerCommands = [];
-  const enemyMove = getEnemyTurnMove(battle, encounterState);
   const messages = [...leadingMessages];
 
+  if (tryUseOpponentTrainerItem(battle, messages)) {
+    if (battle.playerMon.hp > 0 && battle.wildMon.hp > 0) {
+      messages.push(...resolveEndOfTurn(battle, encounterState));
+    }
+    enqueueTurnMessages(battle, messages);
+    return;
+  }
+
+  const enemyMove = getEnemyTurnMove(battle, encounterState);
   if (enemyMove) {
     messages.push(...executeMove(battle, 'opponent', enemyMove, encounterState));
   }
@@ -5177,6 +5728,34 @@ const resolveEnemyOnlyTurn = (battle: BattleState, encounterState: BattleEncount
   }
 
   enqueueTurnMessages(battle, messages);
+};
+
+const sendOutPendingOpponent = (
+  battle: BattleState,
+  messages: string[],
+  resumePhase: Exclude<BattlePhase, 'script'> = 'command',
+  resumeSummary = getPromptSummary(battle)
+): boolean => {
+  const nextIndex = battle.pendingOpponentPartyIndex;
+  if (nextIndex === null) {
+    return false;
+  }
+
+  const nextOpponentMon = battle.opponentSide.party[nextIndex];
+  if (!nextOpponentMon || nextOpponentMon.hp <= 0) {
+    battle.pendingOpponentPartyIndex = null;
+    return false;
+  }
+
+  resetBattlePokemonTransientState(nextOpponentMon);
+  battle.opponentSide.activePartyIndexes = [nextIndex];
+  battle.pendingOpponentPartyIndex = null;
+  setActiveBattlePartyMember(battle, 'opponent', nextOpponentMon);
+  refreshActiveMovePointers(battle);
+  battle.currentScriptLabel = 'BattleScript_TrainerSendOut';
+  messages.push(`${battle.opponentSide.name} sent out ${nextOpponentMon.species}!`);
+  queueMessages(battle, messages, resumePhase, resumeSummary);
+  return true;
 };
 
 const resolvePursuitBeforeSwitch = (
@@ -5243,6 +5822,10 @@ const resolvePlayerSwitchTurn = (
     return;
   }
 
+  if (sendOutPendingOpponent(battle, messages)) {
+    return;
+  }
+
   queueMessages(battle, messages, 'command', getPromptSummary(battle));
 };
 
@@ -5264,6 +5847,9 @@ const resolveSelectedMoveTurn = (battle: BattleState, encounterState: BattleEnco
     }
 
     pendingActors.delete(actor);
+    if (actor === 'opponent' && tryUseOpponentTrainerItem(battle, messages)) {
+      continue;
+    }
     const defenderSide = actor === 'player' ? 'opponent' : 'player';
     messages.push(...executeMove(
       battle,
@@ -5308,10 +5894,10 @@ const chooseWildEncounterMon = (
   return createBattlePokemonFromSpecies(selectedMon.species, level);
 };
 
-export const createBattleEncounterState = (): BattleEncounterState => ({
+export const createBattleEncounterState = (seed = 0x4a3b): BattleEncounterState => ({
   stepsSinceLastEncounter: 0,
   encounterRate: 30,
-  rngState: 0x4a3b
+  rngState: seedDecompRng(seed)
 });
 
 const createDefaultPlayerBattleParty = (): BattlePokemonSnapshot[] => {
@@ -5362,10 +5948,14 @@ const getBattleTypeFlagsForConfig = (config: BattleStartConfig): BattleTypeFlag[
 
 const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleState => {
   const mode = config.mode ?? 'wild';
+  const format = config.format ?? 'singles';
   const playerParty = normalizeBattleParty(config.playerParty, createDefaultPlayerBattleParty);
+  const partnerParty = normalizeBattleParty(config.partnerParty, () => []);
   const opponentParty = normalizeBattleParty(config.opponentParty, createDefaultOpponentBattleParty);
-  const activePlayerPartyIndex = clampPartyIndex(playerParty, config.activePlayerPartyIndex);
-  const activeOpponentPartyIndex = clampPartyIndex(opponentParty, config.activeOpponentPartyIndex);
+  const activePlayerPartyIndexes = getConfiguredActivePartyIndexes(config, 'player', playerParty, config.activePlayerPartyIndex, format);
+  const activeOpponentPartyIndexes = getConfiguredActivePartyIndexes(config, 'opponent', opponentParty, config.activeOpponentPartyIndex, format);
+  const activePlayerPartyIndex = activePlayerPartyIndexes[0]!;
+  const activeOpponentPartyIndex = activeOpponentPartyIndexes[0]!;
   const battleTypeFlags = getBattleTypeFlagsForConfig(config);
   const playerMon = playerParty[activePlayerPartyIndex]!;
   const opponentMon = opponentParty[activeOpponentPartyIndex]!;
@@ -5374,21 +5964,31 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     active: false,
     phase: 'intro',
     mode,
+    format,
+    controlMode: config.controlMode ?? 'singlePlayer',
     terrain: config.terrain ?? 'BATTLE_TERRAIN_GRASS',
     mapBattleScene: config.mapBattleScene ?? DEFAULT_BATTLE_SCENE,
+    battleStyle: config.battleStyle ?? 'shift',
     playerSide: {
       name: config.playerName ?? 'PLAYER',
       trainerId: null,
       party: playerParty,
-      activePartyIndexes: [activePlayerPartyIndex]
+      activePartyIndexes: activePlayerPartyIndexes
     },
+    partnerParty,
     opponentSide: {
       name: config.opponentName ?? (mode === 'wild' ? 'Wild Pokémon' : 'Opponent'),
       trainerId: config.trainerId ?? null,
       party: opponentParty,
-      activePartyIndexes: [activeOpponentPartyIndex]
+      activePartyIndexes: activeOpponentPartyIndexes
     },
-    battlers: createBattlerRuntimeState(activePlayerPartyIndex, activeOpponentPartyIndex),
+    opponentTrainerItems: [...(config.opponentTrainerItems ?? [])],
+    opponentTrainerAiFlags: [...(config.opponentTrainerAiFlags ?? [])],
+    playerParticipantPartyIndexes: [activePlayerPartyIndex],
+    defeatedOpponentPartyIndexes: [],
+    rewardedOpponentPartyIndexes: [],
+    rewardsApplied: false,
+    battlers: createBattlerRuntimeState(activePlayerPartyIndexes, activeOpponentPartyIndexes, format),
     playerMon,
     party: playerParty,
     wildMon: opponentMon,
@@ -5411,6 +6011,7 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     payDayMoney: 0,
     selectedMoveIndex: 0,
     selectedCommandIndex: 0,
+    selectedShiftPromptIndex: 0,
     commands: [...NORMAL_BATTLE_COMMANDS],
     selectedPartyIndex: 0,
     selectedBagIndex: 0,
@@ -5418,6 +6019,7 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     damagePreview: null,
     runAttempts: 0,
     battleTurnCounter: 0,
+    pendingOpponentPartyIndex: null,
     caughtSpeciesIds: [...(config.caughtSpeciesIds ?? [])],
     bag: {
       pokeBalls: 5,
@@ -5429,6 +6031,8 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     queuedControllerCommands: [],
     battleTrace: [],
     currentScriptLabel: null,
+    vm: createBattleVmState(),
+    postResult: createBattlePostResult(),
     resumePhase: 'command',
     resumeSummary: ''
   };
@@ -5448,8 +6052,14 @@ export const createBattleState = (config: BattleStartConfig = {}): BattleState =
 
 export const configureBattleState = (battle: BattleState, config: BattleStartConfig = {}): BattleState => {
   const nextBattle = createBattleStateFromConfig({
+    battleStyle: battle.battleStyle,
+    format: battle.format,
+    controlMode: battle.controlMode,
+    opponentTrainerItems: battle.opponentTrainerItems,
+    opponentTrainerAiFlags: battle.opponentTrainerAiFlags,
     playerParty: battle.playerSide.party,
-    activePlayerPartyIndex: battle.playerSide.activePartyIndexes[0],
+    partnerParty: battle.partnerParty,
+    activeBattlers: battle.battlers,
     playerName: battle.playerSide.name,
     ...config
   });
@@ -5473,6 +6083,36 @@ export const startConfiguredBattle = (battle: BattleState, config: BattleStartCo
   return battle;
 };
 
+export const applyBattleRewards = (battle: BattleState): void => {
+  awardBattleExperience(battle);
+};
+
+export const getBattlePostResult = (battle: BattleState): BattlePostResult =>
+  cloneBattlePostResult(battle.postResult);
+
+export const clearBattlePostResult = (battle: BattleState): void => {
+  resetBattlePostResult(battle.postResult);
+};
+
+export const startTrainerBattle = (battle: BattleState, config: BattleStartConfig = {}): BattleState => {
+  startConfiguredBattle(battle, {
+    ...config,
+    mode: 'trainer'
+  });
+  battle.currentScriptLabel = 'BattleScript_TrainerEncounter';
+  queueMessages(
+    battle,
+    [
+      `${battle.opponentSide.name} wants to battle!`,
+      `${battle.opponentSide.name} sent out ${battle.wildMon.species}!`,
+      `Go! ${battle.playerMon.species}!`
+    ],
+    'command',
+    getPromptSummary(battle)
+  );
+  return battle;
+};
+
 export const tryStartWildBattle = (
   battle: BattleState,
   encounter: BattleEncounterState,
@@ -5480,7 +6120,8 @@ export const tryStartWildBattle = (
   canEncounter: boolean,
   encounterGroup?: WildEncounterGroup,
   mapBattleScene = DEFAULT_BATTLE_SCENE,
-  mapId?: string
+  mapId?: string,
+  battleConfig?: WildBattleStartConfig
 ): boolean => {
   if (!playerMoved || battle.active || !canEncounter || !encounterGroup) {
     return false;
@@ -5495,13 +6136,14 @@ export const tryStartWildBattle = (
   const wildMon = chooseWildEncounterMon(encounterGroup, encounter);
   const terrain = getBattleTerrainForScene(mapBattleScene, { mapId, encounterKind: 'land' });
   startConfiguredBattle(battle, {
-    mode: 'wild',
+    mode: battleConfig?.mode ?? 'wild',
     mapBattleScene,
     terrain,
     opponentName: 'Wild Pokémon',
     opponentParty: [wildMon],
     activeOpponentPartyIndex: 0,
-    battleTypeFlags: []
+    battleTypeFlags: battleConfig?.battleTypeFlags ?? [],
+    safariBalls: battleConfig?.safariBalls
   });
   battle.wildMon.hp = battle.wildMon.maxHp;
   battle.wildMon.status = 'none';
@@ -5617,6 +6259,7 @@ const resolveSafariOpponentAction = (
 ): void => {
   if (shouldSafariMonFlee(battle, encounterState)) {
     battle.currentScriptLabel = 'BattleScript_PrintMonFledFromBattle';
+    battle.postResult.outcome = 'escaped';
     queueMessages(battle, [...leadingMessages, `Wild ${battle.wildMon.species} fled!`], 'resolved');
     return;
   }
@@ -5644,6 +6287,8 @@ const handleSafariBallThrow = (
   const leadingMessages = [`${capture.ballLabel} thrown!`];
   if (capture.caught) {
     battle.caughtMon = cloneBattlePokemon(battle.wildMon);
+    battle.postResult.outcome = 'caught';
+    battle.postResult.caughtSpecies = battle.wildMon.species;
     if (!battle.caughtSpeciesIds.includes(battle.wildMon.species)) {
       battle.caughtSpeciesIds.push(battle.wildMon.species);
     }
@@ -6002,9 +6647,17 @@ export const stepBattle = (
       battle.damagePreview = null;
       battle.caughtMon = null;
       battle.moveEndedBattle = false;
+      battle.pendingOpponentPartyIndex = null;
+      battle.rewardsApplied = false;
+      battle.playerParticipantPartyIndexes = [];
+      battle.defeatedOpponentPartyIndexes = [];
+      battle.rewardedOpponentPartyIndexes = [];
+      battle.selectedShiftPromptIndex = 0;
       battle.queuedMessages = [];
       battle.queuedControllerCommands = [];
       battle.currentScriptLabel = null;
+      resetBattleVmState(battle.vm);
+      resetBattlePostResult(battle.postResult);
       battle.sideState = {
         player: createSideState(),
         opponent: createSideState()
@@ -6026,6 +6679,27 @@ export const stepBattle = (
         resetBattlePokemonTransientState(partyMember);
       }
       resetBattlePokemonTransientState(battle.wildMon);
+    }
+    return;
+  }
+
+  if (battle.phase === 'shiftPrompt') {
+    if (input.upPressed || input.leftPressed || input.downPressed || input.rightPressed) {
+      battle.selectedShiftPromptIndex = battle.selectedShiftPromptIndex === 0 ? 1 : 0;
+    }
+
+    if (input.cancelPressed || (input.interactPressed && battle.selectedShiftPromptIndex === 1)) {
+      if (sendOutPendingOpponent(battle, [])) {
+        return;
+      }
+      battle.phase = 'command';
+      battle.turnSummary = getPromptSummary(battle);
+      return;
+    }
+
+    if (input.interactPressed) {
+      battle.phase = 'partySelect';
+      battle.turnSummary = 'Choose a Pokémon.';
     }
     return;
   }
@@ -6103,6 +6777,7 @@ export const stepBattle = (
     battle.runAttempts += 1;
     if (escaped) {
       battle.currentScriptLabel = 'BattleScript_GotAwaySafely';
+      battle.postResult.outcome = 'escaped';
       queueMessages(battle, ['Got away safely!'], 'resolved');
     } else {
       battle.currentScriptLabel = 'BattleScript_PrintFailedToRunString';
@@ -6171,6 +6846,8 @@ export const stepBattle = (
     if (capture.caught) {
       if (capture.tutorialCatch) {
         battle.currentScriptLabel = 'BattleScript_OldMan_Pokedude_CaughtMessage';
+        battle.postResult.outcome = 'caught';
+        battle.postResult.caughtSpecies = battle.wildMon.species;
         queueMessages(
           battle,
           [`${capture.ballLabel} thrown!`, `Gotcha! ${battle.wildMon.species} was caught!`],
@@ -6180,6 +6857,8 @@ export const stepBattle = (
       }
 
       battle.caughtMon = cloneBattlePokemon(battle.wildMon);
+      battle.postResult.outcome = 'caught';
+      battle.postResult.caughtSpecies = battle.wildMon.species;
       if (!battle.caughtSpeciesIds.includes(battle.wildMon.species)) {
         battle.caughtSpeciesIds.push(battle.wildMon.species);
       }
@@ -6199,7 +6878,11 @@ export const stepBattle = (
   }
 
   if (battle.phase === 'partySelect') {
-    if (battle.playerMon.hp > 0 && isSwitchPreventedByOpponent(battle.playerMon, battle.wildMon)) {
+    if (
+      battle.playerMon.hp > 0
+      && !hasPendingOpponentSendOut(battle)
+      && isSwitchPreventedByOpponent(battle.playerMon, battle.wildMon)
+    ) {
       battle.phase = 'command';
       battle.turnSummary = "Can't switch out!";
       return;
@@ -6212,6 +6895,12 @@ export const stepBattle = (
     }
 
     if (input.cancelPressed && battle.playerMon.hp > 0) {
+      if (hasPendingOpponentSendOut(battle)) {
+        battle.phase = 'shiftPrompt';
+        battle.turnSummary = getShiftPromptQuestion(battle);
+        return;
+      }
+
       battle.phase = 'command';
       battle.turnSummary = getPromptSummary(battle);
       return;

@@ -66,7 +66,12 @@ import {
   getDecompPokedexEntry,
   getNationalDexNumber
 } from '../game/decompPokedex';
+import type { FieldPoisonEffectState } from '../game/decompFieldPoison';
+import { Q_8_8_div, Q_8_8_mul } from '../game/decompMathUtil';
+import { getMoney } from '../game/decompMoney';
 import { getPokedexCounts, isNationalDexEnabled } from '../game/decompPokedexUi';
+import { countEarnedBadges } from '../game/decompSaveMenuUtil';
+import { getSafariZoneBallCount, getSafariZoneStepsRemaining, SAFARI_ZONE_TOTAL_STEPS } from '../game/decompSafariZone';
 import { getDecompSpeciesInfo } from '../game/decompSpecies';
 import {
   getBagDescription,
@@ -93,8 +98,19 @@ import { getSpeciesDisplayName } from '../game/pokemonStorage';
 import type { NpcState } from '../game/npc';
 import type { PlayerState } from '../game/player';
 import type { ScriptRuntimeState } from '../game/scripts';
+import type { DialogueState } from '../game/interaction';
 import type { TileMap } from '../world/tileMap';
 import { DecompTextureStore } from './decompTextureStore';
+import {
+  getHelpMessageTextOrigin,
+  getHelpMessageWindowRect,
+  getHelpMessageWindowTileId
+} from './decompHelpMessage';
+import {
+  FIELD_RENDER_ORDER,
+  getMapElevationAtPixel,
+  getSpritePriorityForElevation
+} from './fieldRenderOrder';
 import {
   DEX_AREA_MAP_KANTO_RECT,
   DEX_CATEGORY_ICON_SIZE,
@@ -207,6 +223,7 @@ import {
   partyActionsWindowTiles,
   tilesToPixels
 } from './partyScreenLayout';
+import { tintBattleTerrainPalette } from './decompBlendPalette';
 import {
   BATTLE_ACTION_MENU_WINDOW,
   BATTLE_ACTION_PROMPT_WINDOW,
@@ -229,6 +246,7 @@ import {
   BATTLE_TYPE_BOX,
   getBattlePpLineColors
 } from './battleScreenLayout';
+import { getUserWindowGraphicsIndex } from './decompTextWindowGraphics';
 import {
   blitSinglesOpponentHealthbox,
   blitSinglesPlayerHealthbox,
@@ -277,16 +295,31 @@ import {
 
 const PLAYER_SIZE = 14;
 const PLAYER_GRAPHICS_ID = 'OBJ_EVENT_GFX_RED_NORMAL';
+
+interface FieldEntityDrawRequest {
+  kind: 'npc' | 'player';
+  priority: number;
+  sortY: number;
+  npc?: NpcState;
+  player?: PlayerState;
+}
 const WINDOW_SLICE = 8;
 /** `start_menu.c` / `help_message.c` field layer size in pixels. */
 const GBA_VIEW_WIDTH = 240;
 const GBA_VIEW_HEIGHT = 160;
+const FIELD_MESSAGE_WINDOW = { x: 16, y: 120, w: 208, h: 32 } as const;
+const FIELD_MESSAGE_TEXT = { x: 24, y: 125, maxWidth: 192, lineHeight: 12 } as const;
+const FIELD_MESSAGE_MAX_LINES = 2;
+const FIELD_MENU_TILE_SIZE = 8;
+const FIELD_MENU_ROW_HEIGHT = 16;
 
 interface RenderOverlayState {
   startMenu: StartMenuState;
   runtime: ScriptRuntimeState;
   battle?: BattleState;
   bag?: BagState;
+  dialogue?: DialogueState;
+  fieldPoison?: FieldPoisonEffectState;
 }
 
 type NonBagMenuPanel = Exclude<NonNullable<StartMenuState['panel']>, BagPanelState>;
@@ -375,6 +408,7 @@ export class CanvasRenderer {
   private battleHealthboxPlayerPrepared: HTMLCanvasElement | null = null;
   private battleTextboxComposite: HTMLCanvasElement | null = null;
   private battleTextboxAssetsReady: Promise<void> | null = null;
+  private mosaicCanvas: HTMLCanvasElement | null = null;
   private activeFrameType = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -531,6 +565,10 @@ export class CanvasRenderer {
       return;
     }
 
+    if (overlays?.runtime) {
+      this.activeFrameType = getUserWindowGraphicsIndex(overlays.runtime.options.frameType ?? 0);
+    }
+
     this.textureStore.ensureMapTextures(map);
     const renderCamera = this.snapCamera(camera);
 
@@ -540,7 +578,10 @@ export class CanvasRenderer {
     const endX = Math.min(map.width, startX + Math.ceil(renderCamera.viewportWidth / tileSize) + 1);
     const endY = Math.min(map.height, startY + Math.ceil(renderCamera.viewportHeight / tileSize) + 1);
 
-    if (!this.textureStore.drawMapBase(ctx, map, renderCamera, startX, startY, endX, endY)) {
+    const drawQueue = this.buildEntityDrawQueue(map, player, npcs);
+    const layeredFieldReady = this.textureStore.hasMapTextures(map);
+
+    if (!layeredFieldReady) {
       for (let y = startY; y < endY; y += 1) {
         for (let x = startX; x < endX; x += 1) {
           const idx = y * map.width + x;
@@ -559,6 +600,28 @@ export class CanvasRenderer {
           );
         }
       }
+    } else {
+      this.drawEntities(drawQueue, renderCamera);
+    }
+
+    if (layeredFieldReady) {
+      for (const stage of FIELD_RENDER_ORDER) {
+        if (stage.type === 'sprites') {
+          this.drawEntities(drawQueue, renderCamera, stage.priority);
+          continue;
+        }
+
+        this.textureStore.drawMapLayer(
+          ctx,
+          map,
+          renderCamera,
+          startX,
+          startY,
+          endX,
+          endY,
+          stage.pass
+        );
+      }
     }
 
     for (const trigger of map.triggers) {
@@ -568,8 +631,12 @@ export class CanvasRenderer {
       this.ctx.fillRect(tx + 5, ty + 5, 6, 6);
     }
 
-    this.drawEntities(player, npcs, renderCamera);
-    this.textureStore.drawMapCover(ctx, map, renderCamera, startX, startY, endX, endY);
+    if (overlays?.fieldPoison?.active && overlays.fieldPoison.mosaic > 0) {
+      this.applyFieldMosaic(overlays.fieldPoison.mosaic);
+    }
+    if (overlays?.dialogue?.active) {
+      this.drawFieldDialogueWindow(overlays.dialogue);
+    }
     if (overlays) {
       this.drawStartMenuOverlay(overlays.startMenu, overlays.runtime);
     }
@@ -587,6 +654,51 @@ export class CanvasRenderer {
     const image = new Image();
     image.src = src;
     return image;
+  }
+
+  private getMosaicCanvas(): HTMLCanvasElement {
+    if (!this.mosaicCanvas) {
+      this.mosaicCanvas = document.createElement('canvas');
+    }
+
+    if (this.mosaicCanvas.width !== this.canvas.width || this.mosaicCanvas.height !== this.canvas.height) {
+      this.mosaicCanvas.width = this.canvas.width;
+      this.mosaicCanvas.height = this.canvas.height;
+    }
+
+    return this.mosaicCanvas;
+  }
+
+  private applyFieldMosaic(mosaic: number): void {
+    const block = Math.max(1, mosaic + 1);
+    const scaleQ8_8 = Q_8_8_div(0x100, block);
+    const reducedWidth = Math.max(1, Q_8_8_mul(this.canvas.width, scaleQ8_8));
+    const reducedHeight = Math.max(1, Q_8_8_mul(this.canvas.height, scaleQ8_8));
+    const mosaicCanvas = this.getMosaicCanvas();
+    const mosaicCtx = mosaicCanvas.getContext('2d');
+    if (!mosaicCtx) {
+      return;
+    }
+
+    mosaicCtx.imageSmoothingEnabled = false;
+    mosaicCtx.clearRect(0, 0, mosaicCanvas.width, mosaicCanvas.height);
+    mosaicCtx.drawImage(this.canvas, 0, 0, reducedWidth, reducedHeight);
+
+    this.ctx.save();
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.drawImage(
+      mosaicCanvas,
+      0,
+      0,
+      reducedWidth,
+      reducedHeight,
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height
+    );
+    this.ctx.restore();
   }
 
   private loadItemIcons(): Map<string, HTMLImageElement> {
@@ -679,7 +791,14 @@ export class CanvasRenderer {
    * Same tiling as `DrawHelpMessageWindowTilesById` in `src/help_message.c`:
    * top row tile 0, middle rows tile 5, bottom row tile 14, each repeated across width.
    */
-  private drawHelpMessageWindowTiled(dx: number, dy: number, dw: number, dh: number): void {
+  private drawHelpMessageWindowTiled(
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+    widthTiles: number,
+    heightTiles: number
+  ): void {
     const img = this.helpMessageWindowTiles;
     if (!img.complete || img.naturalWidth <= 0) {
       this.ctx.save();
@@ -692,56 +811,65 @@ export class CanvasRenderer {
     }
 
     const tilesPerRow = 10;
-    const tw = 8;
-    const th = 8;
-    const rows = Math.ceil(dh / th);
-    const cols = Math.ceil(dw / tw);
-    for (let i = 0; i < rows; i++) {
-      const tileId = i === 0 ? 0 : i === rows - 1 ? 14 : 5;
+    const srcTileW = 8;
+    const srcTileH = 8;
+    const destTileW = dw / widthTiles;
+    const destTileH = dh / heightTiles;
+    for (let i = 0; i < heightTiles; i++) {
+      const tileId = getHelpMessageWindowTileId(i, heightTiles);
       const srcCol = tileId % tilesPerRow;
       const srcRow = Math.floor(tileId / tilesPerRow);
-      const sx = srcCol * tw;
-      const sy = srcRow * th;
-      for (let j = 0; j < cols; j++) {
-        const destX0 = dx + j * tw;
-        const destY0 = dy + i * th;
-        const sliceW = Math.min(tw, dx + dw - destX0);
-        const sliceH = Math.min(th, dy + dh - destY0);
+      const sx = srcCol * srcTileW;
+      const sy = srcRow * srcTileH;
+      for (let j = 0; j < widthTiles; j++) {
+        const destX0 = dx + j * destTileW;
+        const destY0 = dy + i * destTileH;
+        const sliceW = Math.min(destTileW, dx + dw - destX0);
+        const sliceH = Math.min(destTileH, dy + dh - destY0);
         if (sliceW <= 0 || sliceH <= 0) {
           continue;
         }
-        this.ctx.drawImage(img, sx, sy, sliceW, sliceH, destX0, destY0, sliceW, sliceH);
+        const srcSliceW = (sliceW / destTileW) * srcTileW;
+        const srcSliceH = (sliceH / destTileH) * srcTileH;
+        this.ctx.drawImage(img, sx, sy, srcSliceW, srcSliceH, destX0, destY0, sliceW, sliceH);
       }
     }
   }
 
-  private getBattleTerrainColors(terrain: BattleState['terrain']): { sky: string; horizon: string; floor: string; accent: string } {
-    switch (terrain) {
-      case 'BATTLE_TERRAIN_CAVE':
-        return { sky: '#5e5b74', horizon: '#82758f', floor: '#5b4f46', accent: '#3a2f2a' };
-      case 'BATTLE_TERRAIN_WATER':
-      case 'BATTLE_TERRAIN_POND':
-      case 'BATTLE_TERRAIN_UNDERWATER':
-        return { sky: '#86d0f7', horizon: '#b6ebff', floor: '#3e9ac4', accent: '#216f8d' };
-      case 'BATTLE_TERRAIN_GYM':
-      case 'BATTLE_TERRAIN_BUILDING':
-      case 'BATTLE_TERRAIN_INDOOR_1':
-      case 'BATTLE_TERRAIN_INDOOR_2':
-      case 'BATTLE_TERRAIN_LEADER':
-      case 'BATTLE_TERRAIN_LINK':
-      case 'BATTLE_TERRAIN_LORELEI':
-      case 'BATTLE_TERRAIN_BRUNO':
-      case 'BATTLE_TERRAIN_AGATHA':
-      case 'BATTLE_TERRAIN_LANCE':
-      case 'BATTLE_TERRAIN_CHAMPION':
-        return { sky: '#d4d8e4', horizon: '#edf0f6', floor: '#a89fb0', accent: '#6c6074' };
-      case 'BATTLE_TERRAIN_SAND':
-        return { sky: '#f8daa4', horizon: '#fff2d0', floor: '#d4aa58', accent: '#9a7834' };
-      case 'BATTLE_TERRAIN_MOUNTAIN':
-        return { sky: '#b6d0ef', horizon: '#ebf5ff', floor: '#8a9bb0', accent: '#5a687b' };
-      default:
-        return { sky: '#8cc6ff', horizon: '#dff7ff', floor: '#73c056', accent: '#357f32' };
-    }
+  private getBattleTerrainColors(
+    terrain: BattleState['terrain'],
+    weather: BattleState['weather'] = 'none'
+  ): { sky: string; horizon: string; floor: string; accent: string } {
+    const basePalette = (() => {
+      switch (terrain) {
+        case 'BATTLE_TERRAIN_CAVE':
+          return { sky: '#5e5b74', horizon: '#82758f', floor: '#5b4f46', accent: '#3a2f2a' };
+        case 'BATTLE_TERRAIN_WATER':
+        case 'BATTLE_TERRAIN_POND':
+        case 'BATTLE_TERRAIN_UNDERWATER':
+          return { sky: '#86d0f7', horizon: '#b6ebff', floor: '#3e9ac4', accent: '#216f8d' };
+        case 'BATTLE_TERRAIN_GYM':
+        case 'BATTLE_TERRAIN_BUILDING':
+        case 'BATTLE_TERRAIN_INDOOR_1':
+        case 'BATTLE_TERRAIN_INDOOR_2':
+        case 'BATTLE_TERRAIN_LEADER':
+        case 'BATTLE_TERRAIN_LINK':
+        case 'BATTLE_TERRAIN_LORELEI':
+        case 'BATTLE_TERRAIN_BRUNO':
+        case 'BATTLE_TERRAIN_AGATHA':
+        case 'BATTLE_TERRAIN_LANCE':
+        case 'BATTLE_TERRAIN_CHAMPION':
+          return { sky: '#d4d8e4', horizon: '#edf0f6', floor: '#a89fb0', accent: '#6c6074' };
+        case 'BATTLE_TERRAIN_SAND':
+          return { sky: '#f8daa4', horizon: '#fff2d0', floor: '#d4aa58', accent: '#9a7834' };
+        case 'BATTLE_TERRAIN_MOUNTAIN':
+          return { sky: '#b6d0ef', horizon: '#ebf5ff', floor: '#8a9bb0', accent: '#5a687b' };
+        default:
+          return { sky: '#8cc6ff', horizon: '#dff7ff', floor: '#73c056', accent: '#357f32' };
+      }
+    })();
+
+    return tintBattleTerrainPalette(basePalette, weather);
   }
 
   private drawBattleMonster(species: string, x: number, y: number, side: 'player' | 'opponent'): void {
@@ -1080,9 +1208,9 @@ export class CanvasRenderer {
 
   private drawBattleScreen(battle: BattleState, runtime: ScriptRuntimeState, bag?: BagState): void {
     void this.ensureBattleTextboxAssetsLoaded();
-    this.activeFrameType = Math.max(0, Math.min(runtime.options.frameType ?? 0, this.stdWindowFrames.length - 1));
+    this.activeFrameType = getUserWindowGraphicsIndex(runtime.options.frameType ?? 0);
     const { end } = this.beginPartyScreenPixelSpace();
-    const palette = this.getBattleTerrainColors(battle.terrain);
+    const palette = this.getBattleTerrainColors(battle.terrain, battle.weather);
 
     this.ctx.fillStyle = palette.sky;
     this.ctx.fillRect(0, 0, BATTLE_GBA_WIDTH, BATTLE_GBA_HEIGHT);
@@ -1139,7 +1267,7 @@ export class CanvasRenderer {
       return;
     }
 
-    this.activeFrameType = Math.max(0, Math.min(runtime.options.frameType ?? 0, this.stdWindowFrames.length - 1));
+    this.activeFrameType = getUserWindowGraphicsIndex(runtime.options.frameType ?? 0);
 
     if (startMenu.panel?.kind === 'bag') {
       this.drawBagScreen(startMenu.panel, runtime);
@@ -1206,13 +1334,22 @@ export class CanvasRenderer {
     }
 
     const helpText = this.getStartMenuDescription(selected.id);
-    const helpH = this.gbaY(5 * 8);
-    const helpY = this.canvas.height - helpH;
-    const helpX = 0;
-    const helpW = this.canvas.width;
-    this.drawHelpMessageWindowTiled(helpX, helpY, helpW, helpH);
-    const textX = helpX + this.gbaX(2);
-    const textY = helpY + this.gbaY(5);
+    const helpRect = getHelpMessageWindowRect();
+    const helpX = this.gbaX(helpRect.x);
+    const helpY = this.gbaY(helpRect.y);
+    const helpW = this.gbaX(helpRect.width);
+    const helpH = this.gbaY(helpRect.height);
+    this.drawHelpMessageWindowTiled(
+      helpX,
+      helpY,
+      helpW,
+      helpH,
+      helpRect.widthTiles,
+      helpRect.heightTiles
+    );
+    const textOrigin = getHelpMessageTextOrigin();
+    const textX = helpX + this.gbaX(textOrigin.x);
+    const textY = helpY + this.gbaY(textOrigin.y);
     const maxLineW = helpW - this.gbaX(4);
     const lines = this.wrapMenuText(helpText, maxLineW);
     const lineStep = this.gbaY(14);
@@ -1220,10 +1357,9 @@ export class CanvasRenderer {
   }
 
   private drawSafariStats(runtime: ScriptRuntimeState): void {
-    const totalSteps = 600;
-    const stepsTaken = Math.max(0, Math.trunc(runtime.vars.safariStepsTaken ?? 0));
-    const currentSteps = Math.max(0, totalSteps - Math.min(stepsTaken, totalSteps));
-    const balls = Math.max(0, Math.trunc(runtime.vars.safariBalls ?? 30));
+    const totalSteps = SAFARI_ZONE_TOTAL_STEPS;
+    const currentSteps = getSafariZoneStepsRemaining(runtime);
+    const balls = getSafariZoneBallCount(runtime);
     const x = 8;
     const y = 8;
     const width = 68;
@@ -2033,23 +2169,14 @@ export class CanvasRenderer {
   ): void {
     const { labelColor, valueColor } = colors;
     const trainerId = Math.max(0, Math.min(0xffff, Math.trunc(runtime.vars.trainerId ?? 22796)));
-    const money = Math.max(0, Math.min(999_999, Math.trunc(runtime.vars.money ?? 3000)));
+    const money = getMoney(runtime);
     const moneyBuffer = `${TC_STR.yen}${money.toString().padStart(6, ' ')}`;
     const hasPokedex = runtime.startMenu.hasPokedex;
     const caughtCount = hasPokedex ? Math.min(999, runtime.pokedex.caughtSpecies.length) : 0;
     const dexBuffer = caughtCount.toString().padStart(3, '0');
 
-    const playSec = Math.max(0, runtime.vars.playTimeSeconds ?? 0);
-    let hours = Math.floor(playSec / 3600);
-    let minutes = Math.floor((playSec % 3600) / 60);
-    if (hours > 999) {
-      hours = 999;
-    }
-    if (minutes > 59) {
-      minutes = 59;
-    }
-    const hoursStr = hours.toString().padStart(3, ' ');
-    const minutesStr = minutes.toString().padStart(2, '0');
+    const hoursStr = Math.max(0, Math.min(999, runtime.playTime.hours)).toString().padStart(3, ' ');
+    const minutesStr = Math.max(0, Math.min(59, runtime.playTime.minutes)).toString().padStart(2, '0');
     const colonBlink = Math.floor(performance.now() / 500) % 2 === 0;
 
     const nm = TC_FRONT_NAME;
@@ -2102,7 +2229,7 @@ export class CanvasRenderer {
       );
     }
 
-    const badgesEarned = Math.max(0, Math.min(8, Math.trunc(runtime.vars.badges ?? 0)));
+    const badgesEarned = Math.max(0, Math.min(8, countEarnedBadges(runtime.flags)));
     if (this.trainerCardBadges.complete && this.trainerCardBadges.naturalWidth > 0) {
       for (let i = 0; i < 8; i += 1) {
         const tileX = TC_BADGE_FIRST_TILE.x + i * TC_BADGE_TILE_STRIDE;
@@ -2233,6 +2360,7 @@ export class CanvasRenderer {
   }
 
   private drawSaveScreen(panel: SavePanelState, runtime: ScriptRuntimeState): void {
+    void runtime;
     const x = 18;
     const y = 18;
     const width = this.canvas.width - 36;
@@ -2240,11 +2368,10 @@ export class CanvasRenderer {
     this.drawWindowFrame(x, y, width, height, 'std');
     this.drawMenuText(panel.title, x + 12, y + 12);
 
-    this.drawWindowFrame(x + 14, y + 28, 140, 74, 'std');
-    this.drawSmallText(`PLAYER ${runtime.startMenu.playerName}`, x + 24, y + 40);
-    this.drawSmallText(`BADGES ${Math.max(0, Math.trunc(runtime.vars.badges ?? 0))}`, x + 24, y + 54);
-    this.drawSmallText(`POKeDEX ${runtime.startMenu.seenPokemonCount}`, x + 24, y + 68);
-    this.drawSmallText(`TIME ${Math.floor((runtime.vars.playTimeSeconds ?? 0) / 60)} MIN`, x + 24, y + 82);
+    this.drawWindowFrame(x + 14, y + 28, 160, 86, 'std');
+    panel.statsRows.forEach((row, index) => {
+      this.drawSmallText(row, x + 24, y + 38 + index * 12);
+    });
 
     this.drawWindowFrame(x + 14, y + height - 58, width - 28, 42, 'std');
     this.drawTextLines(this.wrapMenuText(panel.description, width - 44).slice(0, 3), x + 22, y + height - 48, 12);
@@ -2271,6 +2398,7 @@ export class CanvasRenderer {
       stage: 'ask',
       prompt: panel.description,
       description: panel.description,
+      statsRows: [],
       selectedIndex: 0,
       returnToMenuOnClose: panel.returnToMenuOnClose
     }, runtime);
@@ -2693,6 +2821,163 @@ export class CanvasRenderer {
     });
   }
 
+  private drawFieldMessageText(text: string, x: number, y: number): void {
+    this.ctx.save();
+    this.ctx.font = 'bold 10px "Trebuchet MS", sans-serif';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillStyle = '#d8d8d8';
+    this.ctx.fillText(text, x + 1, y + 1);
+    this.ctx.fillStyle = '#303030';
+    this.ctx.fillText(text, x, y);
+    this.ctx.restore();
+  }
+
+  private drawFieldAdvanceArrow(x: number, y: number): void {
+    const bob = Math.floor(Date.now() / 250) % 2;
+    this.ctx.save();
+    this.ctx.fillStyle = '#303030';
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y + bob);
+    this.ctx.lineTo(x + this.gbaX(6), y + bob);
+    this.ctx.lineTo(x + this.gbaX(3), y + this.gbaY(4) + bob);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  private getFieldChoiceWindowRect(dialogue: DialogueState): { x: number; y: number; w: number; h: number } | null {
+    const choice = dialogue.choice;
+    if (!choice || choice.options.length === 0) {
+      return null;
+    }
+
+    const visibleOptions = choice.kind === 'listmenu'
+      ? choice.options.slice(
+        choice.scrollOffset ?? 0,
+        (choice.scrollOffset ?? 0) + Math.max(1, choice.maxVisibleOptions ?? choice.options.length)
+      )
+      : choice.options;
+    const widestLabel = choice.options.reduce((width, option) =>
+      Math.max(width, this.measureMenuText(option)), 0);
+    const tilesWidePerColumn = Math.max(4, Math.ceil((widestLabel + 9) / FIELD_MENU_TILE_SIZE) + 1);
+    const totalColumns = Math.max(1, choice.columns);
+    const rowCount = Math.ceil(visibleOptions.length / totalColumns);
+    const tilesHigh = totalColumns > 1 ? rowCount * 2 : choice.options.length <= 8
+      ? [1, 2, 4, 6, 7, 9, 11, 13, 14][choice.options.length] ?? 1
+      : [1, 2, 4, 6, 7, 9, 11, 13, 14][Math.min(8, visibleOptions.length)] ?? 14;
+
+    return {
+      x: choice.tilemapLeft * FIELD_MENU_TILE_SIZE,
+      y: choice.tilemapTop * FIELD_MENU_TILE_SIZE,
+      w: tilesWidePerColumn * totalColumns * FIELD_MENU_TILE_SIZE,
+      h: tilesHigh * FIELD_MENU_TILE_SIZE
+    };
+  }
+
+  private drawFieldChoiceCursor(x: number, y: number): void {
+    this.ctx.save();
+    this.ctx.fillStyle = '#202028';
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y + this.gbaY(4));
+    this.ctx.lineTo(x + this.gbaX(5), y + this.gbaY(1));
+    this.ctx.lineTo(x + this.gbaX(5), y + this.gbaY(7));
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  private drawFieldChoiceWindow(dialogue: DialogueState): void {
+    const choice = dialogue.choice;
+    const rect = this.getFieldChoiceWindowRect(dialogue);
+    if (!choice || !rect) {
+      return;
+    }
+
+    const wx = this.gbaX(rect.x);
+    const wy = this.gbaY(rect.y);
+    const ww = this.gbaX(rect.w);
+    const wh = this.gbaY(rect.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    const widestLabel = choice.options.reduce((width, option) =>
+      Math.max(width, this.measureMenuText(option)), 0);
+    const columnAdvance = Math.max(
+      this.gbaX(32),
+      this.gbaX(Math.ceil((widestLabel + 9) / FIELD_MENU_TILE_SIZE + 1) * FIELD_MENU_TILE_SIZE)
+    );
+    const baseX = this.gbaX(rect.x + 8);
+    const baseY = this.gbaY(rect.y + 2);
+    const scrollOffset = choice.scrollOffset ?? 0;
+    const visibleOptions = choice.kind === 'listmenu'
+      ? choice.options.slice(scrollOffset, scrollOffset + Math.max(1, choice.maxVisibleOptions ?? choice.options.length))
+      : choice.options;
+
+    visibleOptions.forEach((option, visibleIndex) => {
+      const index = choice.kind === 'listmenu' ? scrollOffset + visibleIndex : visibleIndex;
+      const col = index % Math.max(1, choice.columns);
+      const row = choice.kind === 'listmenu'
+        ? visibleIndex
+        : Math.floor(index / Math.max(1, choice.columns));
+      const optionX = baseX + col * columnAdvance;
+      const optionY = baseY + this.gbaY(FIELD_MENU_ROW_HEIGHT * row);
+
+      if (index === choice.selectedIndex) {
+        this.drawFieldChoiceCursor(optionX - this.gbaX(6), optionY + this.gbaY(1));
+      }
+
+      this.drawFieldMessageText(option, optionX, optionY);
+    });
+
+    if (choice.kind === 'listmenu' && choice.options.length > visibleOptions.length) {
+      const arrowX = this.gbaX(rect.x + rect.w - 10);
+      const canScrollUp = scrollOffset > 0;
+      const canScrollDown = scrollOffset + visibleOptions.length < choice.options.length;
+      if (canScrollUp) {
+        this.ctx.save();
+        this.ctx.fillStyle = '#303030';
+        this.ctx.beginPath();
+        this.ctx.moveTo(arrowX, this.gbaY(rect.y + 6));
+        this.ctx.lineTo(arrowX + this.gbaX(5), this.gbaY(rect.y + 6));
+        this.ctx.lineTo(arrowX + this.gbaX(2.5), this.gbaY(rect.y + 2));
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+      if (canScrollDown) {
+        this.drawFieldAdvanceArrow(arrowX, this.gbaY(rect.y + rect.h - 7));
+      }
+    }
+  }
+
+  private drawFieldDialogueWindow(dialogue: DialogueState): void {
+    const wx = this.gbaX(FIELD_MESSAGE_WINDOW.x);
+    const wy = this.gbaY(FIELD_MESSAGE_WINDOW.y);
+    const ww = this.gbaX(FIELD_MESSAGE_WINDOW.w);
+    const wh = this.gbaY(FIELD_MESSAGE_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    const textX = this.gbaX(FIELD_MESSAGE_TEXT.x);
+    const textY = this.gbaY(FIELD_MESSAGE_TEXT.y);
+    const maxWidth = this.gbaX(FIELD_MESSAGE_TEXT.maxWidth);
+    const explicitLines = dialogue.text.split('\n');
+    const wrappedLines = explicitLines.flatMap((line) =>
+      this.wrapMenuText(line, Math.max(this.gbaX(24), maxWidth))
+    );
+
+    wrappedLines.slice(0, FIELD_MESSAGE_MAX_LINES).forEach((line, index) => {
+      this.drawFieldMessageText(line, textX, textY + this.gbaY(FIELD_MESSAGE_TEXT.lineHeight * index));
+    });
+
+    if (dialogue.choice) {
+      this.drawFieldChoiceWindow(dialogue);
+    } else if (dialogue.queueIndex < dialogue.queue.length - 1) {
+      this.drawFieldAdvanceArrow(
+        this.gbaX(FIELD_MESSAGE_WINDOW.x + FIELD_MESSAGE_WINDOW.w - 14),
+        this.gbaY(FIELD_MESSAGE_WINDOW.y + FIELD_MESSAGE_WINDOW.h - 9)
+      );
+    }
+  }
+
   private drawSmallText(text: string, x: number, y: number, fillStyle = '#20305f'): void {
     this.ctx.save();
     this.ctx.font = 'bold 8px "Trebuchet MS", sans-serif';
@@ -2805,17 +3090,43 @@ export class CanvasRenderer {
     }
   }
 
-  private drawEntities(player: PlayerState, npcs: NpcState[], camera: CameraState): void {
-    const drawQueue = [
-      ...npcs.map((npc) => ({ kind: 'npc' as const, sortY: npc.position.y + 16, npc })),
-      { kind: 'player' as const, sortY: player.position.y + 16, player }
-    ].sort((left, right) => left.sortY - right.sortY);
+  private buildEntityDrawQueue(map: TileMap, player: PlayerState, npcs: NpcState[]): FieldEntityDrawRequest[] {
+    const getEntityPriority = (position: { x: number; y: number }): number =>
+      getSpritePriorityForElevation(getMapElevationAtPixel(map, {
+        x: position.x + Math.floor(map.tileSize / 2),
+        y: position.y + map.tileSize - 1
+      }));
 
+    return [
+      ...npcs.map((npc) => ({
+        kind: 'npc' as const,
+        priority: getEntityPriority(npc.position),
+        sortY: npc.position.y + 16,
+        npc
+      })),
+      {
+        kind: 'player' as const,
+        priority: getEntityPriority(player.position),
+        sortY: player.position.y + 16,
+        player
+      }
+    ].sort((left, right) => left.sortY - right.sortY);
+  }
+
+  private drawEntities(
+    drawQueue: FieldEntityDrawRequest[],
+    camera: CameraState,
+    priority?: number
+  ): void {
     for (const entity of drawQueue) {
+      if (priority !== undefined && entity.priority !== priority) {
+        continue;
+      }
+
       if (entity.kind === 'npc') {
-        this.drawNpc(entity.npc, camera);
+        this.drawNpc(entity.npc!, camera);
       } else {
-        this.drawPlayer(entity.player, camera);
+        this.drawPlayer(entity.player!, camera);
       }
     }
   }

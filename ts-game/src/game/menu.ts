@@ -1,6 +1,7 @@
 import type { InputSnapshot } from '../input/inputState';
 import { closeDialogue, type DialogueState } from './interaction';
 import { createBagPanelState, stepBagPanel, type BagPanelState } from './bag';
+import { getCoins } from './decompCoins';
 import {
   findPokedexCategoryLocation,
   getFirstSelectablePokedexTopMenuIndex,
@@ -21,6 +22,15 @@ import {
   type PokedexOrderId,
   type PokedexTopMenuRow
 } from './decompPokedexUi';
+import { getTotalPlayTimeMinutes } from './decompPlayTime';
+import { getMoney } from './decompMoney';
+import {
+  countEarnedBadges,
+  getMapSectionDisplayName,
+  saveStatToString,
+  SaveStatId
+} from './decompSaveMenuUtil';
+import { getSafariZoneBallCount, getSafariZoneStepsRemaining, SAFARI_ZONE_TOTAL_STEPS } from './decompSafariZone';
 import { formatTypeLabel } from './decompSpecies';
 import { getSpeciesDisplayName } from './pokemonStorage';
 import type { ScriptRuntimeState } from './scripts';
@@ -61,6 +71,7 @@ export interface PlayerMenuSummary {
   badges: number;
   playTimeMinutes: number;
   location: string;
+  locationSectionId?: string;
   saveCount: number;
   profileLines?: string[];
 }
@@ -141,6 +152,7 @@ export interface SavePanelState {
   stage: 'ask' | 'overwrite' | 'result';
   prompt: string;
   description: string;
+  statsRows: string[];
   selectedIndex: 0 | 1;
   returnToMenuOnClose: boolean;
 }
@@ -262,10 +274,9 @@ export interface SafariZoneStats {
 }
 
 export const getSafariZoneStats = (runtime: ScriptRuntimeState): SafariZoneStats => {
-  const totalSteps = 600;
-  const stepsTaken = Math.max(0, Math.trunc(runtime.vars.safariStepsTaken ?? 0));
-  const currentSteps = Math.max(0, totalSteps - Math.min(stepsTaken, totalSteps));
-  const balls = Math.max(0, Math.trunc(runtime.vars.safariBalls ?? 30));
+  const totalSteps = SAFARI_ZONE_TOTAL_STEPS;
+  const currentSteps = getSafariZoneStepsRemaining(runtime);
+  const balls = getSafariZoneBallCount(runtime);
   return { currentSteps, totalSteps, balls };
 };
 
@@ -1294,15 +1305,7 @@ const stepSummaryPanel = (
   runtime: ScriptRuntimeState,
   callbacks: StartMenuCallbacks
 ): { close: boolean; consumed: boolean } => {
-  const summary = callbacks.getPlayerSummary?.() ?? {
-    name: runtime.startMenu.playerName,
-    money: Math.max(0, Math.trunc(runtime.vars.money ?? 3000)),
-    badges: Math.max(0, Math.trunc(runtime.vars.badges ?? 0)),
-    playTimeMinutes: Math.max(0, Math.floor((runtime.vars.playTimeSeconds ?? 0) / 60)),
-    location: 'FIELD',
-    saveCount: runtime.saveCounter,
-    profileLines: ['KANTO TRAINER', 'ADVENTURE IN PROGRESS']
-  };
+  const summary = callbacks.getPlayerSummary?.() ?? createFallbackPlayerSummary(runtime);
 
   /** `Task_TrainerCard` (`trainer_card.c`): front — A flips; B closes. Back — B flips; A closes. */
   if (panel.pageIndex === 0) {
@@ -1388,6 +1391,40 @@ export const getOptionPanelRows = (runtime: ScriptRuntimeState): string[] => [
 
 const updateOptionPanelRows = (panel: OptionPanelState, runtime: ScriptRuntimeState): void => {
   panel.rows = getOptionPanelRows(runtime);
+};
+
+const createFallbackPlayerSummary = (runtime: ScriptRuntimeState): PlayerMenuSummary => ({
+  name: runtime.startMenu.playerName,
+  money: getMoney(runtime),
+  badges: countEarnedBadges(runtime.flags),
+  playTimeMinutes: getTotalPlayTimeMinutes(runtime.playTime),
+  location: getMapSectionDisplayName(),
+  saveCount: runtime.saveCounter,
+  profileLines: ['KANTO TRAINER', `COINS   ${getCoins(runtime).toString().padStart(4, '0')}`, 'ADVENTURE IN PROGRESS']
+});
+
+const buildSavePanelStats = (
+  runtime: ScriptRuntimeState,
+  summary: PlayerMenuSummary
+): string[] => {
+  const context = {
+    playerName: runtime.startMenu.playerName,
+    hasPokedex: runtime.startMenu.hasPokedex,
+    seenSpecies: runtime.pokedex.seenSpecies,
+    caughtSpecies: runtime.pokedex.caughtSpecies,
+    playTimeHours: runtime.playTime.hours,
+    playTimeMinutes: runtime.playTime.minutes,
+    regionMapSection: summary.locationSectionId,
+    flags: runtime.flags
+  };
+
+  return [
+    `PLAYER ${saveStatToString(SaveStatId.NAME, context)}`,
+    `LOCATION ${saveStatToString(SaveStatId.LOCATION, context)}`,
+    `BADGES ${saveStatToString(SaveStatId.BADGES, context)}`,
+    `POKeDEX ${saveStatToString(SaveStatId.POKEDEX, context)}`,
+    `TIME ${saveStatToString(SaveStatId.TIME, context)}`
+  ];
 };
 
 export const stepStartMenu = (
@@ -1601,6 +1638,7 @@ export const stepStartMenu = (
   closeStartMenu(menu);
 
   if (selected.id === 'SAVE') {
+    const summary = callbacks.getPlayerSummary?.() ?? createFallbackPlayerSummary(runtime);
     menu.panel = {
       kind: 'save',
       id: 'SAVE',
@@ -1608,6 +1646,7 @@ export const stepStartMenu = (
       stage: 'ask',
       prompt: 'Would you like to save the game?',
       description: 'Would you like to save the game?',
+      statsRows: buildSavePanelStats(runtime, summary),
       selectedIndex: 0,
       returnToMenuOnClose: true
     };
@@ -1662,14 +1701,6 @@ export const stepStartMenu = (
     return;
   }
 
-  menu.panel = createPlayerSummaryPanel(callbacks.getPlayerSummary?.() ?? {
-    name: runtime.startMenu.playerName,
-    money: Math.max(0, Math.trunc(runtime.vars.money ?? 3000)),
-    badges: Math.max(0, Math.trunc(runtime.vars.badges ?? 0)),
-    playTimeMinutes: Math.max(0, Math.trunc(runtime.vars.playTimeMinutes ?? 0)),
-    location: 'FIELD',
-    saveCount: runtime.saveCounter,
-    profileLines: ['KANTO TRAINER', 'ADVENTURE IN PROGRESS']
-  });
+  menu.panel = createPlayerSummaryPanel(callbacks.getPlayerSummary?.() ?? createFallbackPlayerSummary(runtime));
   runtime.lastScriptId = `menu.open.${selected.id.toLowerCase()}`;
 };
