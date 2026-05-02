@@ -5,30 +5,21 @@
  */
 
 import partyBgTilemapUrl from '../../../graphics/party_menu/bg.bin?url';
+import {
+  BG_SCREEN_TILE_WIDTH,
+  BG_TILE_SIZE
+} from './decompBgRegs';
+import { copyWrappedBgTilemapRegion, decodeBgMapEntry } from './decompCableCarUtil';
 
-const TILE = 8;
-const MAP_TILES_W = 32;
+const TILE = BG_TILE_SIZE;
+const MAP_TILES_W = BG_SCREEN_TILE_WIDTH;
 const MAP_VISIBLE_TILES_H = 20;
-const MAP_BYTES_PER_ROW = MAP_TILES_W * 2;
 
 export const PARTY_MENU_BG_PIXEL_W = MAP_TILES_W * TILE;
 export const PARTY_MENU_BG_PIXEL_H = MAP_VISIBLE_TILES_H * TILE;
 export const PARTY_MENU_BG_DRAW_W = 240;
 
 const BG_TILESET_TILES_PER_ROW = 8;
-
-const readMapEntry = (tilemap: Uint8Array, tileX: number, tileY: number): { id: number; hflip: boolean; vflip: boolean; pal: number } => {
-  const offset = tileY * MAP_BYTES_PER_ROW + tileX * 2;
-  const lo = tilemap[offset] ?? 0;
-  const hi = tilemap[offset + 1] ?? 0;
-  const word = lo | (hi << 8);
-  return {
-    id: word & 0x03ff,
-    hflip: (word & 0x0400) !== 0,
-    vflip: (word & 0x0800) !== 0,
-    pal: (word >> 12) & 0x0f
-  };
-};
 
 const blitMapTile = (
   dest: CanvasRenderingContext2D,
@@ -69,9 +60,10 @@ export const buildPartyMenuBackgroundCanvas = (
   }
   ctx.imageSmoothingEnabled = false;
 
+  const visibleRegion = copyWrappedBgTilemapRegion(tilemap, 0, 0, MAP_TILES_W, MAP_VISIBLE_TILES_H);
   for (let ty = 0; ty < MAP_VISIBLE_TILES_H; ty += 1) {
     for (let tx = 0; tx < MAP_TILES_W; tx += 1) {
-      const { id, hflip, vflip } = readMapEntry(tilemap, tx, ty);
+      const { id, hflip, vflip } = decodeBgMapEntry(visibleRegion[ty * MAP_TILES_W + tx] ?? 0);
       blitMapTile(ctx, tx * TILE, ty * TILE, tileset, id, hflip, vflip);
     }
   }

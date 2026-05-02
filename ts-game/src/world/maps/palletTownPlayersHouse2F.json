@@ -242,15 +242,15 @@
     ]
   },
   "collisionRows": [
-    "############",
-    "############",
-    "#.......##..",
-    "#.......##..",
-    "#.....#.....",
-    "#.....#.....",
-    "#.#.........",
-    "#...........",
-    "#..........."
+    "111111111111",
+    "111111111111",
+    "100000001100",
+    "100000001100",
+    "100000100000",
+    "100000100000",
+    "101000000000",
+    "100000000000",
+    "100000000000"
   ],
   "encounterRows": [
     "............",
@@ -285,11 +285,23 @@
     "000000000000000000000000",
     "000000000000000000000000"
   ],
+  "terrainRows": [
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000"
+  ],
   "triggers": [
     {
       "id": "PalletTown_PlayersHouse_2F_EventScript_NES",
       "x": 6,
       "y": 5,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "PalletTown_PlayersHouse_2F_EventScript_NES",
       "facing": "any",
@@ -299,6 +311,7 @@
       "id": "PalletTown_PlayersHouse_2F_EventScript_PC",
       "x": 1,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_PlayersHouse_2F_EventScript_PC",
       "facing": "any",
@@ -308,6 +321,7 @@
       "id": "PalletTown_PlayersHouse_2F_EventScript_Sign",
       "x": 11,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_PlayersHouse_2F_EventScript_Sign",
       "facing": "any",

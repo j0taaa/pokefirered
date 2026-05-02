@@ -2,6 +2,8 @@ import type { CameraState } from '../core/camera';
 import type { PlayerState } from '../game/player';
 import type { TileMap } from '../world/tileMap';
 import { getMetatileLayerPass, type FieldMapLayerPass } from './fieldRenderOrder';
+import objectEventGraphicsSource from '../../../src/data/object_events/object_event_graphics.h?raw';
+import objectEventPicTablesSource from '../../../src/data/object_events/object_event_pic_tables.h?raw';
 
 const MAP_TILE_SIZE = 16;
 const SUB_TILE_SIZE = 8;
@@ -9,6 +11,8 @@ const NUM_TILES_IN_PRIMARY = 640;
 const NUM_METATILES_IN_PRIMARY = 640;
 const METATILE_ENTRIES = 8;
 const NUM_PALS_IN_PRIMARY = 7;
+const GBA_FRAMES_PER_SECOND = 60;
+const WALK_ANIM_FRAME_DURATION = 8;
 
 const BG_TILE_INDEX_MASK = 0x03ff;
 const BG_TILE_HFLIP_MASK = 0x0400;
@@ -26,11 +30,19 @@ interface CharacterSpriteDrawRequest {
   graphicsId?: string;
   moving: boolean;
   position: { x: number; y: number };
+  walkAnimationPhase?: 0 | 1;
 }
 
 interface LoadedGraphic {
   image: HTMLImageElement;
   path: string;
+  spriteMetadata?: ObjectEventSpriteMetadata;
+}
+
+export interface ObjectEventSpriteMetadata {
+  frameHeight: number;
+  frameWidth: number;
+  sourceFrames: number[];
 }
 
 interface MapVisualTexture {
@@ -86,6 +98,63 @@ for (const [modulePath, url] of Object.entries(objectGraphicModules)) {
     objectGraphicUrls.set(key, { path: modulePath, url });
   }
 }
+
+const parseObjectPicKeys = (): Map<string, string> => {
+  const picKeys = new Map<string, string>();
+  const picPattern = /const\s+u16\s+(gObjectEventPic_\w+)\[\]\s*=\s*INCBIN_U16\("graphics\/object_events\/pics\/(?:people|pokemon|misc)\/([^"]+)\.4bpp"\);/gu;
+
+  for (const match of objectEventGraphicsSource.matchAll(picPattern)) {
+    const [, symbol, path] = match;
+    const key = path.split('/').at(-1);
+    if (symbol && key) {
+      picKeys.set(symbol, key);
+    }
+  }
+
+  return picKeys;
+};
+
+const parseObjectPicTableMetadata = (): Map<string, ObjectEventSpriteMetadata> => {
+  const picKeys = parseObjectPicKeys();
+  const metadata = new Map<string, ObjectEventSpriteMetadata>();
+  const tablePattern = /static\s+const\s+struct\s+SpriteFrameImage\s+sPicTable_\w+\[\]\s*=\s*\{([\s\S]*?)\};/gu;
+  const framePattern = /overworld_frame\(\s*(gObjectEventPic_\w+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/gu;
+
+  for (const tableMatch of objectEventPicTablesSource.matchAll(tablePattern)) {
+    const body = tableMatch[1] ?? '';
+    const frames = [...body.matchAll(framePattern)];
+    const firstFrame = frames[0];
+    if (!firstFrame) {
+      continue;
+    }
+
+    const [, picSymbol, widthTiles, heightTiles] = firstFrame;
+    const key = picSymbol ? picKeys.get(picSymbol) : undefined;
+    if (!key || metadata.has(key)) {
+      continue;
+    }
+    const sourceFrames: number[] = [];
+    for (const frame of frames) {
+      if (frame[1] !== picSymbol) {
+        break;
+      }
+      sourceFrames.push(Number(frame[4]));
+    }
+
+    metadata.set(key, {
+      frameWidth: Number(widthTiles) * SUB_TILE_SIZE,
+      frameHeight: Number(heightTiles) * SUB_TILE_SIZE,
+      sourceFrames
+    });
+  }
+
+  return metadata;
+};
+
+const objectSpriteMetadata = parseObjectPicTableMetadata();
+
+export const getObjectEventSpriteMetadata = (graphicsId: string): ObjectEventSpriteMetadata | undefined =>
+  objectSpriteMetadata.get(normalizeGraphicsId(graphicsId));
 
 const loadImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -287,7 +356,8 @@ const normalizeGraphicsId = (graphicsId: string): string =>
 const resolveObjectEventFrame = (
   facing: Facing,
   moving: boolean,
-  animationTime: number
+  animationTime: number,
+  walkAnimationPhase?: 0 | 1
 ): { frame: number; flipX: boolean } => {
   if (!moving) {
     switch (facing) {
@@ -303,7 +373,22 @@ const resolveObjectEventFrame = (
     }
   }
 
-  const walkFrameIndex = Math.floor(animationTime * 8) % 4;
+  const walkFrameIndex = Math.floor(animationTime * (GBA_FRAMES_PER_SECOND / WALK_ANIM_FRAME_DURATION)) % 4;
+  if (walkAnimationPhase !== undefined && walkFrameIndex < 2) {
+    const footFrameIndex = walkAnimationPhase === 0 ? 0 : 2;
+    const normalStepFrameIndex = walkFrameIndex === 0 ? footFrameIndex : 1;
+    switch (facing) {
+      case 'up':
+        return { frame: [5, 1, 6][normalStepFrameIndex] ?? 1, flipX: false };
+      case 'left':
+        return { frame: [7, 2, 8][normalStepFrameIndex] ?? 2, flipX: false };
+      case 'right':
+        return { frame: [7, 2, 8][normalStepFrameIndex] ?? 2, flipX: true };
+      case 'down':
+      default:
+        return { frame: [3, 0, 4][normalStepFrameIndex] ?? 0, flipX: false };
+    }
+  }
   switch (facing) {
     case 'up':
       return { frame: [5, 1, 6, 1][walkFrameIndex] ?? 1, flipX: false };
@@ -315,6 +400,31 @@ const resolveObjectEventFrame = (
     default:
       return { frame: [3, 0, 4, 0][walkFrameIndex] ?? 0, flipX: false };
   }
+};
+
+export const resolveObjectEventFrameSource = (
+  image: Pick<HTMLImageElement, 'height' | 'width'>,
+  metadata: ObjectEventSpriteMetadata | undefined,
+  facing: Facing,
+  moving: boolean,
+  animationTime: number,
+  walkAnimationPhase?: 0 | 1
+): { flipX: boolean; sourceHeight: number; sourceWidth: number; sourceX: number; sourceY: number } => {
+  const { frame, flipX } = resolveObjectEventFrame(facing, moving, animationTime, walkAnimationPhase);
+  const sourceWidth = metadata?.frameWidth ?? (image.width / 9);
+  const sourceHeight = metadata?.frameHeight ?? image.height;
+  const sourceFrame = metadata?.sourceFrames[frame] ?? frame;
+  const framesPerRow = Math.max(1, Math.floor(image.width / sourceWidth));
+  const frameCount = Math.max(1, framesPerRow * Math.max(1, Math.floor(image.height / sourceHeight)));
+  const boundedFrame = Math.min(sourceFrame, frameCount - 1);
+
+  return {
+    flipX,
+    sourceHeight,
+    sourceWidth,
+    sourceX: (boundedFrame % framesPerRow) * sourceWidth,
+    sourceY: Math.floor(boundedFrame / framesPerRow) * sourceHeight
+  };
 };
 
 export class DecompTextureStore {
@@ -435,7 +545,7 @@ export class DecompTextureStore {
     }
 
     if (graphic.path.includes('/people/')) {
-      this.drawPersonSprite(ctx, graphic.image, request);
+      this.drawPersonSprite(ctx, graphic.image, graphic.spriteMetadata, request);
       return true;
     }
 
@@ -522,32 +632,34 @@ export class DecompTextureStore {
   private drawPersonSprite(
     ctx: CanvasRenderingContext2D,
     image: HTMLImageElement,
+    metadata: ObjectEventSpriteMetadata | undefined,
     request: CharacterSpriteDrawRequest
   ): void {
-    const frameWidth = image.width / 9;
-    const frameHeight = image.height;
-    const { frame, flipX } = resolveObjectEventFrame(
+    const { flipX, sourceHeight, sourceWidth, sourceX, sourceY } = resolveObjectEventFrameSource(
+      image,
+      metadata,
       request.facing,
       request.moving,
-      request.animationTime
+      request.animationTime,
+      request.walkAnimationPhase
     );
 
-    const drawX = Math.round(request.position.x - request.camera.x + (MAP_TILE_SIZE - frameWidth) / 2);
-    const drawY = Math.round(request.position.y - request.camera.y + MAP_TILE_SIZE - frameHeight);
+    const drawX = Math.round(request.position.x - request.camera.x + (MAP_TILE_SIZE - sourceWidth) / 2);
+    const drawY = Math.round(request.position.y - request.camera.y + MAP_TILE_SIZE - sourceHeight);
 
     ctx.save();
-    ctx.translate(drawX + (flipX ? frameWidth : 0), drawY);
+    ctx.translate(drawX + (flipX ? sourceWidth : 0), drawY);
     ctx.scale(flipX ? -1 : 1, 1);
     ctx.drawImage(
       image,
-      frame * frameWidth,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
       0,
-      frameWidth,
-      frameHeight,
       0,
-      0,
-      frameWidth,
-      frameHeight
+      sourceWidth,
+      sourceHeight
     );
     ctx.restore();
   }
@@ -571,7 +683,8 @@ export class DecompTextureStore {
       return;
     }
 
-    const resolved = objectGraphicUrls.get(normalizeGraphicsId(graphicsId));
+    const normalizedGraphicsId = normalizeGraphicsId(graphicsId);
+    const resolved = objectGraphicUrls.get(normalizedGraphicsId);
     if (!resolved) {
       this.graphicCache.set(graphicsId, null);
       return;
@@ -581,7 +694,8 @@ export class DecompTextureStore {
       .then((image) => {
         this.graphicCache.set(graphicsId, {
           image,
-          path: resolved.path
+          path: resolved.path,
+          spriteMetadata: objectSpriteMetadata.get(normalizedGraphicsId)
         });
       })
       .catch((error) => {

@@ -1,4 +1,5 @@
 import stdWindowFrameUrl from '../../../graphics/text_window/std.png';
+import { formatDecompDecimal, StringConvertMode } from '../game/decompStringUtil';
 import type { ScriptRuntimeState } from '../game/scripts';
 import {
   getSafariZoneStats,
@@ -130,8 +131,8 @@ export const updateStartMenuView = (
 
   const safariStats = getSafariZoneStats(runtime);
   bindings.safariSteps.textContent =
-    `${safariStats.currentSteps.toString().padStart(3, ' ')}/${safariStats.totalSteps}`;
-  bindings.safariBalls.textContent = `BALLS  ${safariStats.balls.toString().padStart(2, ' ')}`;
+    `${formatDecompDecimal(safariStats.currentSteps, StringConvertMode.RIGHT_ALIGN, 3)}/${formatDecompDecimal(safariStats.totalSteps, StringConvertMode.RIGHT_ALIGN, 3)}`;
+  bindings.safariBalls.textContent = `BALLS  ${formatDecompDecimal(safariStats.balls, StringConvertMode.RIGHT_ALIGN, 2)}`;
 
   bindings.panelTitle.textContent = menu.panel?.title ?? '';
   bindings.panelDescription.textContent = menu.panel?.description ?? '';

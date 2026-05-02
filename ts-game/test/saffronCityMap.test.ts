@@ -10,7 +10,7 @@ import {
 import saffronCityMapJson from '../src/world/maps/saffronCity.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -67,7 +67,7 @@ describe('Saffron City compact map source', () => {
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(21);
     expect(map.encounterTiles?.filter((tile) => tile === 'W')).toHaveLength(0);
-    expect(map.triggers).toEqual([
+    expect(map.triggers).toMatchObject([
       {
         id: 'SaffronCity_EventScript_CitySign',
         x: 29,

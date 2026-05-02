@@ -1,6 +1,6 @@
 import { openDialogueSequence, type DialogueState } from './interaction';
-import type { PlayerState } from './player';
-import { createBagState, getItemDefinition, type BagState } from './bag';
+import { clearPlayerMovement, type PlayerState } from './player';
+import { addBagItem, checkBagHasSpace, createBagState, getItemDefinition, type BagState } from './bag';
 import {
   createBattlePokemonFromSpecies,
   createBattlePokemonFromSpeciesWithMoves,
@@ -14,7 +14,7 @@ import {
   type PokedexState
 } from './pokemonStorage';
 import { getAllCenterScriptHandlers } from './pokemonCenterTemplate';
-import { getAllMartScriptHandlers, getMartStockForMap } from './martTemplate';
+import { getAllMartScriptHandlers, MART_STOCKS } from './martTemplate';
 import type { FieldScriptSessionState } from './decompFieldDialogue';
 import { runDecompFieldScript } from './decompFieldDialogue';
 import {
@@ -27,8 +27,41 @@ import {
 import { DEFAULT_COINS, addCoins, getCoins, removeCoins, setCoins } from './decompCoins';
 import { DEFAULT_MONEY, getMoney, setMoney } from './decompMoney';
 import { MYSTERY_EVENT_MESSAGES } from './decompMysteryEventMsg';
+import {
+  createDefaultNewGameState,
+  createDefaultPcStorageState,
+  type DecompNewGameState
+} from './decompNewGame';
+import { getProfOaksRatingDialogue, getProfPcPokedexCount } from './decompProfPc';
 import { setUnlockedPokedexFlags } from './decompSaveLocation';
 import { getDecompTrainerDefinition, getDecompTrainerFlag } from './decompTrainerData';
+import { createPcScreenEffectState, type PcScreenEffectState } from './decompPcScreenEffect';
+import {
+  createEventObjectLockState,
+  type EventObjectLockState
+} from './decompEventObjectLock';
+import {
+  createFieldPaletteFadeState,
+  type FieldPaletteFadeState
+} from './decompFieldPaletteFade';
+import {
+  createFieldAudioState,
+  type FieldAudioState
+} from './decompFieldSound';
+import {
+  createRoamerRuntime,
+  type RoamerRuntime
+} from './decompRoamer';
+import {
+  createDiplomaRuntime,
+  type DiplomaRuntime
+} from './decompDiploma';
+import {
+  createScriptMovementRuntime,
+  type ScriptMovementRuntime
+} from './decompScriptMovement';
+import type { FishingTaskState } from './decompFishing';
+import type { NpcState } from './npc';
 
 export interface PendingTrainerBattle {
   trainerId: string;
@@ -49,8 +82,15 @@ export interface PendingTrainerBattle {
   } | null;
 }
 
+export interface PcStorageState {
+  currentBox: number;
+  boxNames: string[];
+  boxes: FieldPokemon[][];
+}
+
 export interface ScriptRuntimeState {
   vars: Record<string, number>;
+  stringVars: Record<string, string>;
   flags: Set<string>;
   consumedTriggerIds: Set<string>;
   saveCounter: number;
@@ -58,6 +98,7 @@ export interface ScriptRuntimeState {
   startMenu: {
     mode: 'normal' | 'safari' | 'link' | 'unionRoom';
     playerName: string;
+    playerGender: 'male' | 'female';
     hasPokedex: boolean;
     hasPokemon: boolean;
     seenPokemonCount: number;
@@ -76,7 +117,65 @@ export interface ScriptRuntimeState {
   party: FieldPokemon[];
   pokedex: PokedexState;
   bag: BagState;
+  pcStorage: PcStorageState;
   pendingTrainerBattle: PendingTrainerBattle | null;
+  pcScreenEffect: PcScreenEffectState;
+  eventObjectLock: EventObjectLockState;
+  fieldPaletteFade: FieldPaletteFadeState;
+  fieldAudio: FieldAudioState;
+  roamer: RoamerRuntime;
+  diploma: DiplomaRuntime;
+  newGame: DecompNewGameState;
+  scriptMovement: ScriptMovementRuntime;
+  scriptMovementLocalIds: Record<string, number>;
+  nextScriptMovementLocalId: number;
+  doorAnimations: Record<string, 'open' | 'closed'>;
+  doorAnimationTask: {
+    active: boolean;
+    framesRemaining: number;
+    key: string | null;
+  };
+  fameChecker: {
+    pickStates: Record<number, number>;
+    flavorTextFlags: Record<number, number>;
+    updates: Array<{
+      person: number;
+      value: number;
+      special: string | null;
+    }>;
+  };
+  dynamicWarp: {
+    mapId: string;
+    warpId: number;
+    x: number;
+    y: number;
+  } | null;
+  pendingScriptWarp: {
+    mapId: string;
+    warpId: number;
+    x: number;
+    y: number;
+    kind: 'warp' | 'spin';
+  } | null;
+  fieldCamera: {
+    active: boolean;
+    position: { x: number; y: number };
+    facing: PlayerState['facing'];
+    initialFacing: PlayerState['facing'];
+    currentTile?: { x: number; y: number };
+    previousTile?: { x: number; y: number };
+  } | null;
+  fieldEffects: {
+    screenShakeCount: number;
+    teleporterHousingPhase: number;
+    teleporterCablePhase: number;
+    pokemonLeagueLightingActive: boolean;
+    ssAnneDepartureScenePlayed: boolean;
+    seagallopFerryScenePlayed: boolean;
+    fallWarpCount: number;
+    triggeredSpecials: Record<string, number>;
+    fishing: FishingTaskState | null;
+  };
 }
 
 export interface ScriptContext {
@@ -84,9 +183,24 @@ export interface ScriptContext {
   dialogue: DialogueState;
   runtime: ScriptRuntimeState;
   speakerId?: string;
+  npcs?: NpcState[];
 }
 
 export type ScriptHandler = (context: ScriptContext) => void;
+
+const runDecompObjectScript = (
+  scriptId: string,
+  fallbackSpeakerId: string,
+  { runtime, player, dialogue, speakerId, npcs }: ScriptContext
+): void => {
+  runDecompFieldScript(scriptId, {
+    runtime,
+    player,
+    dialogue,
+    speakerId: speakerId ?? fallbackSpeakerId,
+    npcs
+  });
+};
 
 export const syncLegacyPlayTimeVars = (runtime: ScriptRuntimeState): void => {
   runtime.vars.playTimeSeconds = getTotalPlayTimeSeconds(runtime.playTime);
@@ -100,6 +214,12 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => {
 
   const runtime: ScriptRuntimeState = {
     vars: {},
+    stringVars: {
+      STR_VAR_1: '',
+      STR_VAR_2: '',
+      STR_VAR_3: '',
+      STR_VAR_4: ''
+    },
     flags: new Set<string>(),
     consumedTriggerIds: new Set<string>(),
     saveCounter: 0,
@@ -107,6 +227,7 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => {
     startMenu: {
       mode: 'normal',
       playerName: 'PLAYER',
+      playerGender: 'male',
       hasPokedex: true,
       hasPokemon: true,
       seenPokemonCount: pokedex.seenSpecies.length
@@ -125,7 +246,43 @@ export const createScriptRuntimeState = (): ScriptRuntimeState => {
     party: createDefaultParty(),
     pokedex,
     bag: createBagState(),
-    pendingTrainerBattle: null
+    pcStorage: createDefaultPcStorageState(),
+    pendingTrainerBattle: null,
+    pcScreenEffect: createPcScreenEffectState(),
+    eventObjectLock: createEventObjectLockState(),
+    fieldPaletteFade: createFieldPaletteFadeState(),
+    fieldAudio: createFieldAudioState(),
+    roamer: createRoamerRuntime(),
+    diploma: createDiplomaRuntime(),
+    newGame: createDefaultNewGameState(),
+    scriptMovement: createScriptMovementRuntime(),
+    scriptMovementLocalIds: {},
+    nextScriptMovementLocalId: 1,
+    doorAnimations: {},
+    doorAnimationTask: {
+      active: false,
+      framesRemaining: 0,
+      key: null
+    },
+    fameChecker: {
+      pickStates: { 0: 2 },
+      flavorTextFlags: {},
+      updates: []
+    },
+    dynamicWarp: null,
+    pendingScriptWarp: null,
+    fieldCamera: null,
+    fieldEffects: {
+      screenShakeCount: 0,
+      teleporterHousingPhase: 0,
+      teleporterCablePhase: 0,
+      pokemonLeagueLightingActive: false,
+      ssAnneDepartureScenePlayed: false,
+      seagallopFerryScenePlayed: false,
+      fallWarpCount: 0,
+      triggeredSpecials: {},
+      fishing: null
+    }
   };
 
   if (runtime.startMenu.hasPokedex) {
@@ -358,9 +515,16 @@ export const applyPendingTrainerBattleOutcome = (
     for (const flag of trainerBattle.victoryFlags) {
       setScriptFlag(runtime, flag);
     }
+    if (isOakLabRivalTrainer(trainerBattle.trainerId)) {
+      return 0;
+    }
     const reward = getTrainerBattleMoneyReward(trainerBattle);
     setRuntimeMoney(runtime, getRuntimeMoney(runtime) + reward);
     return reward;
+  }
+
+  if (isOakLabRivalTrainer(trainerBattle.trainerId)) {
+    return 0;
   }
 
   const loss = computeWhiteOutMoneyLoss(runtime);
@@ -482,22 +646,12 @@ const TRAINER_BATTLE_LIAM = createScriptedTrainerBattleFromDecomp('TRAINER_CAMPE
   defeatFlag: 'FLAG_DEFEATED_CAMPER_LIAM'
 });
 
-const TRAINER_BATTLE_MISTY = createScriptedTrainerBattleFromDecomp('TRAINER_LEADER_MISTY', {
-  defeatFlag: 'FLAG_DEFEATED_MISTY',
-  victoryFlags: ['FLAG_BADGE02_GET']
-});
-
 const TRAINER_BATTLE_DIANA = createScriptedTrainerBattleFromDecomp('TRAINER_PICNICKER_DIANA', {
   defeatFlag: 'FLAG_DEFEATED_PICNICKER_DIANA'
 });
 
 const TRAINER_BATTLE_LUIS = createScriptedTrainerBattleFromDecomp('TRAINER_SWIMMER_MALE_LUIS', {
   defeatFlag: 'FLAG_DEFEATED_SWIMMER_M_LUIS'
-});
-
-const TRAINER_BATTLE_LT_SURGE = createScriptedTrainerBattleFromDecomp('TRAINER_LEADER_LT_SURGE', {
-  defeatFlag: 'FLAG_DEFEATED_LT_SURGE',
-  victoryFlags: ['FLAG_BADGE03_GET']
 });
 
 const TRAINER_BATTLE_TUCKER = createScriptedTrainerBattleFromDecomp('TRAINER_GENTLEMAN_TUCKER', {
@@ -516,6 +670,31 @@ const TRAINER_BATTLE_GIOVANNI = createScriptedTrainerBattleFromDecomp('TRAINER_L
   defeatFlag: 'FLAG_DEFEATED_LEADER_GIOVANNI',
   victoryFlags: ['FLAG_BADGE08_GET']
 });
+
+const OAKS_AIDE_EVERSTONE_FLAG = 'FLAG_GOT_EVERSTONE_FROM_OAKS_AIDE';
+const OAKS_AIDE_REQUIRED_OWNED_MONS = 20;
+
+export const isOakLabRivalTrainer = (trainerId: string): boolean =>
+  trainerId === 'TRAINER_RIVAL_OAKS_LAB_SQUIRTLE'
+  || trainerId === 'TRAINER_RIVAL_OAKS_LAB_BULBASAUR'
+  || trainerId === 'TRAINER_RIVAL_OAKS_LAB_CHARMANDER';
+
+const getRoute10AideIntro = (playerName: string): string[] => [
+  `Oh... ${playerName}!`,
+  "I've been looking for you!",
+  "It's me, one of the ever-present\nAIDES to PROF. OAK.",
+  "If your POKeDEX has complete data\non twenty species, I'm supposed to\ngive you a reward from PROF. OAK.",
+  'He entrusted me with this\nEVERSTONE.',
+  `So, ${playerName}, let me ask you.`,
+  'Have you gathered data on at least\ntwenty kinds of POKeMON?'
+];
+
+const ROUTE10_AIDE_EXPLAIN_EVERSTONE: string[] = [
+  'Making POKeMON evolve certainly\ncan add to the POKeDEX.',
+  'However, at times, you may not\nwant a certain POKeMON to evolve.',
+  'In that case, give the EVERSTONE\nto that POKeMON.',
+  'It will prevent evolution according\nto the PROFESSOR.'
+];
 
 
 // engine resolves script pointers from events in field_control_avatar.c.
@@ -552,6 +731,7 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
   'warp.route-pool': ({ dialogue, player }) => {
     player.position.x = 2 * 16;
     player.position.y = 2 * 16;
+    clearPlayerMovement(player);
     openScriptDialogue(dialogue, 'system', 'You were whisked back to the trailhead.');
   },
   'object.npc-lass-01.interact': ({ dialogue, runtime }) => {
@@ -583,24 +763,67 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
         : 'Remember: look for moving grass to find wild encounters.'
     ]);
   },
-  ViridianCity_Mart_EventScript_Clerk: ({ dialogue, runtime }) => {
-    if (getScriptVar(runtime, 'VAR_MAP_SCENE_VIRIDIAN_CITY_MART') === 1) {
-      openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_MART_CLERK', [
-        'Okay, thanks! Please say hi to',
-        'PROF. OAK for me, too.'
+  ViridianCity_Mart_EventScript_Clerk: (context) => {
+    runDecompObjectScript(
+      'ViridianCity_Mart_EventScript_Clerk',
+      'LOCALID_VIRIDIAN_MART_CLERK',
+      context
+    );
+  },
+  PokedexRating_EventScript_RateInPerson: ({ dialogue, runtime, speakerId }) => {
+    const ratingDialogue = getProfOaksRatingDialogue(
+      runtime,
+      isScriptFlagSet(runtime, 'FLAG_OAK_SAW_DEX_COMPLETION')
+    );
+    if (ratingDialogue.nationalComplete) {
+      setScriptFlag(runtime, 'FLAG_OAK_SAW_DEX_COMPLETION');
+    }
+    openDialogueSequence(
+      dialogue,
+      speakerId ?? 'LOCALID_OAKS_LAB_PROF_OAK',
+      ratingDialogue.pages
+    );
+  },
+  Route10_PokemonCenter_1F_EventScript_Aide: ({ dialogue, runtime }) => {
+    const playerName = runtime.startMenu.playerName;
+    const ownedCount = getProfPcPokedexCount(runtime, false).ownedCount;
+    const everstoneName = getItemDefinition('ITEM_EVERSTONE').name;
+
+    if (isScriptFlagSet(runtime, OAKS_AIDE_EVERSTONE_FLAG)) {
+      openDialogueSequence(
+        dialogue,
+        'Route10_PokemonCenter_1F_ObjectEvent_Aide',
+        ROUTE10_AIDE_EXPLAIN_EVERSTONE
+      );
+      return;
+    }
+
+    const intro = getRoute10AideIntro(playerName);
+    if (ownedCount < OAKS_AIDE_REQUIRED_OWNED_MONS) {
+      openDialogueSequence(dialogue, 'Route10_PokemonCenter_1F_ObjectEvent_Aide', [
+        ...intro,
+        `Let's see...\nUh-oh! You have caught only\n${ownedCount} kinds of POKeMON!`,
+        `You need ${OAKS_AIDE_REQUIRED_OWNED_MONS} kinds\nif you want the ${everstoneName}.`
       ]);
       return;
     }
 
-    const viridianStock = getMartStockForMap('MAP_VIRIDIAN_CITY_MART');
-    const items = viridianStock ? viridianStock.items : [];
-    const stockLine = `Shop UI stub: ${items
-      .map((itemId) => getItemDefinition(itemId).name.replace(/\u00e9/gu, 'e').toUpperCase())
-      .join(', ')}.`;
-    openDialogueSequence(dialogue, 'LOCALID_VIRIDIAN_MART_CLERK', [
-      'Hi, there!\nMay I help you?',
-      stockLine,
-      'Please come again!'
+    if (!checkBagHasSpace(runtime.bag, 'ITEM_EVERSTONE', 1)) {
+      openDialogueSequence(dialogue, 'Route10_PokemonCenter_1F_ObjectEvent_Aide', [
+        ...intro,
+        `Oh! I see you don't have any\nroom for the ${everstoneName}.`
+      ]);
+      return;
+    }
+
+    addBagItem(runtime.bag, 'ITEM_EVERSTONE', 1);
+    setScriptFlag(runtime, OAKS_AIDE_EVERSTONE_FLAG);
+    openDialogueSequence(dialogue, 'Route10_PokemonCenter_1F_ObjectEvent_Aide', [
+      ...intro,
+      `Great! You have caught or owned\n${ownedCount} kinds of POKeMON!`,
+      'Congratulations!\nHere you go!',
+      `${playerName} received the EVERSTONE\nfrom the AIDE.`,
+      ...ROUTE10_AIDE_EXPLAIN_EVERSTONE
     ]);
   },
   ViridianCity_School_EventScript_Woman: ({ dialogue }) => {
@@ -1060,17 +1283,12 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'Space Shuttle'
     );
   },
-  PewterCity_Mart_EventScript_Clerk: ({ dialogue }) => {
-    const pewterStock = getMartStockForMap('MAP_PEWTER_CITY_MART');
-    const items = pewterStock ? pewterStock.items : [];
-    const stockLine = `Shop UI stub: ${items
-      .map((itemId) => getItemDefinition(itemId).name.replace(/\u00e9/gu, 'e').toUpperCase())
-      .join(', ')}.`;
-    openDialogueSequence(dialogue, 'PewterCity_Mart_ObjectEvent_Clerk', [
-      'Hi, there!\nMay I help you?',
-      stockLine,
-      'Please come again!'
-    ]);
+  PewterCity_Mart_EventScript_Clerk: (context) => {
+    runDecompObjectScript(
+      'PewterCity_Mart_EventScript_Clerk',
+      'PewterCity_Mart_ObjectEvent_Clerk',
+      context
+    );
   },
   PewterCity_Mart_EventScript_Youngster: ({ dialogue }) => {
     openScriptDialogue(
@@ -1120,25 +1338,25 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'You can battle POKéMON with your friends. (Link stub — pending connectivity.)'
     );
   },
-  Common_EventScript_UnionRoomAttendant: ({ dialogue }) => {
-    openScriptDialogue(
-      dialogue,
+  Common_EventScript_UnionRoomAttendant: (context) => {
+    runDecompObjectScript(
       'Common_EventScript_UnionRoomAttendant',
-      'Welcome to the UNION ROOM. (Wireless club stub — pending connectivity.)'
+      'Common_EventScript_UnionRoomAttendant',
+      context
     );
   },
-  Common_EventScript_WirelessClubAttendant: ({ dialogue }) => {
-    openScriptDialogue(
-      dialogue,
+  Common_EventScript_WirelessClubAttendant: (context) => {
+    runDecompObjectScript(
       'Common_EventScript_WirelessClubAttendant',
-      'Welcome to the WIRELESS CLUB. (Wireless club stub — pending connectivity.)'
+      'Common_EventScript_WirelessClubAttendant',
+      context
     );
   },
-  Common_EventScript_DirectCornerAttendant: ({ dialogue }) => {
-    openScriptDialogue(
-      dialogue,
+  Common_EventScript_DirectCornerAttendant: (context) => {
+    runDecompObjectScript(
       'Common_EventScript_DirectCornerAttendant',
-      'Welcome to the DIRECT CORNER. (Direct Corner stub — pending connectivity.)'
+      'Common_EventScript_DirectCornerAttendant',
+      context
     );
   },
   CableClub_EventScript_MysteryGiftMan: ({ dialogue }) => {
@@ -1148,19 +1366,12 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'The deliveryman has no MYSTERY GIFT for you right now.'
     );
   },
-  CeruleanCity_Gym_EventScript_Misty: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_MISTY')) {
-      openDialogueSequence(dialogue, 'CeruleanCity_Gym_ObjectEvent_Misty', [
-        'TM03 teaches WATER PULSE.',
-        'Use it on an aquatic POKéMON!'
-      ]);
-      return;
-    }
-    startTrainerBattleDialogue(dialogue, runtime, 'CeruleanCity_Gym_ObjectEvent_Misty', [
-      "Hi, you're a new face!",
-      'Only those TRAINERS who have a policy about POKéMON can turn pro.',
-      'My policy is an all-out offensive with WATER-type POKéMON!',
-    ], TRAINER_BATTLE_MISTY);
+  CeruleanCity_Gym_EventScript_Misty: (context) => {
+    runDecompObjectScript(
+      'CeruleanCity_Gym_EventScript_Misty',
+      'CeruleanCity_Gym_ObjectEvent_Misty',
+      context
+    );
   },
   CeruleanCity_Gym_EventScript_Diana: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_PICNICKER_DIANA')) {
@@ -1249,47 +1460,19 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'Would you please trade with him?'
     ]);
   },
-  CeruleanCity_House3_EventScript_Dontae: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_DID_ZYNX_TRADE')) {
-      openScriptDialogue(
-        dialogue,
-        'CeruleanCity_House3_ObjectEvent_Dontae',
-        'Has the traded POKéMON grown stronger?'
-      );
-      return;
-    }
-    openDialogueSequence(dialogue, 'CeruleanCity_House3_ObjectEvent_Dontae', [
-      'Do you have the POKéMON I want?',
-      'Would you trade it for my POKéMON?',
-      '(In-game trade stub — JYNX trade pending party selection support.)'
-    ]);
+  CeruleanCity_House3_EventScript_Dontae: (context) => {
+    runDecompObjectScript(
+      'CeruleanCity_House3_EventScript_Dontae',
+      'CeruleanCity_House3_ObjectEvent_Dontae',
+      context
+    );
   },
-  CeruleanCity_BikeShop_EventScript_Clerk: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_GOT_BICYCLE')) {
-      openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Clerk', [
-        'How do you like your new BICYCLE?',
-        'You can take it out on CYCLING ROAD and even into caves!'
-      ]);
-      return;
-    }
-
-    if (isScriptFlagSet(runtime, 'FLAG_GOT_BIKE_VOUCHER')) {
-      setScriptFlag(runtime, 'FLAG_GOT_BICYCLE');
-      openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Clerk', [
-        "Oh, that's…",
-        'A BIKE VOUCHER!',
-        'Okay! Here you go!',
-        'PLAYER exchanged the BIKE VOUCHER for a BICYCLE.',
-        '(Bicycle inventory transfer stub — pending key item use flow.)'
-      ]);
-      return;
-    }
-
-    openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Clerk', [
-      'Hi! Welcome to our BIKE SHOP.',
-      'Have we got just the BIKE for you!',
-      "Sorry! You can't afford it!"
-    ]);
+  CeruleanCity_BikeShop_EventScript_Clerk: (context) => {
+    runDecompObjectScript(
+      'CeruleanCity_BikeShop_EventScript_Clerk',
+      'CeruleanCity_BikeShop_ObjectEvent_Clerk',
+      context
+    );
   },
   CeruleanCity_BikeShop_EventScript_Woman: ({ dialogue }) => {
     openDialogueSequence(dialogue, 'CeruleanCity_BikeShop_ObjectEvent_Woman', [
@@ -1364,31 +1547,12 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       MYSTERY_EVENT_MESSAGES.cantBeUsed
     ]);
   },
-  VermilionCity_Gym_EventScript_LtSurge: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_LT_SURGE')) {
-      if (!isScriptFlagSet(runtime, 'FLAG_GOT_TM34_FROM_SURGE')) {
-        openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
-          'The THUNDERBADGE cranks up your POKéMON\'s SPEED!',
-          'It also lets your POKéMON FLY lightning-quick anytime, kid!',
-          'You\'re special, kid! Take this!',
-          '(TM34 Shock Wave gift stub — pending item system.)'
-        ]);
-        return;
-      }
-      openDialogueSequence(dialogue, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
-        'A little word of advice, kid!',
-        'Electricity is sure powerful!',
-        'But, it\'s useless against GROUND-type POKéMON!'
-      ]);
-      return;
-    }
-    startTrainerBattleDialogue(dialogue, runtime, 'VermilionCity_Gym_ObjectEvent_LtSurge', [
-      'Hey, kid! What do you think you\'re doing here?',
-      'You won\'t live long in combat! Not with your puny power!',
-      'I tell you, kid, electric POKéMON saved me during the war!',
-      'They zapped my enemies into paralysis!',
-      'The same as I\'ll do to you!'
-    ], TRAINER_BATTLE_LT_SURGE);
+  VermilionCity_Gym_EventScript_LtSurge: (context) => {
+    runDecompObjectScript(
+      'VermilionCity_Gym_EventScript_LtSurge',
+      'VermilionCity_Gym_ObjectEvent_LtSurge',
+      context
+    );
   },
   VermilionCity_Gym_EventScript_Tucker: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_DEFEATED_GENTLEMAN_TUCKER')) {
@@ -1498,36 +1662,19 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
   VermilionCity_Gym_EventScript_TrashCan15: ({ dialogue }) => {
     openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
   },
-  VermilionCity_House1_EventScript_FishingGuru: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_GOT_OLD_ROD')) {
-      openScriptDialogue(
-        dialogue,
-        'VermilionCity_House1_ObjectEvent_FishingGuru',
-        'Hello there, PLAYER! How are the fish biting?'
-      );
-      return;
-    }
-    openDialogueSequence(dialogue, 'VermilionCity_House1_ObjectEvent_FishingGuru', [
-      'I\'m the FISHING GURU!',
-      'I simply looove fishing! I can\'t bear to go without.',
-      'Tell me, do you like to fish?',
-      '(Old Rod gift stub — yes/no choice and item system pending.)'
-    ]);
+  VermilionCity_House1_EventScript_FishingGuru: (context) => {
+    runDecompObjectScript(
+      'VermilionCity_House1_EventScript_FishingGuru',
+      'VermilionCity_House1_ObjectEvent_FishingGuru',
+      context
+    );
   },
-  VermilionCity_House2_EventScript_Elyssa: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_DID_CH_DING_TRADE')) {
-      openScriptDialogue(
-        dialogue,
-        'VermilionCity_House2_ObjectEvent_Elyssa',
-        'How is my old POKéMON? My POKéMON is doing great!'
-      );
-      return;
-    }
-    openDialogueSequence(dialogue, 'VermilionCity_House2_ObjectEvent_Elyssa', [
-      'Hi! Do you have a SPEAROW?',
-      'Want to trade it for my FARFETCH\'D?',
-      '(In-game trade stub — pending party and trade system.)'
-    ]);
+  VermilionCity_House2_EventScript_Elyssa: (context) => {
+    runDecompObjectScript(
+      'VermilionCity_House2_EventScript_Elyssa',
+      'VermilionCity_House2_ObjectEvent_Elyssa',
+      context
+    );
   },
   VermilionCity_House3_EventScript_Boy: ({ dialogue }) => {
     openScriptDialogue(
@@ -1604,21 +1751,12 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'So, there appears to be no universally strong POKéMON.'
     ]);
   },
-  VermilionCity_PokemonCenter_1F_EventScript_VSSeekerWoman: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_GOT_VS_SEEKER')) {
-      openDialogueSequence(dialogue, 'VermilionCity_PokemonCenter_1F_ObjectEvent_VSSeekerWoman', [
-        'Use that device and you\'ll find TRAINERS looking for a rematch.',
-        'You have to charge its battery to use it, though.'
-      ]);
-      return;
-    }
-    openDialogueSequence(dialogue, 'VermilionCity_PokemonCenter_1F_ObjectEvent_VSSeekerWoman', [
-      'The urge to battle with someone you\'ve tangled with before…',
-      'Have you ever had that urge? I\'m sure you have.',
-      'I wanted to battle certain people again over and over, too.',
-      'So, I\'ve been giving these away. Please, take one!',
-      '(VS Seeker gift stub — pending item system.)'
-    ]);
+  VermilionCity_PokemonCenter_1F_EventScript_VSSeekerWoman: (context) => {
+    runDecompObjectScript(
+      'VermilionCity_PokemonCenter_1F_EventScript_VSSeekerWoman',
+      'VermilionCity_PokemonCenter_1F_ObjectEvent_VSSeekerWoman',
+      context
+    );
   },
   VermilionCity_PokemonCenter_1F_EventScript_PokemonJournalLtSurge: ({ dialogue }) => {
     openScriptDialogue(
@@ -1627,22 +1765,12 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'It\'s a POKéMON journal about LT. SURGE. (Content stub pending script engine.)'
     );
   },
-  VermilionCity_PokemonFanClub_EventScript_Chairman: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_GOT_BIKE_VOUCHER')) {
-      openScriptDialogue(
-        dialogue,
-        'VermilionCity_PokemonFanClub_ObjectEvent_Chairman',
-        'Hello, PLAYER! Did you come see me about my POKéMON again? No? Too bad!'
-      );
-      return;
-    }
-    openDialogueSequence(dialogue, 'VermilionCity_PokemonFanClub_ObjectEvent_Chairman', [
-      'I chair the POKéMON Fan Club!',
-      'I raise more than a hundred POKéMON!',
-      'I\'m very fussy when it comes to POKéMON! I surely am!',
-      'So… Did you come visit to hear about my POKéMON?',
-      '(Chairman story + Bike Voucher gift stub — pending yes/no choice and item system.)'
-    ]);
+  VermilionCity_PokemonFanClub_EventScript_Chairman: (context) => {
+    runDecompObjectScript(
+      'VermilionCity_PokemonFanClub_EventScript_Chairman',
+      'VermilionCity_PokemonFanClub_ObjectEvent_Chairman',
+      context
+    );
   },
   VermilionCity_PokemonFanClub_EventScript_WorkerF: ({ dialogue, runtime }) => {
     if (isScriptFlagSet(runtime, 'FLAG_SYS_GAME_CLEAR')) {
@@ -1710,7 +1838,8 @@ export const runScriptById = (
     runtime: context.runtime,
     player: context.player,
     dialogue: context.dialogue,
-    speakerId: context.speakerId ?? 'system'
+    speakerId: context.speakerId ?? 'system',
+    npcs: context.npcs
   });
   if (!ranDecompScript) {
     return false;
@@ -1764,9 +1893,15 @@ registerCenterScripts();
 export const registerMartScripts = (): void => {
   const martScripts = getAllMartScriptHandlers();
   for (const [key, handler] of Object.entries(martScripts)) {
-    if (!prototypeScriptRegistry[key]) {
+    if (!MART_STOCKS.some((stock) => stock.scriptId === key) && !prototypeScriptRegistry[key]) {
       prototypeScriptRegistry[key] = handler;
     }
+  }
+
+  for (const stock of MART_STOCKS) {
+    prototypeScriptRegistry[stock.scriptId] = (context) => {
+      runDecompObjectScript(stock.scriptId, stock.clerkLocalId, context);
+    };
   }
 };
 

@@ -97,6 +97,106 @@
           "slotRate": 1
         }
       ]
+    },
+    "water": {
+      "encounterRate": 2,
+      "mons": [
+        {
+          "minLevel": 5,
+          "maxLevel": 20,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 20,
+          "maxLevel": 35,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 40,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 40,
+          "species": "SPECIES_TENTACRUEL",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 40,
+          "species": "SPECIES_TENTACRUEL",
+          "slotRate": 1
+        }
+      ]
+    },
+    "fishing": {
+      "encounterRate": 20,
+      "mons": [
+        {
+          "minLevel": 5,
+          "maxLevel": 5,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 70
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 5,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 40
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 40
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_GYARADOS",
+          "slotRate": 15
+        },
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_SEADRA",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_PSYDUCK",
+          "slotRate": 1
+        }
+      ]
     }
   },
   "width": 24,
@@ -2031,46 +2131,46 @@
     ]
   },
   "collisionRows": [
-    "..##.##..#######..##...#",
-    ".....##..#######...##..#",
-    ".....##..#######...##...",
-    ".....##..#######........",
-    "...##....##.....##....##",
-    ".####....####...##....##",
-    ".##........##...........",
-    "...##......##...........",
-    "...##......##.##....##..",
-    ".##.........####....##..",
-    ".##.........##.##.......",
-    "..##...........##.....##",
-    "..##.............##...##",
-    "...##............##.....",
-    "...##............##.##..",
-    "...##............##.##..",
-    "...####............##...",
-    "..##.##............##...",
-    "..##.................##.",
-    ".##..................##.",
-    ".##.................##..",
-    "..##................##..",
-    "..##................##..",
-    ".##.................##..",
-    ".##...............####..",
-    ".##...............####..",
-    ".##...............####..",
-    ".##..............######.",
-    ".##..............######.",
-    "..#####..........######.",
-    "..#####..........######.",
-    ".######..........######.",
-    ".######..........######.",
-    ".######..........#######",
-    ".########....###########",
-    "########################",
-    "########################",
-    "########################",
-    "########################",
-    "########################"
+    "001101100111111100110001",
+    "000001100111111100011001",
+    "000001100111111100011000",
+    "000001100111111100000000",
+    "000110000110000011000011",
+    "011110000111100011000011",
+    "011000000001100000000000",
+    "000110000001100000000000",
+    "000110000001101100001100",
+    "011000000000111100001100",
+    "011000000000110110000000",
+    "001100000000000110000011",
+    "001100000000000001100011",
+    "000110000000000001100000",
+    "000110000000000001101100",
+    "000110000000000001101100",
+    "000111100000000000011000",
+    "001101100000000000011000",
+    "001100000000000000000110",
+    "011000000000000000000110",
+    "011000000000000000001100",
+    "001100000000000000001100",
+    "001100000000000000001100",
+    "011000000000000000001100",
+    "011000000000000000111100",
+    "011000000000000000111100",
+    "011000000000000000111100",
+    "011000000000000001111110",
+    "011000000000000001111110",
+    "001111100000000001111110",
+    "001111100000000001111110",
+    "011111100000000001111110",
+    "011111100000000001111110",
+    "011111100000000001111111",
+    "011111111000011111111111",
+    "111111111111111111111111",
+    "111111111111111111111111",
+    "111111111111111111111111",
+    "111111111111111111111111",
+    "111111111111111111111111"
   ],
   "encounterRows": [
     "WW..W..WWW.....WWW..WWW.",
@@ -2198,11 +2298,54 @@
     "000000000000000000000000000000000000000000000000",
     "000000000000000000000000000000000000000000000000"
   ],
+  "terrainRows": [
+    "220020022200000222002220",
+    "222220022200000222222220",
+    "222222222222222222222222",
+    "222222222222222222222222",
+    "222002222222222222222222",
+    "222002222222222222222222",
+    "222222222222222222222222",
+    "222002222220022222222222",
+    "222002222220022222222222",
+    "222222222222002222222222",
+    "222222222222002222222222",
+    "222222222222222222222222",
+    "222222222222222222222222",
+    "222222222222222222222222",
+    "222222222222222222222222",
+    "222222222222222222222222",
+    "222222222222222222200222",
+    "220022222222222222200222",
+    "220022220000222222222002",
+    "222222000000000022222002",
+    "222220000000000000222222",
+    "222220000000000000222222",
+    "222200000000000000002222",
+    "200200000000000000002222",
+    "200200000000110000000022",
+    "200000011101000100000002",
+    "200000100010000011000000",
+    "222000100001100000000000",
+    "222000000110110110000000",
+    "220000011011001000000000",
+    "000000000101001000000000",
+    "000000000000110100000000",
+    "000000011100101110000000",
+    "000000001011110000000000",
+    "000000000000100000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000"
+  ],
   "triggers": [
     {
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_STARDUST.hiddenItem",
       "x": 8,
       "y": 20,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_STARDUST.hiddenItem",
       "facing": "any",
@@ -2218,6 +2361,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_STARDUST_2.hiddenItem",
       "x": 13,
       "y": 27,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_STARDUST_2.hiddenItem",
       "facing": "any",
@@ -2233,6 +2377,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_PEARL.hiddenItem",
       "x": 11,
       "y": 31,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_PEARL.hiddenItem",
       "facing": "any",
@@ -2248,6 +2393,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_PEARL_2.hiddenItem",
       "x": 9,
       "y": 34,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_PEARL_2.hiddenItem",
       "facing": "any",
@@ -2263,6 +2409,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_ULTRA_BALL.hiddenItem",
       "x": 15,
       "y": 22,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_ULTRA_BALL.hiddenItem",
       "facing": "any",
@@ -2278,6 +2425,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_ULTRA_BALL_2.hiddenItem",
       "x": 16,
       "y": 33,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_ULTRA_BALL_2.hiddenItem",
       "facing": "any",
@@ -2293,6 +2441,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_STAR_PIECE.hiddenItem",
       "x": 15,
       "y": 29,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_STAR_PIECE.hiddenItem",
       "facing": "any",
@@ -2308,6 +2457,7 @@
       "id": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_BIG_PEARL.hiddenItem",
       "x": 8,
       "y": 27,
+      "elevation": 3,
       "activation": "interact",
       "scriptId": "FLAG_HIDDEN_ITEM_ONE_ISLAND_TREASURE_BEACH_BIG_PEARL.hiddenItem",
       "facing": "any",

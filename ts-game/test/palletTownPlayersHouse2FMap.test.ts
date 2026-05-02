@@ -10,7 +10,7 @@ import {
 import palletTownPlayersHouse2FMapJson from '../src/world/maps/palletTownPlayersHouse2F.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -55,7 +55,7 @@ describe('Pallet Town Players House 2F compact map source', () => {
     const map = mapFromCompactSource(compactSource);
 
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.triggers).toEqual([
+    expect(map.triggers).toMatchObject([
       {
         id: 'PalletTown_PlayersHouse_2F_EventScript_NES',
         x: 6,

@@ -13,6 +13,12 @@ export interface DecompBattleAiCommand {
   id: number;
   handler: string;
   opcode: string;
+  body?: string;
+  advancesScriptPtr?: boolean;
+  setsFuncResult?: boolean;
+  setsAiAction?: boolean;
+  usesRandom?: boolean;
+  readsBattleHistory?: boolean;
 }
 
 export interface DecompBattleAiInstruction extends DecompAsmInstruction {}
@@ -27,6 +33,23 @@ export interface DecompBattleAiSwitchHelper {
   usesRandom: boolean;
   referencesLastLandedMove: boolean;
   checksSuperEffective: boolean;
+}
+
+export interface DecompBattleAiSourceFunction {
+  name: string;
+  returnType: string;
+  isStatic: boolean;
+  body: string;
+}
+
+export interface DecompBattleAiActionFlag {
+  name: string;
+  value: number;
+}
+
+export interface DecompBattleAiState {
+  name: string;
+  value: number;
 }
 
 const parseAiBitValue = (value: string): number | null => {
@@ -79,6 +102,77 @@ const parseBattleAiCommands = (): Map<number, DecompBattleAiCommand> => {
   return commands;
 };
 
+const parseBattleAiActionFlags = (): Map<string, DecompBattleAiActionFlag> => {
+  const flags = new Map<string, DecompBattleAiActionFlag>();
+  for (const match of battleAiScriptCommandsSource.matchAll(/^#define (AI_ACTION_[A-Z0-9_]+)\s+0x([0-9A-Fa-f]+)$/gmu)) {
+    flags.set(match[1], { name: match[1], value: Number.parseInt(match[2], 16) });
+  }
+  return flags;
+};
+
+const parseBattleAiStates = (): DecompBattleAiState[] => {
+  const enumMatch = battleAiScriptCommandsSource.match(/\/\/ AI states\s*enum\s*\{([\s\S]*?)\};/u);
+  if (!enumMatch) {
+    return [];
+  }
+  return enumMatch[1]
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map((name, value) => ({ name, value }));
+};
+
+const parseDiscouragedPowerfulMoveEffects = (): string[] => {
+  const tableMatch = battleAiScriptCommandsSource.match(/static const u16 sDiscouragedPowerfulMoveEffects\[\]\s*=\s*\{([\s\S]*?)\n\};/u);
+  if (!tableMatch) {
+    return [];
+  }
+  return tableMatch[1]
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/u, '').replace(/,/gu, '').trim())
+    .filter((line) => line.length > 0 && line !== '0xFFFF');
+};
+
+const parseBattleAiSourceFunctions = (): Map<string, DecompBattleAiSourceFunction> => {
+  const functions = new Map<string, DecompBattleAiSourceFunction>();
+  const functionRegex = /^(static\s+)?((?:bool8|u8|void)\s+\*?|bool8|u8|void)\s+([A-Za-z0-9_]+)\([^)]*\)\s*\{/gmu;
+
+  for (const match of battleAiScriptCommandsSource.matchAll(functionRegex)) {
+    const openBraceIndex = (match.index ?? 0) + match[0].length - 1;
+    const body = readBraceBody(battleAiScriptCommandsSource, openBraceIndex);
+    if (!body) {
+      continue;
+    }
+    functions.set(match[3], {
+      name: match[3],
+      returnType: match[2].trim(),
+      isStatic: !!match[1],
+      body: body.trim()
+    });
+  }
+  return functions;
+};
+
+const annotateBattleAiCommands = (
+  commands: Map<number, DecompBattleAiCommand>,
+  functions: Map<string, DecompBattleAiSourceFunction>
+): Map<number, DecompBattleAiCommand> => {
+  const annotated = new Map<number, DecompBattleAiCommand>();
+  for (const command of commands.values()) {
+    const body = functions.get(command.handler)?.body;
+    annotated.set(command.id, {
+      ...command,
+      body,
+      advancesScriptPtr: body == null ? undefined : /\bsAIScriptPtr\s*(?:=|\+=)/u.test(body),
+      setsFuncResult: body == null ? undefined : /\bAI_THINKING_STRUCT->funcResult\s*=/u.test(body),
+      setsAiAction: body == null ? undefined : /\bAI_THINKING_STRUCT->aiAction\s*(?:\|=|=)/u.test(body),
+      usesRandom: body == null ? undefined : /\bRandom\(\)/u.test(body),
+      readsBattleHistory: body == null ? undefined : /\bBATTLE_HISTORY\b/u.test(body)
+    });
+  }
+  return annotated;
+};
+
 const parseBattleAiScripts = (): Map<string, DecompBattleAiScript> =>
   parseAsmBlocks(battleAiScriptsSource, 'battle_ai_scripts.s');
 
@@ -118,7 +212,7 @@ const readBraceBody = (source: string, openBraceIndex: number): string | null =>
 
 const parseBattleAiSwitchHelpers = (): Map<string, DecompBattleAiSwitchHelper> => {
   const helpers = new Map<string, DecompBattleAiSwitchHelper>();
-  const functionRegex = /static bool8 ([A-Za-z0-9_]+)\(void\)\s*\{/gu;
+  const functionRegex = /(?:static\s+)?(?:bool8|u8) ([A-Za-z0-9_]+)\(void\)\s*\{/gu;
 
   for (const match of battleAiSwitchItemsSource.matchAll(functionRegex)) {
     const name = match[1];
@@ -140,15 +234,20 @@ const parseBattleAiSwitchHelpers = (): Map<string, DecompBattleAiSwitchHelper> =
 };
 
 const battleAiFlagMap = parseBattleAiFlags();
-const battleAiCommandMap = parseBattleAiCommands();
+const battleAiActionFlagMap = parseBattleAiActionFlags();
+const battleAiStates = parseBattleAiStates();
+const battleAiDiscouragedPowerfulMoveEffects = parseDiscouragedPowerfulMoveEffects();
+const battleAiSourceFunctionMap = parseBattleAiSourceFunctions();
+const battleAiCommandMap = annotateBattleAiCommands(parseBattleAiCommands(), battleAiSourceFunctionMap);
 const battleAiScriptMap = parseBattleAiScripts();
 const battleAiRootScripts = parseBattleAiScriptTable(battleAiScriptMap);
 const battleAiSwitchHelperMap = parseBattleAiSwitchHelpers();
 
 const sortedFlags = [...battleAiFlagMap.values()].sort((left, right) => left.bit - right.bit);
 const rootScriptByFlag = new Map<string, string>();
-sortedFlags.forEach((flag, index) => {
-  const label = battleAiRootScripts[index];
+sortedFlags.forEach((flag) => {
+  const tableIndex = Math.log2(flag.bit);
+  const label = Number.isInteger(tableIndex) ? battleAiRootScripts[tableIndex] : null;
   if (label) {
     rootScriptByFlag.set(flag.name, label);
   }
@@ -165,6 +264,24 @@ export const getDecompBattleAiCommand = (id: number): DecompBattleAiCommand | nu
 
 export const getAllDecompBattleAiCommands = (): DecompBattleAiCommand[] =>
   [...battleAiCommandMap.values()].sort((left, right) => left.id - right.id);
+
+export const getDecompBattleAiActionFlag = (name: string): DecompBattleAiActionFlag | null =>
+  battleAiActionFlagMap.get(name) ?? null;
+
+export const getAllDecompBattleAiActionFlags = (): DecompBattleAiActionFlag[] =>
+  [...battleAiActionFlagMap.values()].sort((left, right) => left.value - right.value);
+
+export const getDecompBattleAiStates = (): DecompBattleAiState[] =>
+  [...battleAiStates];
+
+export const getDecompBattleAiDiscouragedPowerfulMoveEffects = (): string[] =>
+  [...battleAiDiscouragedPowerfulMoveEffects];
+
+export const getDecompBattleAiSourceFunction = (name: string): DecompBattleAiSourceFunction | null =>
+  battleAiSourceFunctionMap.get(name) ?? null;
+
+export const getAllDecompBattleAiSourceFunctions = (): DecompBattleAiSourceFunction[] =>
+  [...battleAiSourceFunctionMap.values()];
 
 export const getDecompBattleAiScript = (label: string): DecompBattleAiScript | null =>
   battleAiScriptMap.get(label) ?? null;

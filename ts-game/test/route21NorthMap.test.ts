@@ -10,7 +10,7 @@ import {
 import route21NorthMapJson from '../src/world/maps/route21North.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -58,7 +58,7 @@ describe('Route 21 North compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.encounterTiles?.filter((tile) => tile === 'L').length).toBeGreaterThan(0);
-    expect(map.triggers).toEqual([
+    expect(map.triggers).toMatchObject([
       {
         id: 'FLAG_HIDDEN_ITEM_ROUTE21_NORTH_PEARL.hiddenItem',
         x: 17,

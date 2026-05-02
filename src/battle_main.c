@@ -2831,6 +2831,28 @@ static void BattleIntroPlayerSendsOutMonAnimation(void)
     gBattleMainFunc = TryDoEventsBeforeFirstTurn;
 }
 
+void BattleTraceHarness_SkipIntro(void)
+{
+    s32 i;
+
+    gBattleControllerExecFlags = 0;
+    for (i = 0; i < gBattlersCount; i++)
+    {
+        gActiveBattler = i;
+        if (GetBattlerSide(i) == B_SIDE_PLAYER)
+            SetControllerToPlayer();
+        else
+            SetControllerToOpponent();
+        gBattleBufferA[i][0] = 0;
+        gBattleBufferB[i][0] = 0;
+    }
+
+    gBattleStruct->switchInAbilitiesCounter = 0;
+    gBattleStruct->switchInItemsCounter = 0;
+    gBattleStruct->overworldWeatherDone = FALSE;
+    gBattleMainFunc = TryDoEventsBeforeFirstTurn;
+}
+
 // Unused
 static void BattleIntroSwitchInPlayerMons(void)
 {

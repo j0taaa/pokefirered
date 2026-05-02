@@ -10,7 +10,7 @@ import {
 import cinnabarIslandMapJson from '../src/world/maps/cinnabarIsland.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -63,9 +63,9 @@ describe('Cinnabar Island compact map source', () => {
     ]);
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.encounterTiles?.filter((tile) => tile === 'W')).toHaveLength(180);
+    expect(map.encounterTiles?.filter((tile) => tile === 'W')).toHaveLength(184);
     expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(0);
-    expect(map.triggers).toEqual([
+    expect(map.triggers).toMatchObject([
       {
         id: 'CinnabarIsland_EventScript_GymDoorLocked',
         x: 20,

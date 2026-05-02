@@ -22,6 +22,19 @@ export interface DecompBattleMove {
   displayName: string;
 }
 
+export interface RawBattleMoveDefinition {
+  move: string;
+  effect: string;
+  power: string;
+  type: string;
+  accuracy: string;
+  pp: string;
+  secondaryEffectChance: string;
+  target: string;
+  priority: string;
+  flags: string;
+}
+
 export type DecompBattleTerrainId =
   | 'BATTLE_TERRAIN_GRASS'
   | 'BATTLE_TERRAIN_LONG_GRASS'
@@ -91,20 +104,47 @@ const parseEffectScripts = (source: string): Map<string, string> => {
   return effectScripts;
 };
 
+const parseBattleMoveDefinitions = (source: string): RawBattleMoveDefinition[] => {
+  const definitions: RawBattleMoveDefinition[] = [];
+  const moveRegex = /\[(MOVE_\w+)\]\s*=\s*\{([\s\S]*?)\n\s*\},/gu;
+
+  for (const match of source.matchAll(moveRegex)) {
+    const fields = new Map<string, string>();
+    const fieldRegex = /^\s*\.(\w+)\s*=\s*(.+),$/gmu;
+
+    for (const fieldMatch of match[2].matchAll(fieldRegex)) {
+      fields.set(fieldMatch[1], fieldMatch[2].trim());
+    }
+
+    definitions.push({
+      move: match[1],
+      effect: fields.get('effect') ?? 'EFFECT_HIT',
+      power: fields.get('power') ?? '0',
+      type: fields.get('type') ?? 'TYPE_NORMAL',
+      accuracy: fields.get('accuracy') ?? '0',
+      pp: fields.get('pp') ?? '0',
+      secondaryEffectChance: fields.get('secondaryEffectChance') ?? '0',
+      target: fields.get('target') ?? 'MOVE_TARGET_SELECTED',
+      priority: fields.get('priority') ?? '0',
+      flags: fields.get('flags') ?? '0'
+    });
+  }
+
+  return definitions;
+};
+
 const parseBattleMoves = (
   source: string,
   effectIds: Map<string, number>,
   effectScripts: Map<string, string>
 ): Map<string, DecompBattleMove> => {
   const moves = new Map<string, DecompBattleMove>();
-  const moveRegex = /\[MOVE_(\w+)\]\s*=\s*\{([\s\S]*?)\n\s*\},/gu;
 
-  for (const match of source.matchAll(moveRegex)) {
-    const id = normalizeMove(match[1]);
-    const block = match[2];
-    const effect = block.match(/\.effect = (EFFECT_\w+)/u)?.[1] ?? 'EFFECT_HIT';
-    const typeToken = block.match(/\.type = (TYPE_\w+)/u)?.[1] ?? 'TYPE_NORMAL';
-    const flags = (block.match(/\.flags = ([^,\n]+)/u)?.[1] ?? '0')
+  for (const definition of parseBattleMoveDefinitions(source)) {
+    const id = normalizeMove(definition.move);
+    const effect = definition.effect;
+    const typeToken = definition.type;
+    const flags = definition.flags
       .split('|')
       .map((flag) => flag.trim())
       .filter((flag) => flag.length > 0 && flag !== '0');
@@ -114,13 +154,13 @@ const parseBattleMoves = (
       effect,
       effectId: effectIds.get(effect) ?? 0,
       effectScriptLabel: effectScripts.get(effect) ?? 'BattleScript_EffectHit',
-      power: Number.parseInt(block.match(/\.power = (\d+)/u)?.[1] ?? '0', 10),
+      power: Number.parseInt(definition.power, 10),
       type: typeMap[typeToken] ?? 'normal',
-      accuracy: Number.parseInt(block.match(/\.accuracy = (\d+)/u)?.[1] ?? '0', 10),
-      pp: Number.parseInt(block.match(/\.pp = (\d+)/u)?.[1] ?? '0', 10),
-      priority: Number.parseInt(block.match(/\.priority = (-?\d+)/u)?.[1] ?? '0', 10),
-      target: block.match(/\.target = (MOVE_TARGET_\w+)/u)?.[1] ?? 'MOVE_TARGET_SELECTED',
-      secondaryEffectChance: Number.parseInt(block.match(/\.secondaryEffectChance = (\d+)/u)?.[1] ?? '0', 10),
+      accuracy: Number.parseInt(definition.accuracy, 10),
+      pp: Number.parseInt(definition.pp, 10),
+      priority: Number.parseInt(definition.priority, 10),
+      target: definition.target,
+      secondaryEffectChance: Number.parseInt(definition.secondaryEffectChance, 10),
       flags,
       displayName: formatDisplayName(id)
     });
@@ -129,7 +169,7 @@ const parseBattleMoves = (
   return moves;
 };
 
-interface LearnsetMove {
+export interface LearnsetMove {
   level: number;
   moveId: string;
 }
@@ -181,10 +221,27 @@ const parseMapSceneTerrainMapping = (source: string): Map<string, DecompBattleTe
 
 const moveEffects = parseMoveEffects(battleMoveEffectsSource);
 const effectScripts = parseEffectScripts(battleScriptsSource);
+const rawBattleMoveDefinitions = parseBattleMoveDefinitions(battleMovesSource);
 const decompBattleMoves = parseBattleMoves(battleMovesSource, moveEffects, effectScripts);
 const learnsetBlocks = parseLearnsetBlocks(levelUpLearnsetsSource);
 const learnsetPointers = parseLearnsetPointers(levelUpLearnsetPointersSource);
 const mapSceneTerrainMapping = parseMapSceneTerrainMapping(battleBgSource);
+
+export const BATTLE_MOVES_SOURCE = battleMovesSource;
+export const LEVEL_UP_LEARNSETS_SOURCE = levelUpLearnsetsSource;
+export const LEVEL_UP_LEARNSET_POINTERS_SOURCE = levelUpLearnsetPointersSource;
+
+export const getRawBattleMoveDefinitions = (): RawBattleMoveDefinition[] =>
+  rawBattleMoveDefinitions.map((definition) => ({ ...definition }));
+
+export const getRawLevelUpLearnsets = (): Array<{ label: string; moves: LearnsetMove[] }> =>
+  [...learnsetBlocks.entries()].map(([label, moves]) => ({
+    label,
+    moves: moves.map((move) => ({ ...move }))
+  }));
+
+export const getRawLevelUpLearnsetPointers = (): Array<{ species: string; label: string }> =>
+  [...learnsetPointers.entries()].map(([species, label]) => ({ species, label }));
 
 export const getDecompBattleMove = (moveId: string): DecompBattleMove | null =>
   decompBattleMoves.get(normalizeMove(moveId)) ?? null;
@@ -218,6 +275,19 @@ export const getDecompLevelUpMoves = (species: string, level: number): DecompBat
   }
 
   return selected.reverse();
+};
+
+export const getDecompMovesLearnedAtLevel = (species: string, level: number): DecompBattleMove[] => {
+  const pointer = learnsetPointers.get(normalizeSpecies(species));
+  if (!pointer) {
+    return [];
+  }
+
+  const learnset = learnsetBlocks.get(pointer) ?? [];
+  return learnset
+    .filter((entry) => entry.level === level)
+    .map((entry) => getDecompBattleMove(entry.moveId))
+    .filter((move): move is DecompBattleMove => !!move);
 };
 
 export const getFallbackBattleMoves = (): DecompBattleMove[] => {

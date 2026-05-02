@@ -14,6 +14,8 @@ export interface InputSnapshot {
   startPressed: boolean;
   cancel: boolean;
   cancelPressed: boolean;
+  select?: boolean;
+  selectPressed?: boolean;
 }
 
 const defaultSnapshot: InputSnapshot = {
@@ -31,7 +33,9 @@ const defaultSnapshot: InputSnapshot = {
   start: false,
   startPressed: false,
   cancel: false,
-  cancelPressed: false
+  cancelPressed: false,
+  select: false,
+  selectPressed: false
 };
 
 const keyMap: Record<string, keyof Omit<InputSnapshot, 'upPressed' | 'downPressed' | 'leftPressed' | 'rightPressed' | 'interactPressed' | 'startPressed' | 'cancelPressed'>> = {
@@ -49,7 +53,8 @@ const keyMap: Record<string, keyof Omit<InputSnapshot, 'upPressed' | 'downPresse
   Enter: 'interact',
   Escape: 'start',
   KeyX: 'cancel',
-  Backspace: 'cancel'
+  Backspace: 'cancel',
+  Space: 'select'
 };
 
 export class BrowserInputAdapter {
@@ -95,6 +100,7 @@ export class BrowserInputAdapter {
     snapshot.interactPressed = snapshot.interact && !this.heldLastFrame.interact;
     snapshot.startPressed = snapshot.start && !this.heldLastFrame.start;
     snapshot.cancelPressed = snapshot.cancel && !this.heldLastFrame.cancel;
+    snapshot.selectPressed = !!snapshot.select && !this.heldLastFrame.select;
 
     this.heldLastFrame = {
       up: snapshot.up,
@@ -103,7 +109,8 @@ export class BrowserInputAdapter {
       right: snapshot.right,
       interact: snapshot.interact,
       start: snapshot.start,
-      cancel: snapshot.cancel
+      cancel: snapshot.cancel,
+      select: snapshot.select
     };
 
     return snapshot;

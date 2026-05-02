@@ -3,19 +3,39 @@
  * Coordinates are GBA screen pixels (240×160), matching window tilemap × 8.
  */
 
+import {
+  getPartyMenuBoxInfoRects,
+  getPartyMenuCancelButtonWindowTemplate,
+  getPartyMenuSingleWindowTemplates,
+  getPartyMenuSpriteCoords
+} from '../game/decompPartyMenuData';
+
 export const PARTY_GBA_WIDTH = 240;
 export const PARTY_GBA_HEIGHT = 160;
 
+const singleWindowTemplates = getPartyMenuSingleWindowTemplates();
+const singleSpriteCoords = getPartyMenuSpriteCoords().PARTY_LAYOUT_SINGLE;
+const boxInfoRects = getPartyMenuBoxInfoRects();
+const cancelButtonWindowTemplate = getPartyMenuCancelButtonWindowTemplate();
+
 /** `sSinglePartyMenuWindowTemplate` — party mon windows + bottom message window. */
-export const PARTY_SINGLE_WINDOWS = [
-  { slot: 0 as const, tileLeft: 1, tileTop: 3, tileW: 10, tileH: 7, column: 'left' as const },
-  { slot: 1 as const, tileLeft: 12, tileTop: 1, tileW: 18, tileH: 3, column: 'right' as const },
-  { slot: 2 as const, tileLeft: 12, tileTop: 4, tileW: 18, tileH: 3, column: 'right' as const },
-  { slot: 3 as const, tileLeft: 12, tileTop: 7, tileW: 18, tileH: 3, column: 'right' as const },
-  { slot: 4 as const, tileLeft: 12, tileTop: 10, tileW: 18, tileH: 3, column: 'right' as const },
-  { slot: 5 as const, tileLeft: 12, tileTop: 13, tileW: 18, tileH: 3, column: 'right' as const },
-  { slot: 'message' as const, tileLeft: 1, tileTop: 15, tileW: 28, tileH: 4, column: 'message' as const }
-] as const;
+export const PARTY_SINGLE_WINDOWS = singleWindowTemplates
+  .filter((template): template is Exclude<typeof template, 'DUMMY_WIN_TEMPLATE'> => template !== 'DUMMY_WIN_TEMPLATE')
+  .map((template, index) => ({
+    slot: index < 6 ? index : 'message',
+    tileLeft: template.tilemapLeft,
+    tileTop: template.tilemapTop,
+    tileW: template.width,
+    tileH: template.height,
+    column: index === 0 ? 'left' : index < 6 ? 'right' : 'message'
+  })) as ReadonlyArray<{
+    slot: number | 'message';
+    tileLeft: number;
+    tileTop: number;
+    tileW: number;
+    tileH: number;
+    column: 'left' | 'right' | 'message';
+  }>;
 
 /** `sPartyMenuSpriteCoords[PARTY_LAYOUT_SINGLE]` — per slot: mon, item, status, pokeball (x,y) pairs. */
 export const PARTY_SINGLE_SPRITES: ReadonlyArray<{
@@ -23,33 +43,12 @@ export const PARTY_SINGLE_SPRITES: ReadonlyArray<{
   item: { x: number; y: number };
   status: { x: number; y: number };
   pokeball: { x: number; y: number };
-}> = [
-  { mon: { x: 16, y: 40 }, item: { x: 20, y: 50 }, status: { x: 56, y: 52 }, pokeball: { x: 16, y: 34 } },
-  { mon: { x: 104, y: 18 }, item: { x: 108, y: 28 }, status: { x: 144, y: 27 }, pokeball: { x: 102, y: 25 } },
-  { mon: { x: 104, y: 42 }, item: { x: 108, y: 52 }, status: { x: 144, y: 51 }, pokeball: { x: 102, y: 49 } },
-  { mon: { x: 104, y: 66 }, item: { x: 108, y: 76 }, status: { x: 144, y: 75 }, pokeball: { x: 102, y: 73 } },
-  { mon: { x: 104, y: 90 }, item: { x: 108, y: 100 }, status: { x: 144, y: 99 }, pokeball: { x: 102, y: 97 } },
-  { mon: { x: 104, y: 114 }, item: { x: 108, y: 124 }, status: { x: 144, y: 123 }, pokeball: { x: 102, y: 121 } }
-];
+}> = singleSpriteCoords;
 
 /** `sPartyBoxInfoRects` text offsets (pixels within each party window). */
-export const PARTY_TEXT_LEFT = {
-  nickname: { x: 24, y: 11, w: 40, h: 13 },
-  level: { x: 32, y: 20, w: 32, h: 8 },
-  gender: { x: 64, y: 20, w: 8, h: 8 },
-  hp: { x: 38, y: 36, w: 24, h: 8 },
-  maxHp: { x: 53, y: 36, w: 24, h: 8 },
-  hpBar: { x: 24, y: 35, w: 48, h: 3 }
-} as const;
+export const PARTY_TEXT_LEFT = boxInfoRects.PARTY_BOX_LEFT_COLUMN;
 
-export const PARTY_TEXT_RIGHT = {
-  nickname: { x: 22, y: 3, w: 40, h: 13 },
-  level: { x: 32, y: 12, w: 32, h: 8 },
-  gender: { x: 64, y: 12, w: 8, h: 8 },
-  hp: { x: 102, y: 12, w: 24, h: 8 },
-  maxHp: { x: 117, y: 12, w: 24, h: 8 },
-  hpBar: { x: 88, y: 10, w: 48, h: 3 }
-} as const;
+export const PARTY_TEXT_RIGHT = boxInfoRects.PARTY_BOX_RIGHT_COLUMN;
 
 /** `DisplaySelectionWindow` SELECTWINDOW_ACTIONS — bg 2, tiles (19, 19 - 2*numActions), 10×(2*numActions). */
 export const partyActionsWindowTiles = (numActions: number): { tileLeft: number; tileTop: number; tileW: number; tileH: number } => ({
@@ -60,7 +59,12 @@ export const partyActionsWindowTiles = (numActions: number): { tileLeft: number;
 });
 
 /** `sCancelButtonWindowTemplate` — CANCEL label window (tile coords). */
-export const PARTY_CANCEL_BUTTON_WINDOW = { tileLeft: 24, tileTop: 17, tileW: 6, tileH: 2 } as const;
+export const PARTY_CANCEL_BUTTON_WINDOW = {
+  tileLeft: cancelButtonWindowTemplate.tilemapLeft,
+  tileTop: cancelButtonWindowTemplate.tilemapTop,
+  tileW: cancelButtonWindowTemplate.width,
+  tileH: cancelButtonWindowTemplate.height
+} as const;
 
 /**
  * `DrawCancelConfirmButtons` blits `cancel_button.bin` to BG1 at (23,18), 7×2 tiles — one tile left of

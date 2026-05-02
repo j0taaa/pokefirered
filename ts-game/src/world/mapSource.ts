@@ -33,6 +33,7 @@ import pewterCityMuseum1FMapJson from './maps/pewterCityMuseum1F.json';
 import pewterCityMuseum2FMapJson from './maps/pewterCityMuseum2F.json';
 import pewterCityPokemonCenter1FMapJson from './maps/pewterCityPokemonCenter1F.json';
 import pewterCityPokemonCenter2FMapJson from './maps/pewterCityPokemonCenter2F.json';
+import route1MapJson from './maps/route1.json';
 import route2MapJson from './maps/route2.json';
 import route21NorthMapJson from './maps/route21North.json';
 import route21SouthMapJson from './maps/route21South.json';
@@ -102,6 +103,7 @@ export interface TriggerZone {
   id: string;
   x: number;
   y: number;
+  elevation?: number;
   activation: 'interact' | 'step';
   scriptId: string;
   facing: TriggerFacing;
@@ -117,9 +119,14 @@ export interface MapSource {
   height: number;
   tileSize: number;
   regionMapSection?: string;
+  mapType?: string;
+  allowRunning?: boolean;
+  allowEscaping?: boolean;
   coordEventWeather?: CoordEventWeatherId;
   walkable: boolean[];
+  collisionValues?: number[];
   elevations?: number[];
+  terrainTypes?: number[];
   tileBehaviors?: number[];
   connections?: MapConnectionSource[];
   encounterTiles?: string[];
@@ -146,6 +153,9 @@ export interface WildEncounterGroup {
 
 export interface WildEncounters {
   land?: WildEncounterGroup;
+  water?: WildEncounterGroup;
+  fishing?: WildEncounterGroup;
+  rockSmash?: WildEncounterGroup;
 }
 
 export interface CompactMapSource {
@@ -154,9 +164,13 @@ export interface CompactMapSource {
   height: number;
   tileSize: number;
   regionMapSection?: string;
+  mapType?: string;
+  allowRunning?: boolean;
+  allowEscaping?: boolean;
   coordEventWeather?: CoordEventWeatherId;
   collisionRows: string[];
   elevationRows?: string[];
+  terrainRows?: string[];
   behaviorRows?: string[];
   connections?: MapConnectionSource[];
   encounterRows?: string[];
@@ -265,7 +279,10 @@ const isWildEncounters = (value: unknown): value is WildEncounters => {
   }
 
   const candidate = value as Record<string, unknown>;
-  return candidate.land === undefined || isWildEncounterGroup(candidate.land);
+  return (candidate.land === undefined || isWildEncounterGroup(candidate.land))
+    && (candidate.water === undefined || isWildEncounterGroup(candidate.water))
+    && (candidate.fishing === undefined || isWildEncounterGroup(candidate.fishing))
+    && (candidate.rockSmash === undefined || isWildEncounterGroup(candidate.rockSmash));
 };
 
 const parseVisualSource = (raw: unknown, mapId: string, expectedTiles: number): MapVisualSource => {
@@ -507,6 +524,10 @@ const parseTriggerZone = (raw: unknown, mapId: string): TriggerZone => {
     throw new Error(`Map source "${mapId}" trigger "${candidate.id}" must define integer y.`);
   }
 
+  if (candidate.elevation !== undefined && !Number.isInteger(candidate.elevation)) {
+    throw new Error(`Map source "${mapId}" trigger "${candidate.id}" has invalid elevation.`);
+  }
+
   if (candidate.activation !== 'interact' && candidate.activation !== 'step') {
     throw new Error(`Map source "${mapId}" trigger "${candidate.id}" has invalid activation.`);
   }
@@ -536,6 +557,7 @@ const parseTriggerZone = (raw: unknown, mapId: string): TriggerZone => {
     id: candidate.id,
     x: candidate.x as number,
     y: candidate.y as number,
+    elevation: candidate.elevation as number | undefined,
     activation: candidate.activation,
     scriptId: candidate.scriptId,
     facing,
@@ -575,15 +597,32 @@ export const mapFromSource = (source: MapSource): TileMap => {
     );
   }
 
+  if (source.terrainTypes && source.terrainTypes.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has terrainTypes length ${source.terrainTypes.length}, expected ${expectedTiles}.`
+    );
+  }
+
+  if (source.collisionValues && source.collisionValues.length !== expectedTiles) {
+    throw new Error(
+      `Map source "${source.id}" has collisionValues length ${source.collisionValues.length}, expected ${expectedTiles}.`
+    );
+  }
+
   return {
     id: source.id,
     width: source.width,
     height: source.height,
     tileSize: source.tileSize,
     regionMapSection: source.regionMapSection,
+    mapType: source.mapType,
+    allowRunning: source.allowRunning,
+    allowEscaping: source.allowEscaping,
     coordEventWeather: source.coordEventWeather,
     walkable: [...source.walkable],
+    collisionValues: source.collisionValues ? [...source.collisionValues] : undefined,
     elevations: source.elevations ? [...source.elevations] : undefined,
+    terrainTypes: source.terrainTypes ? [...source.terrainTypes] : undefined,
     tileBehaviors: source.tileBehaviors ? [...source.tileBehaviors] : undefined,
     connections: source.connections ? [...source.connections] : [],
     encounterTiles: source.encounterTiles ? [...source.encounterTiles] : undefined,
@@ -606,11 +645,27 @@ export const mapFromSource = (source: MapSource): TileMap => {
 
 const flattenRows = (rows: string[]): string[] => rows.flatMap((row) => [...row]);
 
+const collisionValuesFromRows = (collisionRows: string[]): number[] =>
+  flattenRows(collisionRows).map((tile) => {
+    if (tile === '.') {
+      return 0;
+    }
+
+    if (tile === '#') {
+      return 1;
+    }
+
+    return Number.parseInt(tile, 16);
+  });
+
 const walkableFromCollisionRows = (collisionRows: string[]): boolean[] =>
-  flattenRows(collisionRows).map((tile) => tile === '.');
+  collisionValuesFromRows(collisionRows).map((collisionValue) => collisionValue === 0);
 
 const elevationsFromRows = (elevationRows: string[]): number[] =>
   flattenRows(elevationRows).map((elevation) => Number.parseInt(elevation, 16));
+
+const terrainTypesFromRows = (terrainRows: string[]): number[] =>
+  flattenRows(terrainRows).map((terrain) => Number.parseInt(terrain, 16));
 
 const behaviorsFromRows = (behaviorRows: string[]): number[] =>
   behaviorRows.flatMap((row) => row.match(/../gu)?.map((behavior) => Number.parseInt(behavior, 16)) ?? []);
@@ -622,9 +677,14 @@ export const mapFromCompactSource = (source: CompactMapSource): TileMap =>
     height: source.height,
     tileSize: source.tileSize,
     regionMapSection: source.regionMapSection,
+    mapType: source.mapType,
+    allowRunning: source.allowRunning,
+    allowEscaping: source.allowEscaping,
     coordEventWeather: source.coordEventWeather,
     walkable: walkableFromCollisionRows(source.collisionRows),
+    collisionValues: collisionValuesFromRows(source.collisionRows),
     elevations: source.elevationRows ? elevationsFromRows(source.elevationRows) : undefined,
+    terrainTypes: source.terrainRows ? terrainTypesFromRows(source.terrainRows) : undefined,
     tileBehaviors: source.behaviorRows ? behaviorsFromRows(source.behaviorRows) : undefined,
     connections: source.connections,
     encounterTiles: source.encounterRows ? flattenRows(source.encounterRows) : undefined,
@@ -661,12 +721,20 @@ export const parseMapSource = (raw: unknown): MapSource => {
     throw new Error(`Map source "${id}" must include a boolean walkable array.`);
   }
 
+  if (candidate.collisionValues !== undefined && !isIntegerArray(candidate.collisionValues)) {
+    throw new Error(`Map source "${id}" must include collisionValues as an integer array.`);
+  }
+
   if (candidate.encounterTiles !== undefined && !isEncounterTileArray(candidate.encounterTiles)) {
     throw new Error(`Map source "${id}" must include encounterTiles using ., L, or W markers.`);
   }
 
   if (candidate.tileBehaviors !== undefined && !isIntegerArray(candidate.tileBehaviors)) {
     throw new Error(`Map source "${id}" must include tileBehaviors as an integer array.`);
+  }
+
+  if (candidate.terrainTypes !== undefined && !isIntegerArray(candidate.terrainTypes)) {
+    throw new Error(`Map source "${id}" must include terrainTypes as an integer array.`);
   }
 
   if (candidate.elevations !== undefined && !isIntegerArray(candidate.elevations)) {
@@ -705,9 +773,14 @@ export const parseMapSource = (raw: unknown): MapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     regionMapSection: typeof candidate.regionMapSection === 'string' ? candidate.regionMapSection : undefined,
+    mapType: typeof candidate.mapType === 'string' ? candidate.mapType : undefined,
+    allowRunning: typeof candidate.allowRunning === 'boolean' ? candidate.allowRunning : undefined,
+    allowEscaping: typeof candidate.allowEscaping === 'boolean' ? candidate.allowEscaping : undefined,
     coordEventWeather: normalizeCoordEventWeatherId(candidate.coordEventWeather),
     walkable: candidate.walkable,
+    collisionValues: candidate.collisionValues as number[] | undefined,
     elevations: candidate.elevations as number[] | undefined,
+    terrainTypes: candidate.terrainTypes as number[] | undefined,
     tileBehaviors: candidate.tileBehaviors as number[] | undefined,
     connections: (candidate.connections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterTiles: candidate.encounterTiles as string[] | undefined,
@@ -740,9 +813,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     throw new Error(`Compact map source "${id}" must define a positive integer tileSize.`);
   }
 
-  if (!isTileRows(candidate.collisionRows, candidate.width, /^[.#]+$/u)) {
+  if (!isTileRows(candidate.collisionRows, candidate.width, /^[.#0-3]+$/u)) {
     throw new Error(
-      `Compact map source "${id}" must include collisionRows made of ${candidate.width} '.'/'#' tiles.`
+      `Compact map source "${id}" must include collisionRows made of ${candidate.width} '.'/'#' or 0-3 tiles.`
     );
   }
 
@@ -776,6 +849,18 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     );
   }
 
+  if (candidate.terrainRows !== undefined && !isElevationRows(candidate.terrainRows, candidate.width)) {
+    throw new Error(
+      `Compact map source "${id}" must include terrainRows made of ${candidate.width} one-digit hex terrain values.`
+    );
+  }
+
+  if (candidate.terrainRows !== undefined && candidate.terrainRows.length !== candidate.height) {
+    throw new Error(
+      `Compact map source "${id}" has ${candidate.terrainRows.length} terrain rows, expected ${candidate.height}.`
+    );
+  }
+
   if (candidate.behaviorRows !== undefined && !isBehaviorRows(candidate.behaviorRows, candidate.width)) {
     throw new Error(
       `Compact map source "${id}" must include behaviorRows made of ${candidate.width} two-digit hex behaviors.`
@@ -797,6 +882,9 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
   const metadataBattleScene = metadata?.battleScene;
   const metadataRegionMapSection = metadata?.regionMapSection;
   const metadataWeather = metadata?.weather;
+  const metadataMapType = metadata?.mapType;
+  const metadataAllowRunning = metadata?.allowRunning;
+  const metadataAllowEscaping = metadata?.allowEscaping;
 
   if (metadataConnections !== undefined && !Array.isArray(metadataConnections)) {
     throw new Error(`Compact map source "${id}" metadata.connections must be an array.`);
@@ -830,9 +918,13 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
     height: candidate.height,
     tileSize: candidate.tileSize,
     regionMapSection: typeof metadataRegionMapSection === 'string' ? metadataRegionMapSection : undefined,
+    mapType: typeof metadataMapType === 'string' ? metadataMapType : undefined,
+    allowRunning: typeof metadataAllowRunning === 'boolean' ? metadataAllowRunning : undefined,
+    allowEscaping: typeof metadataAllowEscaping === 'boolean' ? metadataAllowEscaping : undefined,
     coordEventWeather: normalizeCoordEventWeatherId(metadataWeather),
     collisionRows: [...candidate.collisionRows],
     elevationRows: candidate.elevationRows ? [...candidate.elevationRows] : undefined,
+    terrainRows: candidate.terrainRows ? [...candidate.terrainRows] : undefined,
     behaviorRows: candidate.behaviorRows ? [...candidate.behaviorRows] : undefined,
     connections: (metadataConnections ?? []).map((entry, index) => parseMapConnectionSource(entry, id, index)),
     encounterRows: candidate.encounterRows ? [...candidate.encounterRows] : undefined,
@@ -950,6 +1042,9 @@ export const loadPewterCityPokemonCenter1FMap = (): TileMap =>
 
 export const loadPewterCityPokemonCenter2FMap = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(pewterCityPokemonCenter2FMapJson));
+
+export const loadRoute1Map = (): TileMap =>
+  mapFromCompactSource(parseCompactMapSource(route1MapJson));
 
 export const loadRoute2Map = (): TileMap =>
   mapFromCompactSource(parseCompactMapSource(route2MapJson));
@@ -1146,6 +1241,8 @@ export const loadMapById = (mapId: string): TileMap | null => {
       return loadPewterCityPokemonCenter1FMap();
     case 'MAP_PEWTER_CITY_POKEMON_CENTER_2F':
       return loadPewterCityPokemonCenter2FMap();
+    case 'MAP_ROUTE1':
+      return loadRoute1Map();
     case 'MAP_ROUTE2':
       return loadRoute2Map();
     case 'MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE':

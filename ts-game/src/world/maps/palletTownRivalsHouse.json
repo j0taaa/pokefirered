@@ -286,16 +286,16 @@
     ]
   },
   "collisionRows": [
-    "#############",
-    "#############",
-    ".............",
-    ".............",
-    "......##.....",
-    "......##.....",
-    ".............",
-    ".............",
-    "#...........#",
-    "#############"
+    "1111111111111",
+    "1111111111111",
+    "0000000000000",
+    "0000000000000",
+    "0000001100000",
+    "0000001100000",
+    "0000000000000",
+    "0000000000000",
+    "1000000000001",
+    "1111111111111"
   ],
   "encounterRows": [
     ".............",
@@ -333,11 +333,24 @@
     "00000000650000000000000000",
     "00000000000000000000000000"
   ],
+  "terrainRows": [
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000",
+    "0000000000000"
+  ],
   "triggers": [
     {
       "id": "PalletTown_RivalsHouse_EventScript_Bookshelf",
       "x": 12,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_RivalsHouse_EventScript_Bookshelf",
       "facing": "any",
@@ -347,6 +360,7 @@
       "id": "PalletTown_RivalsHouse_EventScript_Bookshelf",
       "x": 11,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_RivalsHouse_EventScript_Bookshelf",
       "facing": "any",
@@ -356,6 +370,7 @@
       "id": "PalletTown_RivalsHouse_EventScript_Picture",
       "x": 9,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_RivalsHouse_EventScript_Picture",
       "facing": "any",

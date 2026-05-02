@@ -1,7 +1,7 @@
 import type { PlayerState } from './player';
 import { getPlayerTilePosition } from './player';
 import type { TileMap } from '../world/tileMap';
-import { isWalkableAtTile } from '../world/tileMap';
+import { isWalkableAtTile, MapGridGetElevationAt, MapGridGetMetatileBehaviorAt } from '../world/tileMap';
 import type { WarpSource } from '../world/mapSource';
 
 const MB_CAVE_DOOR = 0x60;
@@ -23,6 +23,16 @@ const MB_DOWN_LEFT_STAIR_WARP = 0x6f;
 const MB_UNION_ROOM_WARP = 0x71;
 
 export type WarpResolutionStatus = 'none' | 'resolved' | 'unloaded_map' | 'invalid_warp_id' | 'not_activatable';
+export type WarpEffect =
+  | 'warp'
+  | 'door'
+  | 'stair'
+  | 'escalator'
+  | 'lavaridgeB1F'
+  | 'lavaridge1F'
+  | 'teleport'
+  | 'unionRoom'
+  | 'fall';
 
 export interface WarpTransition {
   status: WarpResolutionStatus;
@@ -30,6 +40,29 @@ export interface WarpTransition {
   destinationMap?: TileMap;
   destinationWarp?: WarpSource;
   playerPosition?: { x: number; y: number };
+  effect?: WarpEffect;
+  behavior?: number;
+  delayFrames?: number;
+  resetInitialPlayerAvatarState?: boolean;
+}
+
+export interface DynamicWarpDestination {
+  mapId: string;
+  warpId: number;
+  x: number;
+  y: number;
+}
+
+export interface WarpActivationOptions {
+  allowArrowWarp?: boolean;
+  allowDirectionalStairWarp?: boolean;
+}
+
+export interface WarpEffectInfo {
+  effect: WarpEffect;
+  behavior: number;
+  delayFrames?: number;
+  resetInitialPlayerAvatarState?: boolean;
 }
 
 const isContiguous = (values: number[]): boolean =>
@@ -97,8 +130,35 @@ const resolveDestinationWarp = (
   sourceMap: TileMap,
   sourceWarp: WarpSource,
   arrivalFacing: PlayerState['facing'],
-  loadMapById: (mapId: string) => TileMap | null
+  loadMapById: (mapId: string) => TileMap | null,
+  dynamicWarp?: DynamicWarpDestination | null
 ): WarpTransition => {
+  if (sourceWarp.destWarpId === 255 && dynamicWarp) {
+    const dynamicDestinationMap = loadMapById(dynamicWarp.mapId);
+    if (!dynamicDestinationMap) {
+      return { status: 'unloaded_map', sourceWarp };
+    }
+
+    const destinationWarp: WarpSource = {
+      x: dynamicWarp.x,
+      y: dynamicWarp.y,
+      elevation: 0,
+      destMap: sourceMap.id,
+      destWarpId: dynamicWarp.warpId
+    };
+
+    return {
+      status: 'resolved',
+      sourceWarp,
+      destinationMap: dynamicDestinationMap,
+      destinationWarp,
+      playerPosition: {
+        x: dynamicWarp.x * dynamicDestinationMap.tileSize,
+        y: dynamicWarp.y * dynamicDestinationMap.tileSize
+      }
+    };
+  }
+
   const destinationMap = loadMapById(sourceWarp.destMap);
   if (!destinationMap) {
     return { status: 'unloaded_map', sourceWarp };
@@ -123,33 +183,40 @@ const resolveDestinationWarp = (
   };
 };
 
-const getTileBehaviorAt = (map: TileMap, tileX: number, tileY: number): number | null => {
-  if (!map.tileBehaviors || tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height) {
-    return null;
-  }
-
-  return map.tileBehaviors[tileY * map.width + tileX] ?? null;
-};
-
 export const findWarpAtTile = (map: TileMap, tileX: number, tileY: number, elevation = 0): WarpSource | null =>
   map.warps.find((warp) =>
     warp.x === tileX
     && warp.y === tileY
-    && (warp.elevation === elevation || warp.elevation === 0 || elevation === 0)
+    && (warp.elevation === elevation || warp.elevation === 0)
   ) ?? null;
 
-export const isWarpMetatileBehavior = (behavior: number): boolean => (
-  behavior === MB_WARP_DOOR
-  || behavior === MB_LADDER
-  || (behavior >= MB_UP_ESCALATOR && behavior <= MB_DOWN_ESCALATOR)
-  || behavior === MB_CAVE_DOOR
-  || behavior === MB_LAVARIDGE_1F_WARP
-  || behavior === MB_REGULAR_WARP
-  || behavior === MB_FALL_WARP
-  || behavior === MB_UNION_ROOM_WARP
+export const MetatileBehavior_IsWarpDoor = (behavior: number): boolean => behavior === MB_WARP_DOOR;
+export const MetatileBehavior_IsLadder = (behavior: number): boolean => behavior === MB_LADDER;
+export const MetatileBehavior_IsEscalator = (behavior: number): boolean =>
+  behavior >= MB_UP_ESCALATOR && behavior <= MB_DOWN_ESCALATOR;
+export const MetatileBehavior_IsNonAnimDoor = (behavior: number): boolean => behavior === MB_CAVE_DOOR;
+export const MetatileBehavior_IsLavaridgeB1FWarp = (_behavior: number): boolean => false;
+export const MetatileBehavior_IsLavaridge1FWarp = (behavior: number): boolean =>
+  behavior === MB_LAVARIDGE_1F_WARP;
+export const MetatileBehavior_IsWarpPad = (behavior: number): boolean => behavior === MB_REGULAR_WARP;
+export const MetatileBehavior_IsFallWarp = (behavior: number): boolean => behavior === MB_FALL_WARP;
+export const MetatileBehavior_IsUnionRoomWarp = (behavior: number): boolean => behavior === MB_UNION_ROOM_WARP;
+
+export const IsWarpMetatileBehavior = (behavior: number): boolean => (
+  MetatileBehavior_IsWarpDoor(behavior)
+  || MetatileBehavior_IsLadder(behavior)
+  || MetatileBehavior_IsEscalator(behavior)
+  || MetatileBehavior_IsNonAnimDoor(behavior)
+  || MetatileBehavior_IsLavaridgeB1FWarp(behavior)
+  || MetatileBehavior_IsLavaridge1FWarp(behavior)
+  || MetatileBehavior_IsWarpPad(behavior)
+  || MetatileBehavior_IsFallWarp(behavior)
+  || MetatileBehavior_IsUnionRoomWarp(behavior)
 );
 
-const isDirectionalStairWarpMetatileBehavior = (
+export const isWarpMetatileBehavior = IsWarpMetatileBehavior;
+
+export const IsDirectionalStairWarpMetatileBehavior = (
   behavior: number,
   direction: PlayerState['facing']
 ): boolean => {
@@ -163,7 +230,9 @@ const isDirectionalStairWarpMetatileBehavior = (
   }
 };
 
-export const isArrowWarpMetatileBehavior = (behavior: number, direction: PlayerState['facing']): boolean => {
+export const isDirectionalStairWarpMetatileBehavior = IsDirectionalStairWarpMetatileBehavior;
+
+export const IsArrowWarpMetatileBehavior = (behavior: number, direction: PlayerState['facing']): boolean => {
   switch (direction) {
     case 'up':
       return behavior === MB_NORTH_ARROW_WARP;
@@ -176,73 +245,186 @@ export const isArrowWarpMetatileBehavior = (behavior: number, direction: PlayerS
   }
 };
 
+export const isArrowWarpMetatileBehavior = IsArrowWarpMetatileBehavior;
+
+const isBikeAvatarMode = (avatarMode: PlayerState['avatarMode']): boolean =>
+  avatarMode === 'machBike' || avatarMode === 'acroBike';
+
+export const getWarpEffectForBehavior = (
+  behavior: number,
+  direction: PlayerState['facing'],
+  avatarMode: PlayerState['avatarMode'] = 'normal'
+): WarpEffectInfo => {
+  if (IsDirectionalStairWarpMetatileBehavior(behavior, direction)) {
+    return {
+      effect: 'stair',
+      behavior,
+      delayFrames: isBikeAvatarMode(avatarMode) ? 12 : 0
+    };
+  }
+
+  if (MetatileBehavior_IsEscalator(behavior)) {
+    return { effect: 'escalator', behavior };
+  }
+
+  if (MetatileBehavior_IsLavaridgeB1FWarp(behavior)) {
+    return { effect: 'lavaridgeB1F', behavior };
+  }
+
+  if (MetatileBehavior_IsLavaridge1FWarp(behavior)) {
+    return { effect: 'lavaridge1F', behavior };
+  }
+
+  if (MetatileBehavior_IsWarpPad(behavior)) {
+    return { effect: 'teleport', behavior };
+  }
+
+  if (MetatileBehavior_IsUnionRoomWarp(behavior)) {
+    return { effect: 'unionRoom', behavior };
+  }
+
+  if (MetatileBehavior_IsFallWarp(behavior)) {
+    return {
+      effect: 'fall',
+      behavior,
+      resetInitialPlayerAvatarState: true
+    };
+  }
+
+  return { effect: 'warp', behavior };
+};
+
+const shouldAttachWarpEffect = (effect: WarpEffect): boolean =>
+  effect !== 'warp';
+
+const withWarpEffect = (transition: WarpTransition, effectInfo: WarpEffectInfo): WarpTransition => {
+  if (transition.status !== 'resolved' || !shouldAttachWarpEffect(effectInfo.effect)) {
+    return transition;
+  }
+
+  return {
+    ...transition,
+    ...effectInfo
+  };
+};
+
 const isActivatableWarpTile = (
   behavior: number | null,
   direction: PlayerState['facing'],
-  hasWarpEvent: boolean
+  options: WarpActivationOptions = {}
 ): boolean => {
   if (behavior === null) {
     return false;
   }
 
-  if (hasWarpEvent && behavior === 0) {
-    return true;
-  }
+  const allowArrowWarp = options.allowArrowWarp ?? true;
+  const allowDirectionalStairWarp = options.allowDirectionalStairWarp ?? true;
 
-  return isWarpMetatileBehavior(behavior)
-    || isDirectionalStairWarpMetatileBehavior(behavior, direction)
-    || isArrowWarpMetatileBehavior(behavior, direction);
+  return IsWarpMetatileBehavior(behavior)
+    || (allowDirectionalStairWarp && IsDirectionalStairWarpMetatileBehavior(behavior, direction))
+    || (allowArrowWarp && IsArrowWarpMetatileBehavior(behavior, direction));
+};
+
+export const GetPlayerCurMetatileBehavior = (map: TileMap, player: PlayerState): number | null => {
+  const playerTile = getPlayerTilePosition(player.position, map.tileSize);
+  return MapGridGetMetatileBehaviorAt(map, playerTile.x, playerTile.y);
+};
+
+export const GetInFrontOfPlayerPosition = (
+  map: TileMap,
+  player: PlayerState
+): { x: number; y: number; elevation: number } => {
+  const playerTile = getPlayerTilePosition(player.position, map.tileSize);
+  const frontTile = {
+    x: player.facing === 'left' ? playerTile.x - 1 : player.facing === 'right' ? playerTile.x + 1 : playerTile.x,
+    y: player.facing === 'up' ? playerTile.y - 1 : player.facing === 'down' ? playerTile.y + 1 : playerTile.y
+  };
+  const playerElevation = MapGridGetElevationAt(map, playerTile.x, playerTile.y);
+
+  return {
+    ...frontTile,
+    elevation: playerElevation !== 0 ? playerElevation : 0
+  };
 };
 
 export const resolveWarpTransition = (
   map: TileMap,
   player: PlayerState,
-  loadMapById: (mapId: string) => TileMap | null
+  loadMapById: (mapId: string) => TileMap | null,
+  dynamicWarp?: DynamicWarpDestination | null,
+  options: WarpActivationOptions = {}
 ): WarpTransition => {
   const playerTile = getPlayerTilePosition(player.position, map.tileSize);
-  const sourceWarp = findWarpAtTile(map, playerTile.x, playerTile.y);
+  const playerElevation = MapGridGetElevationAt(map, playerTile.x, playerTile.y);
+  const sourceWarp = findWarpAtTile(map, playerTile.x, playerTile.y, playerElevation);
   if (!sourceWarp) {
     return { status: 'none' };
   }
 
-  const behavior = getTileBehaviorAt(map, playerTile.x, playerTile.y);
-  if (!isActivatableWarpTile(behavior, player.facing, true)) {
+  const behavior = GetPlayerCurMetatileBehavior(map, player);
+  if (!isActivatableWarpTile(behavior, player.facing, options)) {
     return { status: 'not_activatable', sourceWarp };
   }
 
-  return resolveDestinationWarp(map, sourceWarp, player.facing, loadMapById);
+  const transition = resolveDestinationWarp(map, sourceWarp, player.facing, loadMapById, dynamicWarp);
+  return behavior === null
+    ? transition
+    : withWarpEffect(transition, getWarpEffectForBehavior(behavior, player.facing, player.avatarMode));
+};
+
+export const resolveArrowWarpTransition = (
+  map: TileMap,
+  player: PlayerState,
+  heldDirection: PlayerState['facing'] | null,
+  loadMapById: (mapId: string) => TileMap | null,
+  dynamicWarp?: DynamicWarpDestination | null
+): WarpTransition => {
+  if (!heldDirection || heldDirection !== player.facing) {
+    return { status: 'none' };
+  }
+
+  const playerTile = getPlayerTilePosition(player.position, map.tileSize);
+  const playerElevation = MapGridGetElevationAt(map, playerTile.x, playerTile.y);
+  const sourceWarp = findWarpAtTile(map, playerTile.x, playerTile.y, playerElevation);
+  if (!sourceWarp) {
+    return { status: 'none' };
+  }
+
+  const behavior = GetPlayerCurMetatileBehavior(map, player);
+  if (behavior === null || !IsArrowWarpMetatileBehavior(behavior, player.facing)) {
+    return { status: 'not_activatable', sourceWarp };
+  }
+
+  return resolveDestinationWarp(map, sourceWarp, player.facing, loadMapById, dynamicWarp);
 };
 
 export const resolveFacingDoorWarpTransition = (
   map: TileMap,
   player: PlayerState,
   attemptedDirection: PlayerState['facing'] | null,
-  loadMapById: (mapId: string) => TileMap | null
+  loadMapById: (mapId: string) => TileMap | null,
+  dynamicWarp?: DynamicWarpDestination | null
 ): WarpTransition => {
   if (attemptedDirection !== 'up' || player.facing !== 'up') {
     return { status: 'none' };
   }
 
-  const playerTile = getPlayerTilePosition(player.position, map.tileSize);
-  const targetTile = {
-    x: playerTile.x,
-    y: playerTile.y - 1
-  };
-  const sourceWarp = findWarpAtTile(map, targetTile.x, targetTile.y);
+  const targetTile = GetInFrontOfPlayerPosition(map, player);
+  const sourceWarp = findWarpAtTile(map, targetTile.x, targetTile.y, targetTile.elevation);
 
   if (!sourceWarp) {
     return { status: 'none' };
   }
 
-  const behavior = getTileBehaviorAt(map, targetTile.x, targetTile.y);
-  const blockedDoorstep = !isWalkableAtTile(map, targetTile.x, targetTile.y);
-  const matchesDoorWarp =
-    behavior === MB_WARP_DOOR
-    || (behavior === 0 && blockedDoorstep);
+  const behavior = MapGridGetMetatileBehaviorAt(map, targetTile.x, targetTile.y);
+  const matchesDoorWarp = behavior !== null && MetatileBehavior_IsWarpDoor(behavior);
 
   if (!matchesDoorWarp) {
     return { status: 'not_activatable', sourceWarp };
   }
 
-  return resolveDestinationWarp(map, sourceWarp, player.facing, loadMapById);
+  return withWarpEffect(
+    resolveDestinationWarp(map, sourceWarp, player.facing, loadMapById, dynamicWarp),
+    { effect: 'door', behavior }
+  );
 };

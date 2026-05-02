@@ -1,7 +1,8 @@
 import type { InputSnapshot } from '../input/inputState';
 import rawItemData from '../../../src/data/items.json';
+import { adjustQuantityAccordingToDPadInput } from './decompMenuHelpers';
 
-export type BagPocketId = 'items' | 'keyItems' | 'pokeBalls';
+export type BagPocketId = 'items' | 'keyItems' | 'pokeBalls' | 'tmCase' | 'berryPouch';
 export type BagContextActionId =
   | 'USE'
   | 'GIVE'
@@ -37,6 +38,7 @@ export interface ItemDefinition {
   fieldUseFunc: string;
   price: number;
   iconKey: string;
+  moveId?: string;
 }
 
 export interface BagContextMenuState {
@@ -90,13 +92,16 @@ interface RawItemDefinition {
   pocket: string;
   battleUsage: number;
   fieldUseFunc: string;
+  moveId?: string;
 }
 
-const BAG_POCKET_ORDER: BagPocketId[] = ['items', 'keyItems', 'pokeBalls'];
+const BAG_POCKET_ORDER: BagPocketId[] = ['items', 'keyItems', 'pokeBalls', 'tmCase', 'berryPouch'];
 const BAG_POCKET_CAPACITY: Record<BagPocketId, number> = {
   items: 42,
   keyItems: 30,
-  pokeBalls: 13
+  pokeBalls: 13,
+  tmCase: 58,
+  berryPouch: 43
 };
 
 const BAG_VISIBLE_ROWS = 6;
@@ -113,6 +118,10 @@ const pocketFromDecompPocket = (value: string): BagPocketId | null => {
       return 'keyItems';
     case 'POCKET_POKE_BALLS':
       return 'pokeBalls';
+    case 'POCKET_TM_CASE':
+      return 'tmCase';
+    case 'POCKET_BERRY_POUCH':
+      return 'berryPouch';
     default:
       return null;
   }
@@ -136,7 +145,8 @@ const itemDefinitions = new Map<string, ItemDefinition>(
       battleUsage: item.battleUsage,
       fieldUseFunc: item.fieldUseFunc,
       price: item.price,
-      iconKey: iconKeyFromItemId(item.itemId)
+      iconKey: iconKeyFromItemId(item.itemId),
+      moveId: item.moveId
     }
   ])
 );
@@ -185,7 +195,8 @@ export const getItemDefinition = (itemId: string): ItemDefinition => itemDefinit
   battleUsage: 0,
   fieldUseFunc: 'NULL',
   price: 0,
-  iconKey: iconKeyFromItemId(itemId)
+  iconKey: iconKeyFromItemId(itemId),
+  moveId: undefined
 };
 
 export const getBagPocketByItemId = (itemId: string): BagPocketId | null =>
@@ -200,6 +211,10 @@ export const getBagPocketLabel = (pocket: BagPocketId): string => {
       return 'KEY ITEMS';
     case 'pokeBalls':
       return 'POKé BALLS';
+    case 'tmCase':
+      return 'TM CASE';
+    case 'berryPouch':
+      return 'BERRIES';
   }
 };
 
@@ -210,18 +225,24 @@ export const createBagState = (): BagState => ({
     pokeBalls: [
       { itemId: 'ITEM_POKE_BALL', quantity: 5 },
       { itemId: 'ITEM_GREAT_BALL', quantity: 1 }
-    ]
+    ],
+    tmCase: [],
+    berryPouch: []
   },
   selectedPocket: 'items',
   selectedIndexByPocket: {
     items: 0,
     keyItems: 0,
-    pokeBalls: 0
+    pokeBalls: 0,
+    tmCase: 0,
+    berryPouch: 0
   },
   scrollOffsetByPocket: {
     items: 0,
     keyItems: 0,
-    pokeBalls: 0
+    pokeBalls: 0,
+    tmCase: 0,
+    berryPouch: 0
   },
   registeredItemId: null
 });
@@ -307,6 +328,22 @@ export const checkBagHasSpace = (bag: BagState, itemId: string, count: number): 
     return false;
   }
 
+  if (
+    pocket === 'tmCase'
+    && !checkBagHasItem(bag, 'ITEM_TM_CASE', 1)
+    && bag.pockets.keyItems.length >= getPocketCapacity('keyItems')
+  ) {
+    return false;
+  }
+
+  if (
+    pocket === 'berryPouch'
+    && !checkBagHasItem(bag, 'ITEM_BERRY_POUCH', 1)
+    && bag.pockets.keyItems.length >= getPocketCapacity('keyItems')
+  ) {
+    return false;
+  }
+
   const slot = bag.pockets[pocket].find((entry) => entry.itemId === itemId);
   if (slot) {
     return slot.quantity + count <= 999;
@@ -319,6 +356,18 @@ export const addBagItem = (bag: BagState, itemId: string, count: number): boolea
   const pocket = getBagPocketByItemId(itemId);
   if (!pocket || count < 1) {
     return false;
+  }
+
+  if (pocket === 'tmCase' && !checkBagHasItem(bag, 'ITEM_TM_CASE', 1)) {
+    if (!addBagItem(bag, 'ITEM_TM_CASE', 1)) {
+      return false;
+    }
+  }
+
+  if (pocket === 'berryPouch' && !checkBagHasItem(bag, 'ITEM_BERRY_POUCH', 1)) {
+    if (!addBagItem(bag, 'ITEM_BERRY_POUCH', 1)) {
+      return false;
+    }
   }
 
   const slot = bag.pockets[pocket].find((entry) => entry.itemId === itemId);
@@ -612,13 +661,9 @@ const stepQuantityPrompt = (panel: BagPanelState, input: InputSnapshot): BagStep
     return { close: false, scriptId: 'menu.bag.toss.cancel' };
   }
 
-  if (input.upPressed || input.rightPressed) {
-    prompt.quantity = clamp(prompt.quantity + 1, 1, prompt.maxQuantity);
-    return { close: false, scriptId: 'menu.bag.toss.quantity' };
-  }
-
-  if (input.downPressed || input.leftPressed) {
-    prompt.quantity = clamp(prompt.quantity - 1, 1, prompt.maxQuantity);
+  const adjusted = adjustQuantityAccordingToDPadInput(prompt.quantity, prompt.maxQuantity, input);
+  if (adjusted.changed) {
+    prompt.quantity = adjusted.quantity;
     return { close: false, scriptId: 'menu.bag.toss.quantity' };
   }
 

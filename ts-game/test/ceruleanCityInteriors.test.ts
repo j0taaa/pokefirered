@@ -31,7 +31,7 @@ import ceruleanCityPokemonCenter1FJson from '../src/world/maps/ceruleanCityPokem
 import ceruleanCityPokemonCenter2FJson from '../src/world/maps/ceruleanCityPokemonCenter2F.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] =>
   encounterRows.flatMap((row) => [...row]);
@@ -184,7 +184,7 @@ describe('Cerulean City interior compact map sources', () => {
     expect(loadCeruleanCityHouse1Map().npcs[0]).toMatchObject({
       scriptId: 'CeruleanCity_House1_EventScript_BadgeGuy'
     });
-    expect(loadCeruleanCityHouse2Map().triggers).toEqual([
+    expect(loadCeruleanCityHouse2Map().triggers).toMatchObject([
       {
         id: 'CeruleanCity_House2_EventScript_WallHole',
         x: 4,

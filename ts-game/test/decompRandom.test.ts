@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import {
+  RANDOM_C_TRANSLATION_UNIT,
+  Random,
+  SeedRng,
   advanceDecompRng,
   createDecompRng,
   nextDecompRandom,
@@ -10,6 +13,14 @@ import {
 import { createBattleEncounterState, shouldStartWildEncounter } from '../src/game/battle';
 
 describe('decomp random parity', () => {
+  test('exports exact random.c entry points over global gRngValue', async () => {
+    expect(RANDOM_C_TRANSLATION_UNIT).toBe('src/random.c');
+    SeedRng(0x4a3b);
+    expect(Random()).toBe(31583);
+    expect((await import('../src/game/decompRandom')).gRngValue).toBe(2069886354);
+    expect(Random()).toBe(50586);
+  });
+
   test('mirrors src/random.c Random() progression for the default encounter seed', () => {
     const rng = createDecompRng(0x4a3b);
 

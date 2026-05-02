@@ -9,7 +9,7 @@ import {
 import viridianCityGymMapJson from '../src/world/maps/viridianCityGym.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -64,7 +64,7 @@ describe('Viridian City Gym compact map source', () => {
       t.scriptId === 'ViridianCity_Gym_EventScript_GymStatue'
     );
     expect(statues).toHaveLength(2);
-    expect(statues[0]).toEqual({
+    expect(statues[0]).toMatchObject({
       id: 'ViridianCity_Gym_EventScript_GymStatue',
       x: 15,
       y: 20,

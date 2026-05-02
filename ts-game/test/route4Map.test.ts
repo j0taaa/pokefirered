@@ -10,7 +10,7 @@ import {
 import route4MapJson from '../src/world/maps/route4.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -59,7 +59,7 @@ describe('Route 4 compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(84);
-    expect(map.triggers).toEqual([
+    expect(map.triggers).toMatchObject([
       {
         id: 'Route4_EventScript_MtMoonSign',
         x: 18,

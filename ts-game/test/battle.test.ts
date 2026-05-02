@@ -6,11 +6,14 @@ import {
   calculateTypeEffectiveness,
   applyBattleRewards,
   createBattleEncounterState,
+  createBattlePokemonFromSpecies,
   createBattleState,
+  dismissResolvedBattle,
   getBallCatchMultiplierTenths,
   getBallEscapeMessage,
   getBattleBagChoices,
   performCaptureAttempt,
+  setBattlerPartyIndex,
   shouldStartWildEncounter,
   startConfiguredBattle,
   startTrainerBattle,
@@ -101,6 +104,15 @@ describe('battle vertical slice', () => {
     ]
   };
 
+  const routeLikeWaterEncounters: WildEncounterGroup = {
+    encounterRate: 21,
+    mons: [
+      { minLevel: 5, maxLevel: 5, species: 'SPECIES_TENTACOOL', slotRate: 60 },
+      { minLevel: 6, maxLevel: 6, species: 'SPECIES_HORSEA', slotRate: 30 },
+      { minLevel: 7, maxLevel: 7, species: 'SPECIES_STARYU', slotRate: 10 }
+    ]
+  };
+
   test('uses FRLG-like base damage formula floor behavior and STAB/type math', () => {
     const battle = createBattleState();
     const move = battle.moves.find((entry) => entry.id === 'EMBER');
@@ -152,6 +164,34 @@ describe('battle vertical slice', () => {
     expect(battle.battleTrace[0]).toMatchObject({ type: 'init', mode: 'trainer' });
   });
 
+  test('compatibility views derive active mons and moves from battler indexes', () => {
+    const battle = createBattleState({
+      playerParty: [
+        createBattlePokemonFromSpecies('RATTATA', 5),
+        createBattlePokemonFromSpecies('PIDGEY', 6)
+      ],
+      opponentParty: [
+        createBattlePokemonFromSpecies('CATERPIE', 4),
+        createBattlePokemonFromSpecies('WEEDLE', 4)
+      ]
+    });
+
+    expect(battle.playerMon.species).toBe('RATTATA');
+    expect(battle.wildMon.species).toBe('CATERPIE');
+    expect(battle.moves).toBe(battle.playerMon.moves);
+    expect(battle.wildMoves).toBe(battle.wildMon.moves);
+
+    setBattlerPartyIndex(battle, 0, 1);
+    setBattlerPartyIndex(battle, 1, 1);
+
+    expect(battle.playerSide.activePartyIndexes).toEqual([1]);
+    expect(battle.opponentSide.activePartyIndexes).toEqual([1]);
+    expect(battle.playerMon.species).toBe('PIDGEY');
+    expect(battle.wildMon.species).toBe('WEEDLE');
+    expect(battle.moves).toBe(battle.playerMon.moves);
+    expect(battle.wildMoves).toBe(battle.wildMon.moves);
+  });
+
   test('startConfiguredBattle reconfigures runtime state and records battle trace events', () => {
     const battle = createBattleState();
 
@@ -197,8 +237,8 @@ describe('battle vertical slice', () => {
     expect(battle.battleTrace.some((event) => event.type === 'message' && event.text?.includes('used'))).toBe(true);
     expect(battle.battleTrace.some((event) => event.type === 'hp' && event.battler === 'opponent')).toBe(true);
     expect(battle.battleTrace.some((event) => event.type === 'phase' && event.text === 'script')).toBe(true);
-    expect(['BattleScript_EFFECT_HIT', 'BattleScript_EFFECT_SPLASH']).toContain(battle.vm.currentLabel);
-    expect(battle.vm.pendingCommands.some((command) => command.type === 'script' && command.label === battle.vm.currentLabel)).toBe(true);
+    expect([null, 'BattleScript_MoveEnd']).toContain(battle.vm.currentLabel);
+    expect(battle.vm.pendingCommands.some((command) => command.type === 'script')).toBe(true);
     expect(battle.vm.pendingMessages.some((message) => message.includes('used'))).toBe(true);
   });
 
@@ -298,14 +338,146 @@ describe('battle vertical slice', () => {
     expect(battle.format).toBe('doubles');
     expect(battle.controlMode).toBe('partner');
     expect(battle.partnerParty.map((pokemon) => pokemon.species)).toEqual(['PIKACHU']);
-    expect(battle.playerSide.activePartyIndexes).toEqual([0, 1]);
+    expect(battle.playerSide.party.map((pokemon) => pokemon.species)).toEqual(['BULBASAUR', 'PIDGEY', 'PIKACHU']);
+    expect(battle.playerSide.activePartyIndexes).toEqual([0, 2]);
     expect(battle.opponentSide.activePartyIndexes).toEqual([0, 1]);
     expect(battle.battlers).toEqual([
       expect.objectContaining({ battlerId: 0, side: 'player', partyIndex: 0, active: true, absent: false }),
       expect.objectContaining({ battlerId: 1, side: 'opponent', partyIndex: 0, active: true, absent: false }),
-      expect.objectContaining({ battlerId: 2, side: 'player', partyIndex: 1, active: true, absent: false }),
+      expect.objectContaining({ battlerId: 2, side: 'player', partyIndex: 2, active: true, absent: false }),
       expect.objectContaining({ battlerId: 3, side: 'opponent', partyIndex: 1, active: true, absent: false })
     ]);
+  });
+
+  test('doubles partner battles execute all four battlers in turn order', () => {
+    const battle = createBattleState({
+      format: 'doubles',
+      controlMode: 'partner',
+      playerParty: [
+        { species: 'BULBASAUR', level: 16, expProgress: 0, maxHp: 40, hp: 40, attack: 18, defense: 18, speed: 25, spAttack: 22, spDefense: 22, catchRate: 45, types: ['grass', 'poison'], status: 'none' }
+      ],
+      partnerParty: [
+        { species: 'PIKACHU', level: 16, expProgress: 0, maxHp: 36, hp: 36, attack: 20, defense: 14, speed: 40, spAttack: 24, spDefense: 18, catchRate: 190, types: ['electric'], status: 'none' }
+      ],
+      opponentParty: [
+        { species: 'RATTATA', level: 16, expProgress: 0, maxHp: 35, hp: 35, attack: 18, defense: 15, speed: 10, spAttack: 12, spDefense: 12, catchRate: 255, types: ['normal'], status: 'none' },
+        { species: 'SPEAROW', level: 16, expProgress: 0, maxHp: 36, hp: 36, attack: 20, defense: 15, speed: 10, spAttack: 12, spDefense: 12, catchRate: 255, types: ['normal', 'flying'], status: 'none' }
+      ]
+    });
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    const splash = makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal');
+    const quickAttack = { ...makeDamageMove('QUICK_ATTACK', 'EFFECT_HIT', 'normal', 40), priority: 1 };
+    battle.moves = [splash];
+    battle.playerMon.moves = battle.moves;
+    battle.playerSide.party[1]!.moves = [quickAttack];
+    battle.opponentSide.party[0]!.moves = [splash];
+    battle.opponentSide.party[1]!.moves = [splash];
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    const messages = [battle.turnSummary, ...battle.queuedMessages];
+    expect(messages.indexOf('PIKACHU used QUICK ATTACK!')).toBeGreaterThanOrEqual(0);
+    expect(messages.indexOf('BULBASAUR used SPLASH!')).toBeGreaterThanOrEqual(0);
+    expect(messages.indexOf('PIKACHU used QUICK ATTACK!')).toBeLessThan(messages.indexOf('BULBASAUR used SPLASH!'));
+    expect(battle.opponentSide.party[0]!.hp).toBeLessThan(battle.opponentSide.party[0]!.maxHp);
+  });
+
+  test('doubles link battles use the same execution path and refill fainted slots', () => {
+    const battle = createBattleState({
+      format: 'doubles',
+      controlMode: 'link',
+      playerParty: [
+        { species: 'BULBASAUR', level: 18, expProgress: 0, maxHp: 42, hp: 42, attack: 20, defense: 20, speed: 24, spAttack: 24, spDefense: 24, catchRate: 45, types: ['grass', 'poison'], status: 'none' },
+        { species: 'CHARMANDER', level: 18, expProgress: 0, maxHp: 39, hp: 39, attack: 22, defense: 18, speed: 28, spAttack: 24, spDefense: 20, catchRate: 45, types: ['fire'], status: 'none' }
+      ],
+      opponentParty: [
+        { species: 'RATTATA', level: 14, expProgress: 0, maxHp: 30, hp: 30, attack: 16, defense: 12, speed: 12, spAttack: 10, spDefense: 10, catchRate: 255, types: ['normal'], status: 'none' },
+        { species: 'SPEAROW', level: 14, expProgress: 0, maxHp: 31, hp: 31, attack: 16, defense: 12, speed: 12, spAttack: 10, spDefense: 10, catchRate: 255, types: ['normal', 'flying'], status: 'none' },
+        { species: 'EKANS', level: 14, expProgress: 0, maxHp: 32, hp: 32, attack: 17, defense: 13, speed: 12, spAttack: 10, spDefense: 10, catchRate: 255, types: ['poison'], status: 'none' }
+      ]
+    });
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 40;
+    battle.playerSide.party[1]!.speed = 20;
+    battle.opponentSide.party[0]!.speed = 1;
+    battle.opponentSide.party[1]!.speed = 1;
+    battle.moves = [makeDamageMove('MEGA_PUNCH', 'EFFECT_HIT', 'normal', 200)];
+    battle.playerMon.moves = battle.moves;
+    battle.playerSide.party[1]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.opponentSide.party[0]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.opponentSide.party[1]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    const messages = [battle.turnSummary, ...battle.queuedMessages];
+    expect(messages.some((message) => message.includes('sent out EKANS!'))).toBe(true);
+    expect(battle.battlers.find((entry) => entry.battlerId === 1)?.partyIndex).toBe(2);
+  });
+
+  test('doubles trainer battles can switch an endangered opponent battler', () => {
+    const battle = createBattleState({
+      mode: 'trainer',
+      format: 'doubles',
+      playerParty: [
+        { species: 'BULBASAUR', level: 18, expProgress: 0, maxHp: 42, hp: 42, attack: 20, defense: 20, speed: 24, spAttack: 24, spDefense: 24, catchRate: 45, types: ['grass', 'poison'], status: 'none' },
+        { species: 'CHARMANDER', level: 18, expProgress: 0, maxHp: 39, hp: 39, attack: 22, defense: 18, speed: 28, spAttack: 24, spDefense: 20, catchRate: 45, types: ['fire'], status: 'none' }
+      ],
+      opponentName: 'BROCK',
+      opponentParty: [
+        { species: 'GEODUDE', level: 14, expProgress: 0, maxHp: 30, hp: 30, attack: 16, defense: 18, speed: 12, spAttack: 10, spDefense: 10, catchRate: 255, types: ['rock', 'ground'], status: 'none' },
+        { species: 'SPEAROW', level: 14, expProgress: 0, maxHp: 31, hp: 31, attack: 16, defense: 12, speed: 12, spAttack: 10, spDefense: 10, catchRate: 255, types: ['normal', 'flying'], status: 'none' },
+        { species: 'ONIX', level: 14, expProgress: 0, maxHp: 35, hp: 35, attack: 18, defense: 24, speed: 10, spAttack: 10, spDefense: 12, catchRate: 45, types: ['rock', 'ground'], status: 'none' }
+      ]
+    });
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.battleTypeFlags = ['trainer'];
+    battle.opponentSide.party[0]!.volatile.perishTurns = 1;
+    const splash = makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal');
+    battle.moves = [splash];
+    battle.playerMon.moves = battle.moves;
+    battle.playerSide.party[1]!.moves = [splash];
+    battle.opponentSide.party[0]!.moves = [splash];
+    battle.opponentSide.party[1]!.moves = [splash];
+    battle.opponentSide.party[2]!.moves = [splash];
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.battlers.find((entry) => entry.battlerId === 1)?.partyIndex).toBe(2);
+    expect([battle.turnSummary, ...battle.queuedMessages].some((message) => message.includes('withdrew GEODUDE'))).toBe(true);
+  });
+
+  test('doubles weather end-of-turn effects apply to all active battlers', () => {
+    const battle = createBattleState({
+      format: 'doubles',
+      playerParty: [
+        { species: 'BULBASAUR', level: 16, expProgress: 0, maxHp: 40, hp: 40, attack: 18, defense: 18, speed: 20, spAttack: 22, spDefense: 22, catchRate: 45, types: ['grass', 'poison'], status: 'none' },
+        { species: 'CHARMANDER', level: 16, expProgress: 0, maxHp: 38, hp: 38, attack: 20, defense: 16, speed: 22, spAttack: 22, spDefense: 18, catchRate: 45, types: ['fire'], status: 'none' }
+      ],
+      opponentParty: [
+        { species: 'RATTATA', level: 16, expProgress: 0, maxHp: 35, hp: 35, attack: 18, defense: 15, speed: 18, spAttack: 12, spDefense: 12, catchRate: 255, types: ['normal'], status: 'none' },
+        { species: 'EKANS', level: 16, expProgress: 0, maxHp: 37, hp: 37, attack: 18, defense: 16, speed: 18, spAttack: 12, spDefense: 12, catchRate: 255, types: ['poison'], status: 'none' }
+      ]
+    });
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.weather = 'sandstorm';
+    battle.weatherTurns = 2;
+    const splash = makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal');
+    battle.moves = [splash];
+    battle.playerMon.moves = battle.moves;
+    battle.playerSide.party[1]!.moves = [splash];
+    battle.opponentSide.party[0]!.moves = [splash];
+    battle.opponentSide.party[1]!.moves = [splash];
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.playerSide.party[0]!.hp).toBeLessThan(40);
+    expect(battle.playerSide.party[1]!.hp).toBeLessThan(38);
+    expect(battle.opponentSide.party[0]!.hp).toBeLessThan(35);
+    expect(battle.opponentSide.party[1]!.hp).toBeLessThan(37);
   });
 
   test('startTrainerBattle queues trainer intro flow and blocks capture attempts', () => {
@@ -703,7 +875,7 @@ describe('battle vertical slice', () => {
         level: 21,
         expProgress: 0.3,
         maxHp: 60,
-        hp: 20,
+        hp: 9,
         attack: 22,
         defense: 20,
         speed: 30,
@@ -727,7 +899,7 @@ describe('battle vertical slice', () => {
     stepBattle(battle, confirmInput, encounter);
 
     expect(battle.phase).toBe('script');
-    expect(battle.wildMon.hp).toBe(60);
+    expect(battle.wildMon.hp).toBe(59);
     expect(battle.opponentTrainerItems).toEqual([]);
     expect(battle.turnSummary).toBe('MISTY used SUPER POTION!');
     expect(battle.queuedMessages.some((message) => message.includes('Foe') && message.includes('used'))).toBe(false);
@@ -826,7 +998,245 @@ describe('battle vertical slice', () => {
     stepBattle(battle, confirmInput, encounter);
 
     expect(battle.turnSummary).toContain('Foe STARMIE used WATER GUN!');
-    expect(battle.vm.locals.aiRootScripts).toBe('AI_CheckBadMove,AI_TryToFaint,AI_CheckViability');
+    expect(battle.vm.locals.aiRootScripts).toBe('AI_CheckBadMove,AI_CheckViability,AI_TryToFaint');
+    expect(battle.vm.locals.aiUnsupportedOpcodes).toBe('');
+  });
+
+  test('trainer AI can switch to a better bench mon instead of attacking', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState(0);
+
+    startTrainerBattle(battle, {
+      opponentName: 'MISTY',
+      trainerId: 'TRAINER_MISTY',
+      opponentTrainerAiFlags: ['AI_SCRIPT_CHECK_BAD_MOVE', 'AI_SCRIPT_TRY_TO_FAINT', 'AI_SCRIPT_CHECK_VIABILITY'],
+      opponentParty: [
+        {
+          species: 'STARYU',
+          level: 18,
+          expProgress: 0.2,
+          maxHp: 42,
+          hp: 42,
+          attack: 18,
+          defense: 18,
+          speed: 26,
+          spAttack: 20,
+          spDefense: 20,
+          catchRate: 225,
+          types: ['water'],
+          status: 'none'
+        },
+        {
+          species: 'STARMIE',
+          level: 21,
+          expProgress: 0.3,
+          maxHp: 60,
+          hp: 60,
+          attack: 22,
+          defense: 20,
+          speed: 30,
+          spAttack: 28,
+          spDefense: 24,
+          catchRate: 60,
+          types: ['water', 'psychic'],
+          status: 'none'
+        }
+      ]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.types = ['fire'];
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+    battle.wildMon.volatile.lastLandedMoveId = 'EMBER';
+    battle.wildMon.volatile.lastReceivedMoveType = 'fire';
+    battle.wildMon.volatile.lastDamagedBy = 'player';
+    battle.opponentSide.party[1]!.moves = [makeDamageMove('WATER_GUN', 'EFFECT_HIT', 'water', 40)];
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain('MISTY withdrew STARYU!');
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain('MISTY sent out STARMIE!');
+    expect(battle.wildMon.species).toBe('STARMIE');
+    expect(battle.vm.locals.aiAction).toBe('switch');
+    expect(battle.vm.locals.aiSwitchHelper).toBe('FindMonWithFlagsAndSuperEffective');
+  });
+
+  test('trainer opponents can use X items on their first active turn instead of attacking', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'LT. SURGE',
+      trainerId: 'TRAINER_LT_SURGE',
+      opponentTrainerItems: ['ITEM_X_ATTACK'],
+      opponentParty: [{
+        species: 'RAICHU',
+        level: 24,
+        expProgress: 0.4,
+        maxHp: 70,
+        hp: 70,
+        attack: 24,
+        defense: 20,
+        speed: 35,
+        spAttack: 30,
+        spDefense: 24,
+        catchRate: 75,
+        types: ['electric'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeDamageMove('THUNDERSHOCK', 'EFFECT_HIT', 'electric', 40)];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.turnSummary).toBe('LT. SURGE used X ATTACK!');
+    expect(battle.wildMon.statStages.attack).toBe(1);
+    expect(battle.opponentTrainerItems).toEqual([]);
+    expect(battle.vm.locals.aiAction).toBe('item');
+  });
+
+  test('trainer opponents can use Full Restore as a combined heal-and-cure action', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+
+    startTrainerBattle(battle, {
+      opponentName: 'GIOVANNI',
+      trainerId: 'TRAINER_GIOVANNI',
+      opponentTrainerItems: ['ITEM_FULL_RESTORE'],
+      opponentParty: [{
+        species: 'RHYDON',
+        level: 50,
+        personality: 0,
+        gender: 'male',
+        expProgress: 0.5,
+        maxHp: 120,
+        hp: 20,
+        attack: 40,
+        defense: 35,
+        speed: 20,
+        spAttack: 18,
+        spDefense: 20,
+        catchRate: 60,
+        types: ['ground', 'rock'],
+        status: 'burn',
+        statusTurns: 0,
+        friendship: 70,
+        heldItemId: null,
+        recycledItemId: null,
+        knockedOff: false,
+        abilityId: null,
+        ivs: { hp: 0, attack: 0, defense: 0, speed: 0, spAttack: 0, spDefense: 0 },
+        evs: { hp: 0, attack: 0, defense: 0, speed: 0, spAttack: 0, spDefense: 0 },
+        moves: [],
+        statStages: {
+          attack: 0,
+          defense: 0,
+          speed: 0,
+          spAttack: 0,
+          spDefense: 0,
+          accuracy: 0,
+          evasion: 0
+        },
+        volatile: {
+          confusionTurns: 0,
+          flinched: false,
+          protected: false,
+          protectUses: 0,
+          substituteHp: 0,
+          leechSeededBy: null,
+          focusEnergy: false,
+          enduring: false,
+          rechargeTurns: 0,
+          trapTurns: 0,
+          trappedBy: null,
+          yawnTurns: 0,
+          nightmare: false,
+          perishTurns: 0,
+          tookDamageThisTurn: false,
+          minimized: false,
+          defenseCurl: false,
+          tauntTurns: 0,
+          furyCutterCounter: 0,
+          rolloutCounter: 0,
+          toxicCounter: 0,
+          lastMoveUsedId: null,
+          lastDamageTaken: 0,
+          lastDamageCategory: null,
+          lastDamagedBy: null,
+          disabledMoveId: null,
+          disableTurns: 0,
+          encoreMoveId: null,
+          encoreTurns: 0,
+          escapePreventedBy: null,
+          rooted: false,
+          transformed: false,
+          infatuatedBy: null,
+          tormented: false,
+          destinyBond: false,
+          grudge: false,
+          cursed: false,
+          foresighted: false,
+          stockpile: 0,
+          chargeTurns: 0,
+          lockOnBy: null,
+          lockOnTurns: 0,
+          activeTurns: 0,
+          lastReceivedMoveType: null,
+          lastLandedMoveId: null,
+          lastTakenMoveId: null,
+          lastPrintedMoveId: null,
+          semiInvulnerable: null,
+          chargingMoveId: null,
+          rampageMoveId: null,
+          rampageTurns: 0,
+          uproarMoveId: null,
+          uproarTurns: 0,
+          rage: false,
+          bideMoveId: null,
+          bideTurns: 0,
+          bideDamage: 0,
+          bideTarget: null,
+          lastSuccessfulMoveId: null,
+          imprisoning: false,
+          magicCoat: false,
+          snatch: false,
+          followMe: false,
+          helpingHand: false,
+          flashFire: false,
+          choicedMoveId: null
+        }
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 1;
+    battle.wildMon.speed = 99;
+    battle.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeDamageMove('EARTHQUAKE', 'EFFECT_EARTHQUAKE', 'ground', 100)];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.turnSummary).toBe('GIOVANNI used FULL RESTORE!');
+    expect(battle.wildMon.hp).toBe(battle.wildMon.maxHp);
+    expect(battle.wildMon.status).toBe('none');
+    expect(battle.opponentTrainerItems).toEqual([]);
   });
 
   test('battle rewards grant EXP after a win and can level up the participating Pokemon', () => {
@@ -877,6 +1287,106 @@ describe('battle vertical slice', () => {
     expect(battle.playerMon.expProgress).toBeGreaterThanOrEqual(0);
     expect(battle.rewardsApplied).toBe(true);
     expect(battle.battleTrace.some((event) => event.type === 'reward' && event.text?.includes('EXP'))).toBe(true);
+  });
+
+  test('battle rewards record pending move learns for newly reached decomp learnset levels', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const charmander = createBattlePokemonFromSpecies('CHARMANDER', 12);
+    charmander.expProgress = 0.99;
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      playerParty: [charmander],
+      opponentParty: [{
+        species: 'CHANSEY',
+        level: 20,
+        expProgress: 0,
+        maxHp: 120,
+        hp: 1,
+        attack: 10,
+        defense: 10,
+        speed: 10,
+        spAttack: 10,
+        spDefense: 10,
+        catchRate: 30,
+        types: ['normal'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('EMBER', 'EFFECT_HIT', 'fire', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+    flushScriptMessages(battle, encounter);
+    applyBattleRewards(battle);
+
+    expect(battle.postResult.pendingMoveLearn).toBe(true);
+    expect(battle.postResult.pendingMoveLearns).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        species: 'CHARMANDER',
+        level: 13,
+        moveId: 'METAL_CLAW'
+      })
+    ]));
+  });
+
+  test('battle rewards record pending evolutions when level thresholds are crossed', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    const charmander = createBattlePokemonFromSpecies('CHARMANDER', 15);
+    charmander.expProgress = 0.99;
+
+    startTrainerBattle(battle, {
+      opponentName: 'BROCK',
+      trainerId: 'TRAINER_BROCK',
+      playerParty: [charmander],
+      opponentParty: [{
+        species: 'CHANSEY',
+        level: 80,
+        expProgress: 0,
+        maxHp: 120,
+        hp: 1,
+        attack: 10,
+        defense: 10,
+        speed: 10,
+        spAttack: 10,
+        spDefense: 10,
+        catchRate: 30,
+        types: ['normal'],
+        status: 'none'
+      }]
+    });
+    flushScriptMessages(battle, encounter);
+
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [makeDamageMove('EMBER', 'EFFECT_HIT', 'fire', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+
+    stepBattle(battle, confirmInput, encounter);
+    flushScriptMessages(battle, encounter);
+    applyBattleRewards(battle);
+
+    expect(battle.postResult.pendingEvolution).toBe(true);
+    expect(battle.postResult.pendingEvolutions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        species: 'CHARMANDER',
+        evolvesTo: 'CHARMELEON',
+        level: expect.any(Number)
+      })
+    ]));
   });
 
   test('EXP Share gives bench holders their FireRed share when a foe faints', () => {
@@ -3327,6 +3837,70 @@ describe('battle vertical slice', () => {
     expect([helpingBattle.turnSummary, ...helpingBattle.queuedMessages]).toContain('But it failed!');
   });
 
+  test('Follow Me redirects single-target attacks in doubles', () => {
+    const battle = createBattleState({
+      format: 'doubles',
+      playerParty: [
+        { species: 'BULBASAUR', level: 18, expProgress: 0, maxHp: 42, hp: 42, attack: 20, defense: 20, speed: 24, spAttack: 24, spDefense: 24, catchRate: 45, types: ['grass', 'poison'], status: 'none' },
+        { species: 'CHARMANDER', level: 18, expProgress: 0, maxHp: 39, hp: 39, attack: 22, defense: 18, speed: 20, spAttack: 24, spDefense: 20, catchRate: 45, types: ['fire'], status: 'none' }
+      ],
+      opponentParty: [
+        { species: 'RATTATA', level: 18, expProgress: 0, maxHp: 36, hp: 36, attack: 18, defense: 14, speed: 10, spAttack: 12, spDefense: 12, catchRate: 255, types: ['normal'], status: 'none' },
+        { species: 'SPEAROW', level: 18, expProgress: 0, maxHp: 37, hp: 37, attack: 18, defense: 14, speed: 30, spAttack: 12, spDefense: 12, catchRate: 255, types: ['normal', 'flying'], status: 'none' }
+      ]
+    });
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+    battle.playerMon.moves = battle.moves;
+    battle.playerSide.party[1]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.opponentSide.party[0]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.opponentSide.party[1]!.moves = [{ ...makeStatusMove('FOLLOW_ME', 'EFFECT_FOLLOW_ME', 'normal'), target: 'MOVE_TARGET_USER', priority: 3 }];
+
+    stepBattle(battle, confirmInput, createBattleEncounterState());
+
+    expect(battle.opponentSide.party[0]!.hp).toBe(36);
+    expect(battle.opponentSide.party[1]!.hp).toBeLessThan(37);
+    expect([battle.turnSummary, ...battle.queuedMessages]).toContain('SPEAROW became the center of attention!');
+  });
+
+  test('Helping Hand boosts an ally attack in doubles', () => {
+    const createHelpingBattle = (allyMove: BattleMove) => {
+      const battle = createBattleState({
+        format: 'doubles',
+        playerParty: [
+          { species: 'BULBASAUR', level: 18, expProgress: 0, maxHp: 42, hp: 42, attack: 20, defense: 20, speed: 24, spAttack: 24, spDefense: 24, catchRate: 45, types: ['grass', 'poison'], status: 'none' },
+          { species: 'PIKACHU', level: 18, expProgress: 0, maxHp: 38, hp: 38, attack: 22, defense: 16, speed: 36, spAttack: 26, spDefense: 20, catchRate: 190, types: ['electric'], status: 'none' }
+        ],
+        opponentParty: [
+          { species: 'RATTATA', level: 18, expProgress: 0, maxHp: 40, hp: 40, attack: 18, defense: 14, speed: 10, spAttack: 12, spDefense: 12, catchRate: 255, types: ['normal'], status: 'none' },
+          { species: 'EKANS', level: 18, expProgress: 0, maxHp: 39, hp: 39, attack: 18, defense: 14, speed: 10, spAttack: 12, spDefense: 12, catchRate: 255, types: ['poison'], status: 'none' }
+        ]
+      });
+      battle.active = true;
+      battle.phase = 'moveSelect';
+      battle.moves = [makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40)];
+      battle.playerMon.moves = battle.moves;
+      battle.playerSide.party[1]!.moves = [allyMove];
+      battle.opponentSide.party[0]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+      battle.opponentSide.party[1]!.moves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+      return battle;
+    };
+
+    const helpBattle = createHelpingBattle({
+      ...makeStatusMove('HELPING_HAND', 'EFFECT_HELPING_HAND', 'normal'),
+      target: 'MOVE_TARGET_USER',
+      priority: 5
+    });
+    const plainBattle = createHelpingBattle(makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal'));
+
+    stepBattle(helpBattle, confirmInput, createBattleEncounterState());
+    stepBattle(plainBattle, confirmInput, createBattleEncounterState());
+
+    expect(helpBattle.opponentSide.party[0]!.hp).toBeLessThan(plainBattle.opponentSide.party[0]!.hp);
+    expect([helpBattle.turnSummary, ...helpBattle.queuedMessages]).toContain('PIKACHU is ready to help BULBASAUR!');
+  });
+
   test('Psych Up, Swagger, Flatter, Minimize, and Memento apply status2-era script state', () => {
     const psychBattle = createBattleState();
     psychBattle.active = true;
@@ -4348,6 +4922,33 @@ describe('battle vertical slice', () => {
     expect(battle.safariBalls).toBe(12);
   });
 
+  test('starts surfing wild battles with water terrain when requested by the overworld', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    encounter.rngState = 0;
+
+    let started = false;
+    for (let i = 0; i < 40; i += 1) {
+      started = tryStartWildBattle(
+        battle,
+        encounter,
+        true,
+        true,
+        routeLikeWaterEncounters,
+        undefined,
+        'MAP_ROUTE21_SOUTH',
+        { encounterKind: 'water' }
+      );
+      if (started) {
+        break;
+      }
+    }
+
+    expect(started).toBe(true);
+    expect(battle.terrain).toBe('BATTLE_TERRAIN_WATER');
+    expect(battle.wildMon.species).toMatch(/TENTACOOL|HORSEA|STARYU/);
+  });
+
   test('cooldown alone does not guarantee an encounter every step', () => {
     const encounter = createBattleEncounterState();
     encounter.encounterRate = 21;
@@ -4760,8 +5361,49 @@ describe('battle vertical slice', () => {
     expect(battle.phase).toBe('resolved');
     expect(battle.postResult).toMatchObject({
       outcome: 'caught',
-      caughtSpecies: battle.wildMon.species
+      caughtSpecies: battle.wildMon.species,
+      caughtPokemon: {
+        species: battle.wildMon.species,
+        level: battle.wildMon.level
+      }
     });
+  });
+
+  test('resolved battle dismissal preserves post-battle payloads for the runtime handoff', () => {
+    const battle = createBattleState();
+    battle.active = true;
+    battle.phase = 'resolved';
+    battle.caughtMon = createBattlePokemonFromSpecies('MAGIKARP', 10);
+    battle.postResult.outcome = 'caught';
+    battle.postResult.caughtPokemon = {
+      species: 'MAGIKARP',
+      level: 10
+    };
+    battle.postResult.pendingMoveLearns.push({
+      species: 'CHARMANDER',
+      level: 13,
+      moveId: 'METAL_CLAW',
+      moveName: 'METAL CLAW'
+    });
+
+    dismissResolvedBattle(battle, {
+      preserveCaughtMon: true,
+      preservePostResult: true
+    });
+
+    expect(battle.active).toBe(false);
+    expect(battle.caughtMon).toMatchObject({
+      species: 'MAGIKARP',
+      level: 10
+    });
+    expect(battle.postResult).toMatchObject({
+      outcome: 'caught',
+      caughtPokemon: {
+        species: 'MAGIKARP',
+        level: 10
+      }
+    });
+    expect(battle.postResult.pendingMoveLearns).toHaveLength(1);
   });
 
   test('failed ball throw also spends the player action before the foe moves', () => {

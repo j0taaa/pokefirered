@@ -27,7 +27,7 @@ import vermilionCityPokemonCenter2FJson from '../src/world/maps/vermilionCityPok
 import vermilionCityPokemonFanClubJson from '../src/world/maps/vermilionCityPokemonFanClub.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] =>
   encounterRows.flatMap((row) => [...row]);

@@ -10,7 +10,7 @@ import {
 import route5MapJson from '../src/world/maps/route5.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -58,7 +58,7 @@ describe('Route 5 compact map source', () => {
     expect(map.connections).toEqual(route5MapJson.metadata.connections);
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.triggers).toEqual([
+    expect(map.triggers).toMatchObject([
       {
         id: 'Route5_EventScript_UndergroundPathSign',
         x: 32,

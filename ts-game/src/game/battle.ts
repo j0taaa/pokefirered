@@ -8,6 +8,7 @@ import {
   getAllDecompBattleMoves,
   getBattleTerrainForScene,
   getDecompBattleMove,
+  getDecompMovesLearnedAtLevel,
   getDecompLevelUpMoves,
   getFallbackBattleMoves,
   type DecompBattleTerrainId,
@@ -16,21 +17,33 @@ import {
 import { nextDecompRandomFromSeed, seedDecompRng } from './decompRandom';
 import type { FieldPokemon } from './pokemonStorage';
 import type { WildEncounterGroup } from '../world/mapSource';
+import { getDecompBattleAiSwitchHelper } from './decompBattleAi';
 import {
-  beginBattleMoveVm,
   cloneBattlePostResult,
   createBattlePostResult,
   createBattleVmState,
-  finalizeBattleMoveVm,
+  executeBattleMoveVm,
+  runBattleScriptCommand,
+  runEnemyOnlyTurnVm,
+  runSingleBattleTurnVm,
   resetBattlePostResult,
   resetBattleVmState,
+  type ExecuteBattleMoveVmOptions,
   type BattlePostResult,
   type BattleVmState
 } from './battleScriptVm';
-import { chooseTrainerMoveIndex } from './battleAiVm';
+import { chooseTrainerAiItemDecision, chooseTrainerMoveIndex } from './battleAiVm';
+import { getLevelEvolutionCandidate } from './decompEvolution';
+import {
+  adjustFriendshipOnBattleFaint,
+  allocateBattleResources,
+  findBattlerIdForPokemon,
+  freeBattleResources
+} from './decompBattleUtil2';
 
 export type PokemonType = DecompTypeId;
 export type StatusCondition = 'none' | 'poison' | 'badPoison' | 'burn' | 'paralysis' | 'sleep' | 'freeze';
+export type PokemonGender = 'male' | 'female' | 'genderless';
 
 export interface BattleStatStages {
   attack: number;
@@ -166,6 +179,8 @@ export interface BattleMove {
 export interface BattlePokemonSnapshot {
   species: string;
   level: number;
+  personality: number;
+  gender: PokemonGender;
   expProgress: number;
   maxHp: number;
   hp: number;
@@ -234,13 +249,27 @@ export interface BattleBattlerRuntime {
   absent: boolean;
 }
 
+export interface BattleMoveMemory {
+  chosenMoveId: string | null;
+  currentMoveId: string | null;
+  calledMoveId: string | null;
+  printedMoveId: string | null;
+  resultingMoveId: string | null;
+  landedMoveId: string | null;
+  takenMoveId: string | null;
+  lastHitByBattler: BattleBattlerId | null;
+  lastMoveTargetBattler: BattleBattlerId | null;
+}
+
 export interface BattleTraceEvent {
-  type: 'init' | 'script' | 'message' | 'hp' | 'status' | 'phase' | 'reward';
+  type: 'init' | 'script' | 'message' | 'hp' | 'status' | 'phase' | 'reward' | 'chooseAction' | 'unknown';
   mode: BattleMode;
   turn: number;
   phase: BattlePhase;
   battler?: BattleSideId;
+  battlerId?: number;
   value?: number;
+  extra?: number;
   label?: string;
   text?: string;
 }
@@ -272,6 +301,7 @@ export interface WildBattleStartConfig {
   mode?: BattleMode;
   battleTypeFlags?: BattleTypeFlag[];
   safariBalls?: number;
+  encounterKind?: 'land' | 'water';
 }
 
 export interface BattleControllerCommand {
@@ -301,6 +331,7 @@ export interface BattleState {
   rewardedOpponentPartyIndexes: number[];
   rewardsApplied: boolean;
   battlers: BattleBattlerRuntime[];
+  moveMemory: Record<BattleBattlerId, BattleMoveMemory>;
   playerMon: BattlePokemonSnapshot;
   party: BattlePokemonSnapshot[];
   wildMon: BattlePokemonSnapshot;
@@ -499,13 +530,6 @@ const weatherByEffect: Partial<Record<string, BattleWeather>> = {
   EFFECT_HAIL: 'hail'
 };
 
-const weatherStartMessages: Record<Exclude<BattleWeather, 'none'>, string> = {
-  rain: 'It started to rain!',
-  sun: 'The sunlight got bright!',
-  sandstorm: 'A sandstorm brewed!',
-  hail: 'It started to hail!'
-};
-
 const weatherContinueMessages: Record<Exclude<BattleWeather, 'none'>, string> = {
   rain: 'Rain continues to fall.',
   sun: 'The sunlight is strong.',
@@ -617,6 +641,25 @@ const createVolatileState = (): BattleVolatileState => ({
   helpingHand: false,
   flashFire: false,
   choicedMoveId: null
+});
+
+const createMoveMemory = (): BattleMoveMemory => ({
+  chosenMoveId: null,
+  currentMoveId: null,
+  calledMoveId: null,
+  printedMoveId: null,
+  resultingMoveId: null,
+  landedMoveId: null,
+  takenMoveId: null,
+  lastHitByBattler: null,
+  lastMoveTargetBattler: null
+});
+
+const createBattleMoveMemory = (): Record<BattleBattlerId, BattleMoveMemory> => ({
+  0: createMoveMemory(),
+  1: createMoveMemory(),
+  2: createMoveMemory(),
+  3: createMoveMemory()
 });
 
 const createSideState = (): BattleSideState => ({
@@ -778,6 +821,37 @@ const appendBattleTraceEvent = (
   });
 };
 
+const appendDecompControllerActionTrace = (battle: BattleState): void => {
+  appendBattleTraceEvent(battle, {
+    type: 'chooseAction',
+    battler: 'player',
+    value: 0xff,
+    extra: 22557
+  });
+  appendBattleTraceEvent(battle, {
+    type: 'unknown',
+    battler: 'player',
+    value: 257,
+    extra: 0xff
+  });
+};
+
+const appendDecompSwitchActionTrace = (battle: BattleState): void => {
+  appendDecompControllerActionTrace(battle);
+  appendBattleTraceEvent(battle, {
+    type: 'unknown',
+    battlerId: 88,
+    value: 0,
+    extra: 258
+  });
+  appendBattleTraceEvent(battle, {
+    type: 'unknown',
+    battler: 'player',
+    value: 0,
+    extra: 0
+  });
+};
+
 const emitControllerCommand = (
   battle: BattleState,
   command: BattleControllerCommand
@@ -796,26 +870,213 @@ const emitControllerCommand = (
   });
 };
 
-const syncBattleRuntimeParticipants = (battle: BattleState): void => {
-  battle.party = battle.playerSide.party;
-  const playerPartyIndexes = normalizeActivePartyIndexes(
-    battle.playerSide.party,
-    battle.playerSide.activePartyIndexes,
-    battle.format
-  );
-  const opponentPartyIndexes = normalizeActivePartyIndexes(
-    battle.opponentSide.party,
-    battle.opponentSide.activePartyIndexes,
-    battle.format
-  );
-  const playerPartyIndex = playerPartyIndexes[0]!;
-  const opponentPartyIndex = opponentPartyIndexes[0]!;
+const getBattlerIdsForSide = (side: BattleSideId): BattleBattlerId[] =>
+  side === 'player' ? [0, 2] : [1, 3];
 
-  battle.playerSide.activePartyIndexes = playerPartyIndexes;
-  battle.opponentSide.activePartyIndexes = opponentPartyIndexes;
-  battle.playerMon = battle.playerSide.party[playerPartyIndex]!;
-  battle.wildMon = battle.opponentSide.party[opponentPartyIndex]!;
-  battle.battlers = createBattlerRuntimeState(playerPartyIndexes, opponentPartyIndexes, battle.format);
+const getPrimaryBattlerSnapshot = (
+  battle: BattleState,
+  side: BattleSideId
+): BattlePokemonSnapshot => {
+  const primaryBattlerId = side === 'player' ? 0 : 1;
+  const fromBattler = getBattlerSnapshot(battle, primaryBattlerId);
+  if (fromBattler) {
+    return fromBattler;
+  }
+
+  const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
+  return participant.party[0]!;
+};
+
+const installBattleCompatibilityViews = (battle: BattleState): void => {
+  Object.defineProperties(battle, {
+    playerMon: {
+      configurable: true,
+      enumerable: false,
+      get: () => getPrimaryBattlerSnapshot(battle, 'player')
+    },
+    wildMon: {
+      configurable: true,
+      enumerable: false,
+      get: () => getPrimaryBattlerSnapshot(battle, 'opponent')
+    },
+    party: {
+      configurable: true,
+      enumerable: false,
+      get: () => battle.playerSide.party
+    },
+    moves: {
+      configurable: true,
+      enumerable: false,
+      get: () => battle.playerMon.moves,
+      set: (moves: BattleMove[]) => {
+        battle.playerMon.moves = moves;
+      }
+    },
+    wildMoves: {
+      configurable: true,
+      enumerable: false,
+      get: () => battle.wildMon.moves,
+      set: (moves: BattleMove[]) => {
+        battle.wildMon.moves = moves;
+      }
+    }
+  });
+};
+
+const getActiveBattlerRuntimes = (
+  battle: BattleState,
+  side?: BattleSideId
+): BattleBattlerRuntime[] =>
+  battle.battlers
+    .filter((entry) => (side ? entry.side === side : true) && entry.active && !entry.absent && getBattlerSnapshot(battle, entry.battlerId)?.hp! > 0)
+    .sort((left, right) => left.battlerId - right.battlerId);
+
+const getActiveBattlerIds = (
+  battle: BattleState,
+  side?: BattleSideId
+): BattleBattlerId[] => getActiveBattlerRuntimes(battle, side).map((entry) => entry.battlerId);
+
+const getBattlerPartyIndexValue = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): number | null => battle.battlers.find((entry) => entry.battlerId === battlerId)?.partyIndex ?? null;
+
+const withTemporaryBattlerPair = <T>(
+  battle: BattleState,
+  attackerBattlerId: BattleBattlerId,
+  defenderBattlerId: BattleBattlerId,
+  callback: () => T
+): T => {
+  const attackerSide = getBattlerSide(attackerBattlerId);
+  const defenderSide = getBattlerSide(defenderBattlerId);
+  const attackerPartyIndex = getBattlerPartyIndexValue(battle, attackerBattlerId);
+  const defenderPartyIndex = getBattlerPartyIndexValue(battle, defenderBattlerId);
+  if (attackerPartyIndex === null || defenderPartyIndex === null) {
+    return callback();
+  }
+
+  const playerRuntime = battle.battlers.find((entry) => entry.battlerId === 0)!;
+  const opponentRuntime = battle.battlers.find((entry) => entry.battlerId === 1)!;
+  const previousPlayer = { ...playerRuntime };
+  const previousOpponent = { ...opponentRuntime };
+
+  if (attackerSide === 'player') {
+    playerRuntime.side = attackerSide;
+    playerRuntime.partyIndex = attackerPartyIndex;
+    playerRuntime.active = true;
+    playerRuntime.absent = false;
+    opponentRuntime.side = defenderSide;
+    opponentRuntime.partyIndex = defenderPartyIndex;
+    opponentRuntime.active = true;
+    opponentRuntime.absent = false;
+  } else {
+    playerRuntime.side = defenderSide;
+    playerRuntime.partyIndex = defenderPartyIndex;
+    playerRuntime.active = true;
+    playerRuntime.absent = false;
+    opponentRuntime.side = attackerSide;
+    opponentRuntime.partyIndex = attackerPartyIndex;
+    opponentRuntime.active = true;
+    opponentRuntime.absent = false;
+  }
+
+  try {
+    return callback();
+  } finally {
+    Object.assign(playerRuntime, previousPlayer);
+    Object.assign(opponentRuntime, previousOpponent);
+  }
+};
+
+const getBattlerOwnedPartyIndexes = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): number[] => {
+  const side = getBattlerSide(battlerId);
+  const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
+  if (
+    side === 'player'
+    && battle.format === 'doubles'
+    && battle.controlMode === 'partner'
+    && battle.partnerParty.length > 0
+  ) {
+    const partnerOffset = Math.max(0, participant.party.length - battle.partnerParty.length);
+    if (battlerId === 0) {
+      return participant.party
+        .map((_, index) => index)
+        .filter((index) => index < partnerOffset);
+    }
+    if (battlerId === 2) {
+      return participant.party
+        .map((_, index) => index)
+        .filter((index) => index >= partnerOffset);
+    }
+  }
+
+  return participant.party.map((_, index) => index);
+};
+
+const getBattlerBenchIndexes = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): number[] => {
+  const side = getBattlerSide(battlerId);
+  const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
+  const allowedIndexes = new Set(getBattlerOwnedPartyIndexes(battle, battlerId));
+  const activeIndexes = new Set(
+    battle.battlers
+      .filter((entry) => entry.side === side && entry.active && !entry.absent && entry.partyIndex !== null)
+      .map((entry) => entry.partyIndex as number)
+  );
+
+  return participant.party
+    .map((pokemon, index) => ({ pokemon, index }))
+    .filter(({ pokemon, index }) =>
+      allowedIndexes.has(index)
+      && pokemon.hp > 0
+      && !activeIndexes.has(index)
+    )
+    .map(({ index }) => index);
+};
+
+const syncBattleRuntimeParticipants = (battle: BattleState): void => {
+  const ensureCanonicalBattlersForSide = (side: BattleSideId): void => {
+    const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
+    const battlerIds = getBattlerIdsForSide(side);
+    const configuredIndexes = battlerIds
+      .map((battlerId) => battle.battlers.find((entry) => entry.battlerId === battlerId))
+      .filter((entry): entry is BattleBattlerRuntime => !!entry)
+      .map((entry) => entry.partyIndex)
+      .filter((partyIndex): partyIndex is number =>
+        partyIndex !== null
+        && partyIndex >= 0
+        && partyIndex < participant.party.length
+      );
+
+    const fallbackPrimaryIndex = participant.activePartyIndexes[0];
+    const normalizedIndexes = normalizeActivePartyIndexes(participant.party, (
+      configuredIndexes.length > 0
+        ? configuredIndexes
+        : getDefaultActivePartyIndexes(participant.party, fallbackPrimaryIndex, battle.format)
+    ), battle.format);
+
+    participant.activePartyIndexes = normalizedIndexes;
+    battlerIds.forEach((battlerId, slotIndex) => {
+      const runtime = battle.battlers.find((entry) => entry.battlerId === battlerId);
+      if (!runtime) {
+        return;
+      }
+
+      const nextPartyIndex = normalizedIndexes[slotIndex] ?? null;
+      runtime.side = side;
+      runtime.partyIndex = nextPartyIndex;
+      runtime.active = nextPartyIndex !== null;
+      runtime.absent = nextPartyIndex === null;
+    });
+  };
+
+  ensureCanonicalBattlersForSide('player');
+  ensureCanonicalBattlersForSide('opponent');
 };
 
 const setActiveBattlePartyMember = (
@@ -826,7 +1087,21 @@ const setActiveBattlePartyMember = (
   const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
   const nextIndex = participant.party.findIndex((member) => member === target);
   if (nextIndex >= 0) {
-    participant.activePartyIndexes = [nextIndex];
+    const primaryBattlerId = side === 'player' ? 0 : 1;
+    const secondaryBattlerId = side === 'player' ? 2 : 3;
+    const primaryRuntime = battle.battlers.find((entry) => entry.battlerId === primaryBattlerId);
+    const secondaryRuntime = battle.battlers.find((entry) => entry.battlerId === secondaryBattlerId);
+
+    if (primaryRuntime) {
+      primaryRuntime.partyIndex = nextIndex;
+      primaryRuntime.active = true;
+      primaryRuntime.absent = false;
+    }
+    if (battle.format === 'singles' && secondaryRuntime) {
+      secondaryRuntime.partyIndex = null;
+      secondaryRuntime.active = false;
+      secondaryRuntime.absent = true;
+    }
     if (side === 'player' && !battle.playerParticipantPartyIndexes.includes(nextIndex)) {
       battle.playerParticipantPartyIndexes.push(nextIndex);
     }
@@ -852,6 +1127,53 @@ export const getBattlerMoves = (
   battlerId: BattleBattlerId
 ): BattleMove[] => getBattlerSnapshot(battle, battlerId)?.moves ?? [];
 
+const syncMoveMemoryFromVolatile = (
+  memory: BattleMoveMemory,
+  snapshot: BattlePokemonSnapshot | null
+): BattleMoveMemory => {
+  if (!snapshot) {
+    return memory;
+  }
+
+  memory.chosenMoveId ??= snapshot.volatile.choicedMoveId;
+  memory.currentMoveId ??= snapshot.volatile.chargingMoveId ?? snapshot.volatile.rampageMoveId ?? snapshot.volatile.uproarMoveId;
+  memory.calledMoveId ??= snapshot.volatile.lastSuccessfulMoveId;
+  memory.printedMoveId ??= snapshot.volatile.lastPrintedMoveId;
+  memory.resultingMoveId ??= snapshot.volatile.lastMoveUsedId;
+  memory.landedMoveId ??= snapshot.volatile.lastLandedMoveId;
+  memory.takenMoveId ??= snapshot.volatile.lastTakenMoveId;
+  memory.lastHitByBattler ??= snapshot.volatile.lastDamagedBy === 'player'
+    ? 0
+    : snapshot.volatile.lastDamagedBy === 'opponent'
+      ? 1
+      : null;
+  memory.lastMoveTargetBattler ??= snapshot.volatile.lockOnBy === 'player'
+    ? 0
+    : snapshot.volatile.lockOnBy === 'opponent'
+      ? 1
+      : null;
+  return memory;
+};
+
+export const getBattlerMoveMemory = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleMoveMemory => syncMoveMemoryFromVolatile(
+  battle.moveMemory[battlerId],
+  getBattlerSnapshot(battle, battlerId)
+);
+
+const patchBattlerMoveMemory = (
+  battle: BattleState,
+  battlerId: BattleBattlerId,
+  patch: Partial<BattleMoveMemory>
+): void => {
+  Object.assign(battle.moveMemory[battlerId], patch);
+};
+
+const getPrimaryBattlerIdForSide = (side: BattleSideId): BattleBattlerId =>
+  side === 'player' ? 0 : 1;
+
 export const getBattlerSideState = (
   battle: BattleState,
   battlerId: BattleBattlerId
@@ -875,6 +1197,7 @@ export const setBattlerPartyIndex = (
   runtime.partyIndex = partyIndex;
   runtime.active = partyIndex !== null;
   runtime.absent = partyIndex === null;
+  battle.moveMemory[battlerId] = createMoveMemory();
   const participant = runtime.side === 'player' ? battle.playerSide : battle.opponentSide;
   const nextIndexes = battle.battlers
     .filter((entry) => entry.side === runtime.side && entry.active && !entry.absent && entry.partyIndex !== null)
@@ -941,6 +1264,31 @@ const calculateStat = (base: number, level: number, isHp: boolean, iv = 0, ev = 
 
 const normalizeSpecies = (species: string): string => species.replace(/^SPECIES_/u, '').toUpperCase();
 
+const hashBattleString = (value: string): number => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) >>> 0;
+  }
+  return hash >>> 0;
+};
+
+const getBattlePokemonGender = (species: string, personality: number): PokemonGender => {
+  const genderRatioToken = getDecompSpeciesInfo(species)?.genderRatioToken ?? 'PERCENT_FEMALE(50)';
+  switch (genderRatioToken) {
+    case 'MON_MALE':
+      return 'male';
+    case 'MON_FEMALE':
+      return 'female';
+    case 'MON_GENDERLESS':
+      return 'genderless';
+    default: {
+      const femalePercent = Number.parseFloat(genderRatioToken.match(/PERCENT_FEMALE\((\d+(?:\.\d+)?)\)/u)?.[1] ?? '50');
+      const femaleThreshold = Math.max(0, Math.min(254, Math.floor((femalePercent * 254) / 100)));
+      return (personality & 0xff) < femaleThreshold ? 'female' : 'male';
+    }
+  }
+};
+
 export const createBattlePokemonFromSpecies = (
   species: string,
   level: number,
@@ -951,10 +1299,13 @@ export const createBattlePokemonFromSpecies = (
   const ivs = createBattleIvs();
   const evs = createBattleEvs();
   const maxHp = calculateStat(speciesInfo?.baseHp ?? 10, level, true, ivs.hp, evs.hp);
+  const personality = hashBattleString(`${normalizedSpecies}:${level}`);
 
   return {
     species: normalizedSpecies,
     level,
+    personality,
+    gender: getBattlePokemonGender(normalizedSpecies, personality),
     expProgress: 0,
     maxHp,
     hp: maxHp,
@@ -1005,46 +1356,48 @@ export const createBattlePokemonFromSpeciesWithMoves = (
   return pokemon;
 };
 
-export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): BattlePokemonSnapshot => ({
-  species: normalizeSpecies(pokemon.species),
-  level: pokemon.level,
-  expProgress: pokemon.expProgress ?? 0,
-  maxHp: pokemon.maxHp,
-  hp: pokemon.hp,
-  attack: pokemon.attack,
-  defense: pokemon.defense,
-  speed: pokemon.speed,
-  spAttack: pokemon.spAttack,
-  spDefense: pokemon.spDefense,
-  catchRate: pokemon.catchRate,
-  types: [...pokemon.types] as PokemonType[],
-  status: pokemon.status,
-  statusTurns: 0,
-  friendship: 70,
-  heldItemId: null,
-  recycledItemId: null,
-  knockedOff: false,
-  abilityId: getDecompSpeciesInfo(pokemon.species)?.abilities[0] ?? null,
-  ivs: createBattleIvs(),
-  evs: pokemon.evs ? { ...pokemon.evs } : createBattleEvs(),
-  moves: getKnownMovesForSpecies(pokemon.species, pokemon.level),
-  statStages: createStatStages(),
-  volatile: createVolatileState()
-});
+export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): BattlePokemonSnapshot => {
+  const species = normalizeSpecies(pokemon.species);
+  const personality = Math.trunc(pokemon.personality ?? pokemon.otId ?? hashBattleString(`${species}:${pokemon.level}`)) >>> 0;
+  return {
+    species,
+    level: pokemon.level,
+    personality,
+    gender: getBattlePokemonGender(species, personality),
+    expProgress: pokemon.expProgress ?? 0,
+    maxHp: pokemon.maxHp,
+    hp: pokemon.hp,
+    attack: pokemon.attack,
+    defense: pokemon.defense,
+    speed: pokemon.speed,
+    spAttack: pokemon.spAttack,
+    spDefense: pokemon.spDefense,
+    catchRate: pokemon.catchRate,
+    types: [...pokemon.types] as PokemonType[],
+    status: pokemon.status,
+    statusTurns: 0,
+    friendship: 70,
+    heldItemId: null,
+    recycledItemId: null,
+    knockedOff: false,
+    abilityId: getDecompSpeciesInfo(pokemon.species)?.abilities[0] ?? null,
+    ivs: createBattleIvs(),
+    evs: pokemon.evs ? { ...pokemon.evs } : createBattleEvs(),
+    moves: getKnownMovesForSpecies(pokemon.species, pokemon.level),
+    statStages: createStatStages(),
+    volatile: createVolatileState()
+  };
+};
 
 const getPromptSummary = (battle: BattleState): string => `What will ${battle.playerMon.species} do?`;
 
 const refreshActiveMovePointers = (battle: BattleState): void => {
   syncBattleRuntimeParticipants(battle);
-  battle.moves = battle.playerMon.moves;
-  battle.wildMoves = battle.wildMon.moves;
   if (battle.moves.length === 0) {
     battle.moves = getFallbackBattleMoves().map(decompMoveToBattleMove);
-    battle.playerMon.moves = battle.moves;
   }
   if (battle.wildMoves.length === 0) {
     battle.wildMoves = getFallbackBattleMoves().map(decompMoveToBattleMove);
-    battle.wildMon.moves = battle.wildMoves;
   }
   battle.selectedMoveIndex = Math.max(0, Math.min(battle.selectedMoveIndex, battle.moves.length - 1));
   battle.damagePreview = battle.moves.length > 0
@@ -1805,16 +2158,36 @@ const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterSta
           move,
           effectiveness: getBattleTypeEffectiveness(move, battle.playerMon),
           maxDamage: move.power > 0 ? calculateDamagePreview(battle.wildMon, battle.playerMon, move).max : 0,
-          targetStatus: battle.playerMon.status
+          targetStatus: battle.playerMon.status,
+          context: {
+            user: battle.wildMon,
+            target: battle.playerMon,
+            userMoves: battle.wildMoves,
+            targetMoves: battle.moves,
+            userSideState: battle.sideState.opponent,
+            targetSideState: battle.sideState.player,
+            weather: battle.weather,
+            mudSport: battle.mudSport,
+            waterSport: battle.waterSport,
+            turnCount: battle.battleTurnCounter,
+            format: battle.format,
+            userPartyAliveCount: battle.opponentSide.party.filter((pokemon) => pokemon.hp > 0).length,
+            targetPartyAliveCount: battle.playerSide.party.filter((pokemon) => pokemon.hp > 0).length,
+            userParty: battle.opponentSide.party,
+            targetParty: battle.playerSide.party,
+            safariEscapeFactor: battle.safariEscapeFactor,
+            safariRockThrowCounter: battle.safariRockThrowCounter,
+            safariBaitThrowCounter: battle.safariBaitThrowCounter
+          }
         };
       }),
       battle.opponentTrainerAiFlags,
-      battle.playerMon.hp,
       (maxExclusive) => nextEncounterRoll(encounter, maxExclusive)
     );
 
     if (aiDecision) {
       battle.vm.locals.aiRootScripts = aiDecision.scoredMoves[0]?.rootScripts.join(',') ?? null;
+      battle.vm.locals.aiUnsupportedOpcodes = aiDecision.scoredMoves[0]?.unsupportedOpcodes.join(',') ?? null;
       return aiDecision.selectedIndex;
     }
   }
@@ -1824,48 +2197,119 @@ const chooseEnemyMoveIndex = (battle: BattleState, encounter: BattleEncounterSta
 
 const hasUsableMove = (moves: BattleMove[]): boolean => moves.some((move) => move.ppRemaining > 0);
 
-const getTrainerItemHealAmount = (itemId: string): number => {
-  switch (itemId) {
-    case 'ITEM_SUPER_POTION':
-      return 50;
-    case 'ITEM_HYPER_POTION':
-      return 200;
-    default:
-      return 0;
-  }
-};
-
 const tryUseOpponentTrainerItem = (battle: BattleState, messages: string[]): boolean => {
-  if (!hasBattleTypeFlag(battle, 'trainer') || battle.opponentTrainerItems.length === 0 || battle.wildMon.hp <= 0) {
+  const decision = getTrainerBattleItemDecision(battle);
+  if (!decision) {
+    return false;
+  }
+  const itemIndex = decision.itemIndex;
+  if (itemIndex < 0) {
     return false;
   }
 
-  const statusItemIndex = battle.opponentTrainerItems.findIndex((itemId) =>
-    itemId === 'ITEM_FULL_HEAL' && battle.wildMon.status !== 'none'
-  );
-  if (statusItemIndex >= 0) {
-    const [itemId] = battle.opponentTrainerItems.splice(statusItemIndex, 1);
-    battle.wildMon.status = 'none';
-    battle.wildMon.statusTurns = 0;
-    battle.wildMon.volatile.toxicCounter = 0;
-    messages.push(`${battle.opponentSide.name} used ${getItemDefinition(itemId!).name}!`);
-    messages.push(`${battle.wildMon.species}'s status returned to normal!`);
+  const [itemId] = battle.opponentTrainerItems.splice(itemIndex, 1);
+  battle.vm.locals.aiItemType = decision.aiItemType;
+  battle.vm.locals.aiItemFlags = decision.aiItemFlags.join(',');
+  messages.push(`${battle.opponentSide.name} used ${getItemDefinition(itemId!).name}!`);
+
+  switch (decision.kind) {
+    case 'fullRestore':
+      healBattler(battle, 'opponent', battle.wildMon, battle.wildMon.maxHp, messages);
+      battle.wildMon.status = 'none';
+      battle.wildMon.statusTurns = 0;
+      battle.wildMon.volatile.toxicCounter = 0;
+      battle.wildMon.volatile.confusionTurns = 0;
+      if (!messages.includes(`${battle.wildMon.species}'s status returned to normal!`)) {
+        messages.push(`${battle.wildMon.species}'s status returned to normal!`);
+      }
+      return true;
+    case 'healHp':
+      healBattler(battle, 'opponent', battle.wildMon, decision.healAmount, messages);
+      return true;
+    case 'cureCondition':
+      battle.wildMon.status = 'none';
+      battle.wildMon.statusTurns = 0;
+      battle.wildMon.volatile.toxicCounter = 0;
+      battle.wildMon.volatile.confusionTurns = 0;
+      messages.push(`${battle.wildMon.species}'s status returned to normal!`);
+      return true;
+    case 'xAttack':
+      applyDirectStageChange(battle.wildMon, 'attack', 1, messages);
+      return true;
+    case 'xDefense':
+      applyDirectStageChange(battle.wildMon, 'defense', 1, messages);
+      return true;
+    case 'xSpeed':
+      applyDirectStageChange(battle.wildMon, 'speed', 1, messages);
+      return true;
+    case 'xSpAttack':
+      applyDirectStageChange(battle.wildMon, 'spAttack', 1, messages);
+      return true;
+    case 'xAccuracy':
+      applyDirectStageChange(battle.wildMon, 'accuracy', 1, messages);
+      return true;
+    case 'direHit':
+      useFocusEnergy(battle.wildMon, messages);
+      return true;
+    case 'guardSpecs':
+      battle.sideState.opponent.mistTurns = 5;
+      messages.push("Foe's team became shrouded in Mist!");
+      return true;
+  }
+};
+
+const tryUseOpponentTrainerSwitch = (
+  battle: BattleState,
+  messages: string[],
+  encounterState: BattleEncounterState,
+  opponentBattlerId: BattleBattlerId = 1
+): boolean => {
+  const switchDecision = chooseOpponentTrainerSwitch(battle, encounterState, opponentBattlerId);
+  if (!switchDecision) {
+    return false;
+  }
+
+  const activeOpponent = getBattlerSnapshot(battle, opponentBattlerId) ?? battle.wildMon;
+  const nextOpponentMon = battle.opponentSide.party[switchDecision.partyIndex];
+  if (!nextOpponentMon || nextOpponentMon.hp <= 0) {
+    return false;
+  }
+
+  battle.vm.locals.aiSwitchHelper = switchDecision.helper;
+  clearSwitchReferences(battle, 'opponent');
+  resetBattlePokemonTransientState(activeOpponent);
+  resetBattlePokemonTransientState(nextOpponentMon);
+  messages.push(`${battle.opponentSide.name} withdrew ${activeOpponent.species}!`);
+  if (battle.format === 'doubles') {
+    setBattlerPartyIndex(battle, opponentBattlerId, switchDecision.partyIndex);
+  } else {
+    setActiveBattlePartyMember(battle, 'opponent', nextOpponentMon);
+  }
+  refreshActiveMovePointers(battle);
+  messages.push(`${battle.opponentSide.name} sent out ${nextOpponentMon.species}!`);
+  applySpikesSwitchIn(battle, 'opponent', nextOpponentMon, messages);
+  return true;
+};
+
+const tryResolveOpponentTrainerAction = (
+  battle: BattleState,
+  messages: string[],
+  encounterState: BattleEncounterState,
+  opponentBattlerId: BattleBattlerId = 1
+): boolean => {
+  battle.vm.locals.aiAction = '';
+  battle.vm.locals.aiSwitchHelper = '';
+
+  if (tryUseOpponentTrainerSwitch(battle, messages, encounterState, opponentBattlerId)) {
+    battle.vm.locals.aiAction = 'switch';
+    return true;
+  }
+  if (tryUseOpponentTrainerItem(battle, messages)) {
+    battle.vm.locals.aiAction = 'item';
     return true;
   }
 
-  const healItemIndex = battle.opponentTrainerItems.findIndex((itemId) =>
-    getTrainerItemHealAmount(itemId) > 0
-    && battle.wildMon.hp > 0
-    && battle.wildMon.hp <= Math.floor(battle.wildMon.maxHp / 2)
-    && battle.wildMon.hp < battle.wildMon.maxHp
-  );
-  if (healItemIndex >= 0) {
-    const [itemId] = battle.opponentTrainerItems.splice(healItemIndex, 1);
-    messages.push(`${battle.opponentSide.name} used ${getItemDefinition(itemId!).name}!`);
-    healBattler(battle, 'opponent', battle.wildMon, getTrainerItemHealAmount(itemId!), messages);
-    return true;
-  }
-
+  battle.vm.locals.aiAction = 'move';
   return false;
 };
 
@@ -1918,6 +2362,522 @@ const getPlayerTurnMove = (battle: BattleState): BattleMove | null => {
   }
 
   return playerMove.ppRemaining > 0 || hasUsableMove(battle.moves) ? playerMove : getStruggleMove();
+};
+
+const getRaisedStatTotal = (pokemon: BattlePokemonSnapshot): number =>
+  Object.values(pokemon.statStages).reduce((sum, stage) => sum + Math.max(0, stage), 0);
+
+const getBestMoveEffectivenessAgainstTarget = (
+  moves: BattleMove[],
+  target: BattlePokemonSnapshot
+): number => moves.reduce(
+  (best, move) => move.power > 0 ? Math.max(best, calculateTypeEffectiveness(move.type, target.types)) : best,
+  0
+);
+
+const getBestMoveDamageAgainstTarget = (
+  attacker: BattlePokemonSnapshot,
+  target: BattlePokemonSnapshot,
+  moves: BattleMove[]
+): number => moves.reduce(
+  (best, move) => move.power > 0 ? Math.max(best, calculateDamagePreview(attacker, target, move).max) : best,
+  0
+);
+
+const hasSuperEffectiveMoveAgainstPlayer = (
+  battle: BattleState,
+  moves: BattleMove[],
+  encounterState: BattleEncounterState | null,
+  noRng = false
+): boolean => moves.some((move) => {
+  if (move.id === 'MOVE_NONE' || calculateTypeEffectiveness(move.type, battle.playerMon.types) < 2) {
+    return false;
+  }
+  return noRng || !encounterState || nextEncounterRoll(encounterState, 10) !== 0;
+});
+
+const getAbsorbingAbilityForType = (type: PokemonType | null): string | null => {
+  switch (type) {
+    case 'fire':
+      return 'FLASH_FIRE';
+    case 'water':
+      return 'WATER_ABSORB';
+    case 'electric':
+      return 'VOLT_ABSORB';
+    default:
+      return null;
+  }
+};
+
+const findBenchMonWithFlagsAndSuperEffective = (
+  battle: BattleState,
+  candidateIndexes: number[],
+  flag: 'noEffect' | 'resisted',
+  moduloPercent: number,
+  encounterState: BattleEncounterState
+): number | null => {
+  const lastLandedMove = battle.wildMon.volatile.lastLandedMoveId
+    ? getRegisteredBattleMove(battle.wildMon.volatile.lastLandedMoveId)
+    : null;
+  if (!lastLandedMove || lastLandedMove.power <= 0 || !battle.wildMon.volatile.lastDamagedBy) {
+    return null;
+  }
+
+  for (const partyIndex of candidateIndexes) {
+    const pokemon = battle.opponentSide.party[partyIndex];
+    if (!pokemon) {
+      continue;
+    }
+
+    const incomingEffectiveness = calculateTypeEffectiveness(lastLandedMove.type, pokemon.types);
+    const matchesFlag = flag === 'noEffect'
+      ? incomingEffectiveness === 0
+      : incomingEffectiveness > 0 && incomingEffectiveness < 1;
+    if (
+      matchesFlag
+      && getBestMoveEffectivenessAgainstTarget(pokemon.moves, battle.playerMon) >= 2
+      && nextEncounterRoll(encounterState, moduloPercent) === 0
+    ) {
+      return partyIndex;
+    }
+  }
+
+  return null;
+};
+
+const chooseMostSuitableOpponentSwitchIndex = (
+  battle: BattleState,
+  candidateIndexes: number[]
+): number | null => {
+  const incomingTypeScore = (pokemon: BattlePokemonSnapshot): number => {
+    const playerTypes = new Set(battle.playerMon.types);
+    let score = 1;
+    for (const type of playerTypes) {
+      score *= calculateTypeEffectiveness(type, pokemon.types);
+    }
+    return score;
+  };
+
+  const pendingInvalid = new Set<number>();
+  while (pendingInvalid.size < candidateIndexes.length) {
+    let bestTypingIndex: number | null = null;
+    let bestTypingScore = Number.NEGATIVE_INFINITY;
+
+    for (const partyIndex of candidateIndexes) {
+      if (pendingInvalid.has(partyIndex)) {
+        continue;
+      }
+      const pokemon = battle.opponentSide.party[partyIndex];
+      if (!pokemon) {
+        pendingInvalid.add(partyIndex);
+        continue;
+      }
+
+      const typeScore = incomingTypeScore(pokemon);
+      if (typeScore > bestTypingScore) {
+        bestTypingScore = typeScore;
+        bestTypingIndex = partyIndex;
+      }
+    }
+
+    if (bestTypingIndex === null) {
+      break;
+    }
+
+    const pokemon = battle.opponentSide.party[bestTypingIndex];
+    if (pokemon && getBestMoveEffectivenessAgainstTarget(pokemon.moves, battle.playerMon) >= 2) {
+      return bestTypingIndex;
+    }
+    pendingInvalid.add(bestTypingIndex);
+  }
+
+  let bestDamageIndex: number | null = null;
+  let bestDamageValue = 0;
+  for (const partyIndex of candidateIndexes) {
+    const pokemon = battle.opponentSide.party[partyIndex];
+    if (!pokemon) {
+      continue;
+    }
+
+    const candidateDamage = getBestMoveDamageAgainstTarget(pokemon, battle.playerMon, pokemon.moves);
+    if (candidateDamage > bestDamageValue) {
+      bestDamageValue = candidateDamage;
+      bestDamageIndex = partyIndex;
+    }
+  }
+
+  return bestDamageIndex;
+};
+
+const chooseOpponentTrainerSwitch = (
+  battle: BattleState,
+  encounterState: BattleEncounterState,
+  opponentBattlerId: BattleBattlerId = 1
+): { partyIndex: number; helper: string } | null => {
+  const activeOpponent = getBattlerSnapshot(battle, opponentBattlerId) ?? battle.wildMon;
+  if (!hasBattleTypeFlag(battle, 'trainer') || activeOpponent.hp <= 0) {
+    return null;
+  }
+  if (battle.format !== 'singles') {
+    if (activeOpponent.volatile.perishTurns !== 1) {
+      return null;
+    }
+    const candidateIndexes = getBattlerBenchIndexes(battle, opponentBattlerId);
+    if (candidateIndexes.length === 0) {
+      return null;
+    }
+    return {
+      partyIndex: candidateIndexes[0]!,
+      helper: 'ShouldSwitchIfPerishSong'
+    };
+  }
+  if (isSwitchPreventedByOpponent(battle.wildMon, battle.playerMon)) {
+    return null;
+  }
+
+  const candidateIndexes = getBattlerBenchIndexes(battle, 1);
+  if (candidateIndexes.length === 0) {
+    return null;
+  }
+
+  const activeBestEffectiveness = getBestMoveEffectivenessAgainstTarget(battle.wildMoves, battle.playerMon);
+  const helperNames = [
+    'ShouldSwitchIfPerishSong',
+    'ShouldSwitchIfWonderGuard',
+    'FindMonThatAbsorbsOpponentsMove',
+    'ShouldSwitchIfNaturalCure',
+    'GetMostSuitableMonToSwitchInto'
+  ].filter((name) => getDecompBattleAiSwitchHelper(name));
+
+  if (helperNames.includes('ShouldSwitchIfPerishSong') && battle.wildMon.volatile.perishTurns === 1) {
+    return {
+      partyIndex: chooseMostSuitableOpponentSwitchIndex(battle, candidateIndexes) ?? candidateIndexes[0]!,
+      helper: 'ShouldSwitchIfPerishSong'
+    };
+  }
+
+  if (
+    helperNames.includes('ShouldSwitchIfWonderGuard')
+    && battle.playerMon.abilityId === 'WONDER_GUARD'
+    && activeBestEffectiveness < 2
+  ) {
+    const wonderGuardSwitch = candidateIndexes.find((partyIndex) =>
+      getBestMoveEffectivenessAgainstTarget(battle.opponentSide.party[partyIndex]?.moves ?? [], battle.playerMon) >= 2
+      && nextEncounterRoll(encounterState, 3) < 2
+    );
+    if (wonderGuardSwitch !== undefined) {
+      return { partyIndex: wonderGuardSwitch, helper: 'ShouldSwitchIfWonderGuard' };
+    }
+  }
+
+  if (
+    helperNames.includes('FindMonThatAbsorbsOpponentsMove')
+    && (!hasSuperEffectiveMoveAgainstPlayer(battle, battle.wildMoves, null, true) || nextEncounterRoll(encounterState, 3) === 0)
+    && battle.wildMon.volatile.lastLandedMoveId
+  ) {
+    const lastLandedMove = getRegisteredBattleMove(battle.wildMon.volatile.lastLandedMoveId);
+    const absorbingAbility = lastLandedMove && lastLandedMove.power > 0
+      ? getAbsorbingAbilityForType(lastLandedMove.type)
+      : null;
+    if (absorbingAbility && battle.wildMon.abilityId !== absorbingAbility) {
+      const absorbingSwitch = candidateIndexes.find((partyIndex) =>
+        battle.opponentSide.party[partyIndex]?.abilityId === absorbingAbility
+        && (nextBattleRng(encounterState) & 1) !== 0
+      );
+      if (absorbingSwitch !== undefined) {
+        return { partyIndex: absorbingSwitch, helper: 'FindMonThatAbsorbsOpponentsMove' };
+      }
+    }
+  }
+
+  if (
+    helperNames.includes('ShouldSwitchIfNaturalCure')
+    && battle.wildMon.abilityId === 'NATURAL_CURE'
+    && battle.wildMon.status === 'sleep'
+    && battle.wildMon.hp >= Math.floor(battle.wildMon.maxHp / 2)
+  ) {
+    const lastLandedMove = battle.wildMon.volatile.lastLandedMoveId
+      ? getRegisteredBattleMove(battle.wildMon.volatile.lastLandedMoveId)
+      : null;
+    if (!lastLandedMove && (nextBattleRng(encounterState) & 1) !== 0) {
+      return {
+        partyIndex: chooseMostSuitableOpponentSwitchIndex(battle, candidateIndexes) ?? candidateIndexes[0]!,
+        helper: 'ShouldSwitchIfNaturalCure'
+      };
+    }
+    if (lastLandedMove && lastLandedMove.power === 0 && (nextBattleRng(encounterState) & 1) !== 0) {
+      return {
+        partyIndex: chooseMostSuitableOpponentSwitchIndex(battle, candidateIndexes) ?? candidateIndexes[0]!,
+        helper: 'ShouldSwitchIfNaturalCure'
+      };
+    }
+    const noEffectSwitch = findBenchMonWithFlagsAndSuperEffective(battle, candidateIndexes, 'noEffect', 1, encounterState);
+    if (noEffectSwitch !== null) {
+      return { partyIndex: noEffectSwitch, helper: 'ShouldSwitchIfNaturalCure' };
+    }
+    const resistedSwitch = findBenchMonWithFlagsAndSuperEffective(battle, candidateIndexes, 'resisted', 1, encounterState);
+    if (resistedSwitch !== null) {
+      return { partyIndex: resistedSwitch, helper: 'ShouldSwitchIfNaturalCure' };
+    }
+    if ((nextBattleRng(encounterState) & 1) !== 0) {
+      return {
+        partyIndex: chooseMostSuitableOpponentSwitchIndex(battle, candidateIndexes) ?? candidateIndexes[0]!,
+        helper: 'ShouldSwitchIfNaturalCure'
+      };
+    }
+    return null;
+  }
+
+  if (hasSuperEffectiveMoveAgainstPlayer(battle, battle.wildMoves, encounterState) || getRaisedStatTotal(battle.wildMon) > 3) {
+    return null;
+  }
+
+  const noEffectSwitch = findBenchMonWithFlagsAndSuperEffective(battle, candidateIndexes, 'noEffect', 2, encounterState);
+  if (noEffectSwitch !== null) {
+    return { partyIndex: noEffectSwitch, helper: 'FindMonWithFlagsAndSuperEffective' };
+  }
+  const resistedSwitch = findBenchMonWithFlagsAndSuperEffective(battle, candidateIndexes, 'resisted', 3, encounterState);
+  if (resistedSwitch !== null) {
+    return { partyIndex: resistedSwitch, helper: 'FindMonWithFlagsAndSuperEffective' };
+  }
+
+  if (
+    helperNames.includes('GetMostSuitableMonToSwitchInto')
+    && (battle.wildMon.volatile.perishTurns === 1 || (
+      battle.wildMon.abilityId === 'NATURAL_CURE'
+      && battle.wildMon.status === 'sleep'
+      && battle.wildMon.hp >= Math.floor(battle.wildMon.maxHp / 2)
+    ))
+  ) {
+    const bestSwitch = chooseMostSuitableOpponentSwitchIndex(battle, candidateIndexes);
+    if (bestSwitch !== null) {
+      return { partyIndex: bestSwitch, helper: 'GetMostSuitableMonToSwitchInto' };
+    }
+  }
+
+  return null;
+};
+
+const getTrainerBattleItemDecision = (battle: BattleState) => {
+  if (!hasBattleTypeFlag(battle, 'trainer') || battle.opponentTrainerItems.length === 0 || battle.wildMon.hp <= 0) {
+    return null;
+  }
+
+  return chooseTrainerAiItemDecision({
+    active: battle.wildMon,
+    party: battle.opponentSide.party,
+    sideState: battle.sideState.opponent,
+    trainerItems: battle.opponentTrainerItems
+  });
+};
+
+const getForcedBattlerMove = (
+  battle: BattleState,
+  side: BattleSideId,
+  pokemon: BattlePokemonSnapshot,
+  moves: BattleMove[]
+): BattleMove | null => {
+  if (pokemon.volatile.bideTurns > 0 && pokemon.volatile.bideMoveId) {
+    const bideMove = moves.find((move) => move.id === pokemon.volatile.bideMoveId);
+    if (bideMove) {
+      return bideMove;
+    }
+  }
+
+  if (pokemon.volatile.chargingMoveId) {
+    const chargingMove = moves.find((move) => move.id === pokemon.volatile.chargingMoveId);
+    if (chargingMove) {
+      return chargingMove;
+    }
+  }
+
+  const lockedMoveId = pokemon.volatile.rampageMoveId ?? pokemon.volatile.uproarMoveId;
+  if (lockedMoveId) {
+    const lockedMove = moves.find((move) => move.id === lockedMoveId);
+    if (lockedMove) {
+      return lockedMove;
+    }
+  }
+
+  if (pokemon.volatile.encoreTurns > 0 && pokemon.volatile.encoreMoveId) {
+    const encoredMove = moves.find((move) => move.id === pokemon.volatile.encoreMoveId);
+    if (encoredMove && getMoveSelectionLimitation(battle, side, pokemon, encoredMove) === null) {
+      return encoredMove;
+    }
+  }
+
+  return null;
+};
+
+const getAutoSelectedBattlerMove = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleMove | null => {
+  const side = getBattlerSide(battlerId);
+  const pokemon = getBattlerSnapshot(battle, battlerId);
+  const moves = getBattlerMoves(battle, battlerId);
+  if (!pokemon || moves.length === 0) {
+    return null;
+  }
+
+  const forcedMove = getForcedBattlerMove(battle, side, pokemon, moves);
+  if (forcedMove) {
+    return forcedMove;
+  }
+
+  const selectableIndexes = getSelectableMoveIndexes(battle, side, pokemon, moves);
+  if (selectableIndexes.length === 0) {
+    return getStruggleMove();
+  }
+
+  const selectedMove = moves[selectableIndexes[0]!] ?? null;
+  if (!selectedMove) {
+    return null;
+  }
+
+  return selectedMove.ppRemaining > 0 || hasUsableMove(moves) ? selectedMove : getStruggleMove();
+};
+
+const getBattlerTurnMove = (
+  battle: BattleState,
+  battlerId: BattleBattlerId,
+  encounterState: BattleEncounterState
+): BattleMove | null => {
+  if (battlerId === 0) {
+    return getPlayerTurnMove(battle);
+  }
+
+  const attackerSide = getBattlerSide(battlerId);
+  const defaultTarget = getActiveBattlerIds(
+    battle,
+    attackerSide === 'player' ? 'opponent' : 'player'
+  )[0];
+  if (defaultTarget === undefined) {
+    return null;
+  }
+
+  if (attackerSide === 'opponent') {
+    return withTemporaryBattlerPair(
+      battle,
+      battlerId,
+      defaultTarget,
+      () => getEnemyTurnMove(battle, encounterState)
+    );
+  }
+
+  return withTemporaryBattlerPair(
+    battle,
+    battlerId,
+    defaultTarget,
+    () => getAutoSelectedBattlerMove(battle, battlerId)
+  );
+};
+
+const getDoublesActionOrder = (
+  battle: BattleState,
+  battlerMoves: Map<BattleBattlerId, BattleMove>,
+  encounterState: BattleEncounterState
+): BattleBattlerId[] => Array.from(battlerMoves.entries())
+  .map(([battlerId, move]) => {
+    const pokemon = getBattlerSnapshot(battle, battlerId)!;
+    let speed = getTurnOrderSpeed(pokemon, battle.weather);
+    if (
+      getHeldItemHoldEffect(pokemon) === 'HOLD_EFFECT_QUICK_CLAW'
+      && (nextBattleRng(encounterState) & 0xffff) < Math.floor((0xffff * getHeldItemHoldEffectParam(pokemon)) / 100)
+    ) {
+      speed = Number.MAX_SAFE_INTEGER;
+    }
+
+    return {
+      battlerId,
+      move,
+      speed,
+      tieBreaker: nextBattleRng(encounterState)
+    };
+  })
+  .sort((left, right) => {
+    if (left.move.priority !== right.move.priority) {
+      return right.move.priority - left.move.priority;
+    }
+    if (left.speed !== right.speed) {
+      return right.speed - left.speed;
+    }
+    if (left.tieBreaker !== right.tieBreaker) {
+      return left.tieBreaker - right.tieBreaker;
+    }
+    return left.battlerId - right.battlerId;
+  })
+  .map((entry) => entry.battlerId);
+
+const getAllyBattlerId = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleBattlerId | null => getActiveBattlerIds(battle, getBattlerSide(battlerId))
+  .find((candidate) => candidate !== battlerId) ?? null;
+
+const getDefaultOpposingBattlerId = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): BattleBattlerId | null => getActiveBattlerIds(
+  battle,
+  getBattlerSide(battlerId) === 'player' ? 'opponent' : 'player'
+)
+  .find((candidate) => getBattlerSnapshot(battle, candidate)?.hp! > 0) ?? null;
+
+const maybeRedirectFollowMeTarget = (
+  battle: BattleState,
+  targetBattlerId: BattleBattlerId,
+  move: BattleMove
+): BattleBattlerId => {
+  if (
+    battle.format !== 'doubles'
+    || move.target === 'MOVE_TARGET_USER'
+    || move.target === 'MOVE_TARGET_BOTH'
+    || move.target === 'MOVE_TARGET_FOES_AND_ALLY'
+  ) {
+    return targetBattlerId;
+  }
+
+  const targetSide = getBattlerSide(targetBattlerId);
+  const followMeTarget = getActiveBattlerIds(battle, targetSide)
+    .find((candidate) => getBattlerSnapshot(battle, candidate)?.volatile.followMe);
+  return followMeTarget ?? targetBattlerId;
+};
+
+const getDoublesMoveTargets = (
+  battle: BattleState,
+  battlerId: BattleBattlerId,
+  move: BattleMove,
+  encounterState: BattleEncounterState
+): BattleBattlerId[] => {
+  const opposingBattlers = getActiveBattlerIds(
+    battle,
+    getBattlerSide(battlerId) === 'player' ? 'opponent' : 'player'
+  ).filter((candidate) => getBattlerSnapshot(battle, candidate)?.hp! > 0);
+  const allyBattlerId = getAllyBattlerId(battle, battlerId);
+
+  if (move.effect === 'EFFECT_HELPING_HAND') {
+    return allyBattlerId !== null ? [allyBattlerId] : [battlerId];
+  }
+
+  if (move.target === 'MOVE_TARGET_USER') {
+    return [battlerId];
+  }
+  if (move.target === 'MOVE_TARGET_BOTH') {
+    return opposingBattlers;
+  }
+  if (move.target === 'MOVE_TARGET_FOES_AND_ALLY') {
+    return allyBattlerId !== null ? [...opposingBattlers, allyBattlerId] : opposingBattlers;
+  }
+  if (opposingBattlers.length === 0) {
+    return [battlerId];
+  }
+  if (move.target === 'MOVE_TARGET_RANDOM') {
+    return [opposingBattlers[nextEncounterRoll(encounterState, opposingBattlers.length)]!];
+  }
+
+  const selectedTarget = getDefaultOpposingBattlerId(battle, battlerId);
+  return selectedTarget !== null ? [maybeRedirectFollowMeTarget(battle, selectedTarget, move)] : [battlerId];
 };
 
 const hasLivingBenchMon = (battle: BattleState): boolean =>
@@ -2103,7 +3063,41 @@ const awardBattleExperience = (battle: BattleState, messages: string[] = []): vo
           species: pokemon.species,
           level: nextLevel
         });
-        battle.postResult.pendingMoveLearn = true;
+        for (let learnedLevel = previousLevel + 1; learnedLevel <= nextLevel; learnedLevel += 1) {
+          const learnedMoves = getDecompMovesLearnedAtLevel(pokemon.species, learnedLevel);
+          for (const learnedMove of learnedMoves) {
+            if (battle.postResult.pendingMoveLearns.some((entry) =>
+              entry.species === pokemon.species
+              && entry.level === learnedLevel
+              && entry.moveId === learnedMove.id
+            )) {
+              continue;
+            }
+
+            battle.postResult.pendingMoveLearns.push({
+              species: pokemon.species,
+              level: learnedLevel,
+              moveId: learnedMove.id,
+              moveName: learnedMove.displayName
+            });
+          }
+        }
+        battle.postResult.pendingMoveLearn = battle.postResult.pendingMoveLearns.length > 0;
+
+        const evolutionTarget = getLevelEvolutionCandidate(pokemon);
+        if (
+          evolutionTarget
+          && !battle.postResult.pendingEvolutions.some((entry) =>
+            entry.species === pokemon.species && entry.evolvesTo === evolutionTarget
+          )
+        ) {
+          battle.postResult.pendingEvolutions.push({
+            species: pokemon.species,
+            evolvesTo: evolutionTarget,
+            level: pokemon.level
+          });
+        }
+        battle.postResult.pendingEvolution = battle.postResult.pendingEvolutions.length > 0;
       }
 
       appendBattleTraceEvent(battle, {
@@ -2182,6 +3176,7 @@ const applyStatusDamage = (
       : Math.max(1, Math.floor(pokemon.maxHp / 8));
     pokemon.hp = Math.max(0, pokemon.hp - damage);
     applyQueuedDamage(battle, side, pokemon.hp);
+    maybeAdjustFriendshipOnFaint(battle, side, pokemon);
     return `${pokemon.species} is hurt by ${pokemon.status === 'burn' ? 'burn' : 'poison'}!`;
   }
 
@@ -2213,6 +3208,7 @@ const applyWeatherDamage = (
   const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
   pokemon.hp = Math.max(0, pokemon.hp - damage);
   applyQueuedDamage(battle, side, pokemon.hp);
+  maybeAdjustFriendshipOnFaint(battle, side, pokemon);
   messages.push(`${pokemon.species} is buffeted by ${battle.weather === 'hail' ? 'hail' : 'the sandstorm'}!`);
 };
 
@@ -2235,6 +3231,7 @@ const applyLeechSeedDrain = (
   const damage = Math.max(1, Math.floor(seeded.maxHp / 8));
   seeded.hp = Math.max(0, seeded.hp - damage);
   applyQueuedDamage(battle, seededSide, seeded.hp);
+  maybeAdjustFriendshipOnFaint(battle, seededSide, seeded);
   const healed = Math.min(receiver.maxHp - receiver.hp, damage);
   if (healed > 0) {
     receiver.hp += healed;
@@ -2258,6 +3255,7 @@ const applyTrapDamage = (
     const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
     pokemon.hp = Math.max(0, pokemon.hp - damage);
     applyQueuedDamage(battle, side, pokemon.hp);
+    maybeAdjustFriendshipOnFaint(battle, side, pokemon);
     messages.push(`${pokemon.species} is hurt by the trap!`);
     return;
   }
@@ -2284,6 +3282,7 @@ const applyNightmareDamage = (
   const damage = Math.max(1, Math.floor(pokemon.maxHp / 4));
   pokemon.hp = Math.max(0, pokemon.hp - damage);
   applyQueuedDamage(battle, side, pokemon.hp);
+  maybeAdjustFriendshipOnFaint(battle, side, pokemon);
   messages.push(`${pokemon.species} is locked in a nightmare!`);
 };
 
@@ -2300,6 +3299,7 @@ const applyCurseDamage = (
   const damage = Math.max(1, Math.floor(pokemon.maxHp / 4));
   pokemon.hp = Math.max(0, pokemon.hp - damage);
   applyQueuedDamage(battle, side, pokemon.hp);
+  maybeAdjustFriendshipOnFaint(battle, side, pokemon);
   messages.push(`${pokemon.species} is afflicted by the curse!`);
 };
 
@@ -2357,28 +3357,8 @@ const applySpikesSwitchIn = (
   const divisor = layers === 1 ? 8 : layers === 2 ? 6 : 4;
   pokemon.hp = Math.max(0, pokemon.hp - Math.max(1, Math.floor(pokemon.maxHp / divisor)));
   applyQueuedDamage(battle, side, pokemon.hp);
+  maybeAdjustFriendshipOnFaint(battle, side, pokemon);
   messages.push(`${pokemon.species} is hurt by Spikes!`);
-};
-
-const applyYawn = (
-  target: BattlePokemonSnapshot,
-  targetSide: 'player' | 'opponent',
-  battle: BattleState,
-  messages: string[]
-): boolean => {
-  if (target.status !== 'none' || target.volatile.yawnTurns > 0 || target.volatile.substituteHp > 0) {
-    messages.push('But it failed!');
-    return true;
-  }
-
-  if (battle.sideState[targetSide].safeguardTurns > 0) {
-    messages.push(`${target.species}'s team is protected by Safeguard!`);
-    return true;
-  }
-
-  target.volatile.yawnTurns = 2;
-  messages.push(`${target.species} grew drowsy!`);
-  return true;
 };
 
 const decrementYawn = (
@@ -2437,11 +3417,11 @@ const decrementDisableAndEncore = (pokemon: BattlePokemonSnapshot): void => {
 };
 
 const incrementActiveTurns = (battle: BattleState): void => {
-  if (battle.playerMon.hp > 0) {
-    battle.playerMon.volatile.activeTurns += 1;
-  }
-  if (battle.wildMon.hp > 0) {
-    battle.wildMon.volatile.activeTurns += 1;
+  for (const battlerId of getActiveBattlerIds(battle)) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (pokemon && pokemon.hp > 0) {
+      pokemon.volatile.activeTurns += 1;
+    }
   }
 };
 
@@ -2460,6 +3440,7 @@ const decrementPerishSong = (
   if (pokemon.volatile.perishTurns === 0) {
     pokemon.hp = 0;
     applyQueuedDamage(battle, side, 0);
+    maybeAdjustFriendshipOnFaint(battle, side, pokemon);
   }
 };
 
@@ -2524,8 +3505,13 @@ const resolveWeatherEndOfTurn = (battle: BattleState, messages: string[]): void 
   const activeWeather = battle.weather;
   if (activeWeather === 'sandstorm' || activeWeather === 'hail') {
     messages.push(weatherContinueMessages[activeWeather]);
-    applyWeatherDamage(battle, 'opponent', battle.wildMon, messages);
-    applyWeatherDamage(battle, 'player', battle.playerMon, messages);
+    for (const battlerId of getActiveBattlerIds(battle)) {
+      const pokemon = getBattlerSnapshot(battle, battlerId);
+      if (!pokemon) {
+        continue;
+      }
+      applyWeatherDamage(battle, getBattlerSide(battlerId), pokemon, messages);
+    }
   } else {
     messages.push(weatherContinueMessages[activeWeather]);
   }
@@ -2540,24 +3526,21 @@ const resolveWeatherEndOfTurn = (battle: BattleState, messages: string[]): void 
 };
 
 const clearSingleTurnVolatiles = (battle: BattleState): void => {
-  battle.playerMon.volatile.protected = false;
-  battle.wildMon.volatile.protected = false;
-  battle.playerMon.volatile.enduring = false;
-  battle.wildMon.volatile.enduring = false;
-  battle.playerMon.volatile.destinyBond = false;
-  battle.wildMon.volatile.destinyBond = false;
-  battle.playerMon.volatile.grudge = false;
-  battle.wildMon.volatile.grudge = false;
-  battle.playerMon.volatile.tookDamageThisTurn = false;
-  battle.wildMon.volatile.tookDamageThisTurn = false;
-  battle.playerMon.volatile.magicCoat = false;
-  battle.wildMon.volatile.magicCoat = false;
-  battle.playerMon.volatile.snatch = false;
-  battle.wildMon.volatile.snatch = false;
-  battle.playerMon.volatile.followMe = false;
-  battle.wildMon.volatile.followMe = false;
-  battle.playerMon.volatile.helpingHand = false;
-  battle.wildMon.volatile.helpingHand = false;
+  for (const battlerId of getActiveBattlerIds(battle)) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (!pokemon) {
+      continue;
+    }
+    pokemon.volatile.protected = false;
+    pokemon.volatile.enduring = false;
+    pokemon.volatile.destinyBond = false;
+    pokemon.volatile.grudge = false;
+    pokemon.volatile.tookDamageThisTurn = false;
+    pokemon.volatile.magicCoat = false;
+    pokemon.volatile.snatch = false;
+    pokemon.volatile.followMe = false;
+    pokemon.volatile.helpingHand = false;
+  }
 };
 
 const getStatusCaptureMultiplierTenths = (status: StatusCondition): number => {
@@ -3108,42 +4091,38 @@ const applySideCondition = (
   messages: string[]
 ): boolean => {
   if (move.effect === 'EFFECT_REFLECT') {
-    if (battle.sideState[side].reflectTurns > 0) {
-      messages.push('But it failed!');
-      return true;
-    }
-    battle.sideState[side].reflectTurns = 5;
-    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became protected by Reflect!`);
+    runBattleScriptCommand(battle, 'setreflect', {
+      attackerSide: side,
+      move,
+      pushMessage: (text) => messages.push(text)
+    });
     return true;
   }
 
   if (move.effect === 'EFFECT_LIGHT_SCREEN') {
-    if (battle.sideState[side].lightScreenTurns > 0) {
-      messages.push('But it failed!');
-      return true;
-    }
-    battle.sideState[side].lightScreenTurns = 5;
-    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became protected by Light Screen!`);
+    runBattleScriptCommand(battle, 'setlightscreen', {
+      attackerSide: side,
+      move,
+      pushMessage: (text) => messages.push(text)
+    });
     return true;
   }
 
   if (move.effect === 'EFFECT_SAFEGUARD') {
-    if (battle.sideState[side].safeguardTurns > 0) {
-      messages.push('But it failed!');
-      return true;
-    }
-    battle.sideState[side].safeguardTurns = 5;
-    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became protected by Safeguard!`);
+    runBattleScriptCommand(battle, 'setsafeguard', {
+      attackerSide: side,
+      move,
+      pushMessage: (text) => messages.push(text)
+    });
     return true;
   }
 
   if (move.effect === 'EFFECT_MIST') {
-    if (battle.sideState[side].mistTurns > 0) {
-      messages.push('But it failed!');
-      return true;
-    }
-    battle.sideState[side].mistTurns = 5;
-    messages.push(`${side === 'player' ? 'Your' : "Foe's"} team became shrouded in Mist!`);
+    runBattleScriptCommand(battle, 'setmist', {
+      attackerSide: side,
+      move,
+      pushMessage: (text) => messages.push(text)
+    });
     return true;
   }
 
@@ -3160,14 +4139,16 @@ const applyWeatherMove = (
     return false;
   }
 
-  if (battle.weather === nextWeather) {
-    messages.push('But it failed!');
-    return true;
-  }
-
-  battle.weather = nextWeather;
-  battle.weatherTurns = 5;
-  messages.push(weatherStartMessages[nextWeather]);
+  const opcodeByWeather: Record<Exclude<BattleWeather, 'none'>, 'setrain' | 'setsunny' | 'setsandstorm' | 'sethail'> = {
+    rain: 'setrain',
+    sun: 'setsunny',
+    sandstorm: 'setsandstorm',
+    hail: 'sethail'
+  };
+  runBattleScriptCommand(battle, opcodeByWeather[nextWeather], {
+    move,
+    pushMessage: (text) => messages.push(text)
+  });
   return true;
 };
 
@@ -3418,6 +4399,7 @@ const damageBattler = (
     }
     maybeUseHealingBerry(battle, side, pokemon, messages);
   }
+  maybeAdjustFriendshipOnFaint(battle, side, pokemon);
   return actualDamage;
 };
 
@@ -3567,26 +4549,6 @@ const useSubstitute = (
   return true;
 };
 
-const applyLeechSeed = (
-  attackerSide: 'player' | 'opponent',
-  defender: BattlePokemonSnapshot,
-  messages: string[]
-): boolean => {
-  if (defender.volatile.substituteHp > 0 || defender.volatile.leechSeededBy !== null) {
-    messages.push('But it failed!');
-    return true;
-  }
-
-  if (defender.types.includes('grass')) {
-    messages.push(`It doesn't affect ${defender.species}...`);
-    return true;
-  }
-
-  defender.volatile.leechSeededBy = attackerSide;
-  messages.push(`${defender.species} was seeded!`);
-  return true;
-};
-
 const clearAllStatStages = (battle: BattleState, messages: string[]): void => {
   battle.playerMon.statStages = createStatStages();
   battle.wildMon.statStages = createStatStages();
@@ -3717,6 +4679,7 @@ const applyFaintRetaliation = (
   if (defender.volatile.destinyBond && attacker.hp > 0) {
     attacker.hp = 0;
     applyQueuedDamage(battle, attackerSide, attacker.hp);
+    maybeAdjustFriendshipOnFaint(battle, attackerSide, attacker);
     messages.push(`${attacker.species} was taken down by Destiny Bond!`);
     if (!messages.includes(getFaintMessage(attackerSide, battle))) {
       messages.push(getFaintMessage(attackerSide, battle));
@@ -3917,11 +4880,14 @@ const getLastTakenMove = (pokemon: BattlePokemonSnapshot): BattleMove | null => 
 };
 
 const rememberTakenMove = (
+  battle: BattleState,
   attackerSide: 'player' | 'opponent',
   defenderSide: 'player' | 'opponent',
   attacker: BattlePokemonSnapshot,
   defender: BattlePokemonSnapshot,
-  move: BattleMove
+  move: BattleMove,
+  attackerBattlerId = getPrimaryBattlerIdForSide(attackerSide),
+  defenderBattlerId = getPrimaryBattlerIdForSide(defenderSide)
 ): void => {
   if (attackerSide === defenderSide) {
     return;
@@ -3934,18 +4900,30 @@ const rememberTakenMove = (
     return;
   }
   defender.volatile.lastTakenMoveId = chosenMoveId;
+  patchBattlerMoveMemory(battle, defenderBattlerId, {
+    takenMoveId: chosenMoveId,
+    lastHitByBattler: attackerBattlerId
+  });
 };
 
 const rememberLandedMove = (
+  battle: BattleState,
   attackerSide: 'player' | 'opponent',
   defenderSide: 'player' | 'opponent',
   defender: BattlePokemonSnapshot,
-  move: BattleMove
+  move: BattleMove,
+  attackerBattlerId = getPrimaryBattlerIdForSide(attackerSide),
+  defenderBattlerId = getPrimaryBattlerIdForSide(defenderSide)
 ): void => {
   if (attackerSide === defenderSide || defender.hp <= 0) {
     return;
   }
   defender.volatile.lastLandedMoveId = move.id;
+  patchBattlerMoveMemory(battle, defenderBattlerId, {
+    landedMoveId: move.id,
+    lastMoveTargetBattler: defenderBattlerId,
+    lastHitByBattler: attackerBattlerId
+  });
 };
 
 const shouldRememberTakenMoveFromMessages = (
@@ -4220,6 +5198,23 @@ const getActorLabel = (side: 'player' | 'opponent', battle: BattleState): string
 
 const getFaintMessage = (side: 'player' | 'opponent', battle: BattleState): string =>
   side === 'player' ? `${battle.playerMon.species} fainted!` : `Foe ${battle.wildMon.species} fainted!`;
+
+const maybeAdjustFriendshipOnFaint = (
+  battle: BattleState,
+  side: 'player' | 'opponent',
+  pokemon: BattlePokemonSnapshot
+): void => {
+  if (side !== 'player' || pokemon.hp > 0) {
+    return;
+  }
+
+  const battlerId = findBattlerIdForPokemon(battle, side, pokemon);
+  if (battlerId === null) {
+    return;
+  }
+
+  adjustFriendshipOnBattleFaint(battle, battlerId);
+};
 
 const calculateConfusionDamage = (pokemon: BattlePokemonSnapshot): number => {
   const confusionMove: BattleMove = {
@@ -4649,865 +5644,89 @@ const executeMove = (
   move: BattleMove,
   encounterState: BattleEncounterState,
   defenderCanStillAct = false,
-  options: { consumePp?: boolean; announce?: boolean; reflected?: boolean; snatched?: boolean; sleepTalk?: boolean; preserveLastMoveUsed?: boolean } = {}
-): string[] => {
-  const messages: string[] = [];
-  const attacker = attackerSide === 'player' ? battle.playerMon : battle.wildMon;
-  const defender = attackerSide === 'player' ? battle.wildMon : battle.playerMon;
-  const defenderSide = attackerSide === 'player' ? 'opponent' : 'player';
-
-  const isChargingSecondTurn = attacker.volatile.chargingMoveId === move.id;
-  const isLockedMultiTurn = attacker.volatile.rampageMoveId === move.id
-    || attacker.volatile.uproarMoveId === move.id
-    || (attacker.volatile.bideMoveId === move.id && attacker.volatile.bideTurns > 0);
-  const vmPrelude = beginBattleMoveVm(
-    battle,
-    attackerSide,
-    attacker,
-    move,
-    {
-      ...options,
-      consumePp: !isChargingSecondTurn && !isLockedMultiTurn && (options.consumePp ?? true)
-    },
-    {
-      canMoveThisTurn: () => canMoveThisTurn(battle, attackerSide, attacker, move, encounterState, messages, options.sleepTalk),
-      emitCommand: (command) => emitControllerCommand(battle, command),
-      pushMessage: (text) => pushMessage(messages, battle, text),
-      getActorLabel: () => getActorLabel(attackerSide, battle)
-    }
-  );
-  let { resultingMoveHandledByCalledMove, moveWasAttempted, previousLastMoveUsedId } = vmPrelude;
-
-  try {
-    if (!vmPrelude.shouldContinue) {
-      return messages;
-    }
-
-    if (move.target !== 'MOVE_TARGET_USER' && attackerSide !== defenderSide) {
-      defender.volatile.lastLandedMoveId = null;
-    }
-
-    if (move.effect === 'EFFECT_BIDE') {
-      useBide(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-      return messages;
-    }
-
-  if (move.effect === 'EFFECT_MIMIC') {
-    useMimic(attacker, defender, move, messages);
-    return messages;
+  options: ExecuteBattleMoveVmOptions = {}
+): string[] => executeBattleMoveVm(
+  battle,
+  attackerSide,
+  move,
+  encounterState,
+  defenderCanStillAct,
+  options,
+  {
+    canMoveThisTurn,
+    emitControllerCommand,
+    pushMessage,
+    getActorLabel,
+    useBide,
+    useMimic,
+    useSketch,
+    getLastTakenMove,
+    chooseMetronomeMove,
+    rememberTakenMove,
+    chooseAssistMove,
+    chooseSleepTalkMove,
+    getNaturePowerMove,
+    tryUseProtect,
+    isMoveBlockedByProtect,
+    isSoundMove,
+    applyAbsorbingAbility,
+    isMagicCoatReflectable,
+    isSnatchableMove,
+    isMoveBlockedBySubstitute,
+    shouldSkipTwoTurnCharge,
+    getSemiInvulnerableState,
+    useFutureAttack,
+    attemptAccuracy,
+    getBattleTypeEffectiveness,
+    calculateDamageRoll,
+    damageBattler,
+    applyFaintRetaliation,
+    useBeatUp,
+    getMoveWithDynamicPower,
+    getCounterMirrorDamage,
+    calculateFixedDamage,
+    isDirectHitEffect,
+    isMultiHitMove,
+    getMultiHitCount,
+    isCriticalHit,
+    maybeApplySecondaryStatus,
+    maybeApplySecondaryStageEffect,
+    maybeApplySecondaryConfusion,
+    applySecretPowerEffect,
+    maybeApplyFlinch,
+    maybeApplyKingsRock,
+    applyPostHitItemEffect,
+    applyQueuedDamage,
+    maybeApplyShellBell,
+    applyConfusion,
+    applyStatusEffect,
+    applySideCondition,
+    applyWeatherMove,
+    useSubstitute,
+    clearAllStatStages,
+    applyTransform,
+    applyConversion,
+    applyConversion2,
+    getLastUsedMove,
+    nextBattleRng,
+    applyDirectStageChange,
+    useBellyDrum,
+    applyComboStageMove,
+    useTrick,
+    useRecycle,
+    useBatonPass,
+    healBattler,
+    applyStageEffect,
+    getFaintMessage,
+    rememberLandedMove,
+    shouldRememberTakenMoveFromMessages,
+    getHeldItemHoldEffect,
+    getChoicedMoveId,
+    twoTurnMoveEffects,
+    primaryStatusByEffect,
+    typeByTerrain
   }
-
-  if (move.effect === 'EFFECT_SKETCH') {
-    useSketch(attacker, defender, move, messages);
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_MIRROR_MOVE') {
-    const mirroredMove = getLastTakenMove(attacker);
-    if (!mirroredMove) {
-      pushMessage(messages, battle, 'Mirror Move failed!');
-      return messages;
-    }
-    resultingMoveHandledByCalledMove = true;
-    messages.push(...executeMove(battle, attackerSide, { ...mirroredMove }, encounterState, defenderCanStillAct, { consumePp: false, preserveLastMoveUsed: true }));
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_METRONOME') {
-    const calledMove = chooseMetronomeMove(encounterState);
-    resultingMoveHandledByCalledMove = true;
-    messages.push(...executeMove(battle, attackerSide, calledMove, encounterState, defenderCanStillAct, { consumePp: false, preserveLastMoveUsed: true }));
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_ASSIST') {
-    const calledMove = chooseAssistMove(battle, attackerSide, encounterState);
-    if (!calledMove) {
-      pushMessage(messages, battle, 'But it failed!');
-      return messages;
-    }
-    resultingMoveHandledByCalledMove = true;
-    messages.push(...executeMove(battle, attackerSide, calledMove, encounterState, defenderCanStillAct, { consumePp: false, preserveLastMoveUsed: true }));
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_SLEEP_TALK') {
-    if (attacker.status !== 'sleep') {
-      pushMessage(messages, battle, 'But it failed!');
-      return messages;
-    }
-    const calledMove = chooseSleepTalkMove(battle, attackerSide, attacker, encounterState, previousLastMoveUsedId);
-    messages.push(`${attacker.species} is fast asleep.`);
-    if (!calledMove) {
-      pushMessage(messages, battle, 'But it failed!');
-      return messages;
-    }
-    resultingMoveHandledByCalledMove = true;
-    messages.push(...executeMove(battle, attackerSide, calledMove, encounterState, defenderCanStillAct, { consumePp: false, sleepTalk: true, preserveLastMoveUsed: true }));
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_NATURE_POWER') {
-    const calledMove = getNaturePowerMove(battle);
-    if (!calledMove) {
-      pushMessage(messages, battle, 'But it failed!');
-      return messages;
-    }
-    messages.push(`Nature Power turned into ${calledMove.name}!`);
-    resultingMoveHandledByCalledMove = true;
-    messages.push(...executeMove(battle, attackerSide, calledMove, encounterState, defenderCanStillAct, { consumePp: false, preserveLastMoveUsed: true }));
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_PROTECT') {
-    tryUseProtect(attacker, encounterState, messages, defenderCanStillAct);
-    return messages;
-  }
-
-  if (isMoveBlockedByProtect(move, defender)) {
-    pushMessage(messages, battle, `${defender.species} protected itself!`);
-    return messages;
-  }
-
-  if (defender.abilityId === 'SOUNDPROOF' && isSoundMove(move) && move.target !== 'MOVE_TARGET_USER') {
-    pushMessage(messages, battle, `${defender.species}'s Soundproof made it ineffective!`);
-    return messages;
-  }
-
-  if (applyAbsorbingAbility(battle, defenderSide, defender, move, messages)) {
-    return messages;
-  }
-
-  if (!options.reflected && defender.volatile.magicCoat && isMagicCoatReflectable(move)) {
-    defender.volatile.magicCoat = false;
-    messages.push(`${defender.species}'s Magic Coat bounced the move back!`);
-    messages.push(...executeMove(battle, defenderSide, { ...move }, encounterState, false, { consumePp: false, reflected: true }));
-    return messages;
-  }
-
-  if (!options.snatched && defender.volatile.snatch && isSnatchableMove(move)) {
-    defender.volatile.snatch = false;
-    messages.push(`${defender.species} snatched ${move.name}!`);
-    messages.push(...executeMove(battle, defenderSide, { ...move, target: 'MOVE_TARGET_USER' }, encounterState, false, { consumePp: false, snatched: true }));
-    return messages;
-  }
-
-  if (isMoveBlockedBySubstitute(move, defender)) {
-    pushMessage(messages, battle, 'But it failed!');
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_DREAM_EATER' && defender.status !== 'sleep') {
-    pushMessage(messages, battle, 'But it failed!');
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_SPIT_UP' && attacker.volatile.stockpile <= 0) {
-    pushMessage(messages, battle, 'But it failed!');
-    return messages;
-  }
-
-  if ((move.effect === 'EFFECT_SNORE' || move.effect === 'EFFECT_SLEEP_TALK') && attacker.status !== 'sleep') {
-    pushMessage(messages, battle, 'But it failed!');
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_TELEPORT') {
-    messages.push(`${attacker.species} fled from battle!`);
-    battle.moveEndedBattle = true;
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_ROAR') {
-    if (defender.volatile.rooted || defender.volatile.substituteHp > 0) {
-      pushMessage(messages, battle, 'But it failed!');
-    } else {
-      messages.push(`${defender.species} was blown away!`);
-      battle.moveEndedBattle = true;
-    }
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_FAKE_OUT' && attacker.volatile.activeTurns > 0) {
-    pushMessage(messages, battle, 'But it failed!');
-    return messages;
-  }
-
-  if (twoTurnMoveEffects.has(move.effect) && !isChargingSecondTurn && !shouldSkipTwoTurnCharge(battle, move)) {
-    attacker.volatile.chargingMoveId = move.id;
-    attacker.volatile.semiInvulnerable = getSemiInvulnerableState(move);
-    if (move.effect === 'EFFECT_SKULL_BASH') {
-      applyDirectStageChange(attacker, 'defense', 1, messages);
-    }
-    pushMessage(messages, battle, `${attacker.species} began charging ${move.name}!`);
-    return messages;
-  }
-
-  if (isChargingSecondTurn) {
-    attacker.volatile.chargingMoveId = null;
-    attacker.volatile.semiInvulnerable = null;
-  }
-
-  if (move.effect === 'EFFECT_FUTURE_SIGHT') {
-    useFutureAttack(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    return messages;
-  }
-
-  if (!attemptAccuracy(battle, attackerSide, attacker, defender, move, encounterState)) {
-    pushMessage(messages, battle, 'The attack missed!');
-    if (move.effect === 'EFFECT_FURY_CUTTER') {
-      attacker.volatile.furyCutterCounter = 0;
-    } else if (move.effect === 'EFFECT_ROLLOUT') {
-      attacker.volatile.rolloutCounter = 0;
-    }
-    if (move.effect === 'EFFECT_RECOIL_IF_MISS' && getBattleTypeEffectiveness(move, defender) !== 0) {
-      const crashDamage = Math.min(
-        Math.max(1, Math.floor(calculateDamageRoll(battle, defenderSide, attacker, defender, move, encounterState, false) / 2)),
-        Math.max(1, Math.floor(defender.maxHp / 2))
-      );
-      attacker.hp = Math.max(0, attacker.hp - crashDamage);
-      applyQueuedDamage(battle, attackerSide, attacker.hp);
-      pushMessage(messages, battle, `${attacker.species} kept going and crashed!`);
-    }
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_OHKO') {
-    if (defender.abilityId === 'STURDY') {
-      pushMessage(messages, battle, `${defender.species}'s Sturdy made it ineffective!`);
-      return messages;
-    }
-    if (attacker.level < defender.level) {
-      pushMessage(messages, battle, 'But it failed!');
-      return messages;
-    }
-    if (getBattleTypeEffectiveness(move, defender) === 0) {
-      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
-      return messages;
-    }
-    damageBattler(battle, defenderSide, defender, defender.hp, move, messages);
-    pushMessage(messages, battle, "It's a one-hit KO!");
-    applyFaintRetaliation(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_BEAT_UP') {
-    useBeatUp(battle, attackerSide, defenderSide, defender, move, encounterState, messages);
-    applyFaintRetaliation(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    return messages;
-  }
-
-  let moveForDamage = move;
-  if (move.effect === 'EFFECT_PRESENT') {
-    const presentRoll = nextBattleRng(encounterState) & 0xff;
-    if (presentRoll >= 204) {
-      if (defender.hp >= defender.maxHp) {
-        pushMessage(messages, battle, 'But it failed!');
-      } else {
-        healBattler(battle, defenderSide, defender, Math.max(1, Math.floor(defender.maxHp / 4)), messages);
-      }
-      return messages;
-    }
-
-    moveForDamage = {
-      ...move,
-      power: presentRoll < 102 ? 40 : presentRoll < 178 ? 80 : 120
-    };
-  }
-
-  const effectiveMove = getMoveWithDynamicPower(moveForDamage, attacker, defender, battle, encounterState, messages);
-  const counterMirrorDamage = getCounterMirrorDamage(move, attackerSide, attacker);
-  if (counterMirrorDamage !== null) {
-    if (getBattleTypeEffectiveness(effectiveMove, defender) === 0) {
-      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
-      return messages;
-    }
-
-    damageBattler(battle, defenderSide, defender, counterMirrorDamage, effectiveMove, messages);
-    if (defender.hp === 0) {
-      applyFaintRetaliation(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    }
-    return messages;
-  } else if (move.effect === 'EFFECT_COUNTER' || move.effect === 'EFFECT_MIRROR_COAT') {
-    pushMessage(messages, battle, 'But it failed!');
-    return messages;
-  }
-
-  if (move.effect === 'EFFECT_BRICK_BREAK') {
-    const targetSideState = battle.sideState[defenderSide];
-    if (targetSideState.reflectTurns > 0 || targetSideState.lightScreenTurns > 0) {
-      targetSideState.reflectTurns = 0;
-      targetSideState.lightScreenTurns = 0;
-      messages.push(`${defender.species}'s barriers were shattered!`);
-    }
-  }
-
-  const fixedDamage = calculateFixedDamage(effectiveMove, attacker, defender, encounterState);
-  if (move.effect === 'EFFECT_ENDEAVOR') {
-    const typeEffectiveness = getBattleTypeEffectiveness(effectiveMove, defender);
-    if (typeEffectiveness === 0) {
-      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
-      return messages;
-    }
-
-    if (defender.hp <= attacker.hp) {
-      pushMessage(messages, battle, 'But it failed!');
-      return messages;
-    }
-
-    damageBattler(battle, defenderSide, defender, defender.hp - attacker.hp, effectiveMove, messages);
-    applyFaintRetaliation(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    rememberLandedMove(attackerSide, defenderSide, defender, effectiveMove);
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-  } else if (fixedDamage !== null) {
-    const typeEffectiveness = getBattleTypeEffectiveness(effectiveMove, defender);
-    if (typeEffectiveness === 0) {
-      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
-      if (move.effect === 'EFFECT_FURY_CUTTER') {
-        attacker.volatile.furyCutterCounter = 0;
-      } else if (move.effect === 'EFFECT_ROLLOUT') {
-        attacker.volatile.rolloutCounter = 0;
-      }
-      return messages;
-    }
-
-    damageBattler(battle, defenderSide, defender, fixedDamage, effectiveMove, messages);
-    applyFaintRetaliation(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    rememberLandedMove(attackerSide, defenderSide, defender, effectiveMove);
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-  } else if (effectiveMove.power > 0 || isDirectHitEffect(effectiveMove)) {
-    const typeEffectiveness = getBattleTypeEffectiveness(effectiveMove, defender);
-    if (typeEffectiveness === 0) {
-      pushMessage(messages, battle, `It doesn't affect ${defender.species}...`);
-      return messages;
-    }
-
-    let damage = 0;
-    let critical = false;
-    const hitSubstitute = defender.volatile.substituteHp > 0 && effectiveMove.id !== 'STRUGGLE';
-    const hitCount = isMultiHitMove(effectiveMove) ? getMultiHitCount(effectiveMove, encounterState) : 1;
-    let hitsLanded = 0;
-
-    for (let hitIndex = 0; hitIndex < hitCount; hitIndex += 1) {
-      if (defender.hp <= 0) {
-        break;
-      }
-      const hitMove = effectiveMove.effect === 'EFFECT_TRIPLE_KICK'
-        ? { ...effectiveMove, power: effectiveMove.power * (hitIndex + 1) }
-        : effectiveMove;
-      const hitCritical = isCriticalHit(hitMove, attacker, defender, encounterState);
-      critical ||= hitCritical;
-      damage += damageBattler(
-        battle,
-        defenderSide,
-        defender,
-        calculateDamageRoll(battle, defenderSide, attacker, defender, hitMove, encounterState, hitCritical),
-        hitMove,
-        messages
-      );
-      hitsLanded += 1;
-      if (defender.volatile.substituteHp === 0 && hitSubstitute) {
-        break;
-      }
-    }
-
-    if (hitsLanded > 1) {
-      pushMessage(messages, battle, `Hit ${hitsLanded} times!`);
-    }
-
-    if (critical) {
-      pushMessage(messages, battle, 'A critical hit!');
-    }
-
-    if (typeEffectiveness > 1) {
-      pushMessage(messages, battle, "It's super effective!");
-    } else if (typeEffectiveness < 1) {
-      pushMessage(messages, battle, "It's not very effective...");
-    }
-
-    if (!hitSubstitute) {
-      maybeApplySecondaryStatus(move, defender, defenderSide, battle, encounterState, messages);
-      maybeApplySecondaryStageEffect(move, attacker, defender, attackerSide, defenderSide, battle, encounterState, messages);
-      maybeApplySecondaryConfusion(move, defender, encounterState, messages);
-      applySecretPowerEffect(battle, move, defender, defenderSide, defenderCanStillAct, encounterState, messages);
-      maybeApplyFlinch(move, defender, defenderCanStillAct, encounterState);
-      maybeApplyKingsRock(attacker, defender, move, damage, defenderCanStillAct, encounterState);
-      if (damage > 0) {
-        applyPostHitItemEffect(attacker, defender, move, messages);
-      }
-    }
-
-    if (damage > 0 && move.effect === 'EFFECT_FURY_CUTTER') {
-      attacker.volatile.furyCutterCounter = Math.min(5, attacker.volatile.furyCutterCounter + 1);
-    } else if (damage > 0 && move.effect === 'EFFECT_ROLLOUT') {
-      attacker.volatile.rolloutCounter = attacker.volatile.rolloutCounter >= 4 ? 0 : attacker.volatile.rolloutCounter + 1;
-    } else if (damage > 0 && move.effect === 'EFFECT_SPIT_UP') {
-      attacker.volatile.stockpile = 0;
-    }
-
-    if (damage > 0 && move.effect === 'EFFECT_RAMPAGE' && attacker.volatile.rampageTurns <= 0) {
-      attacker.volatile.rampageMoveId = move.id;
-      attacker.volatile.rampageTurns = 2 + (nextBattleRng(encounterState) & 1);
-    } else if (damage > 0 && move.effect === 'EFFECT_UPROAR' && attacker.volatile.uproarTurns <= 0) {
-      attacker.volatile.uproarMoveId = move.id;
-      attacker.volatile.uproarTurns = 2 + (nextBattleRng(encounterState) % 4);
-      messages.push(`${attacker.species} caused an uproar!`);
-    }
-
-    if (damage > 0 && move.effect === 'EFFECT_SUPERPOWER') {
-      applyDirectStageChange(attacker, 'attack', -1, messages);
-      applyDirectStageChange(attacker, 'defense', -1, messages);
-    } else if (damage > 0 && move.effect === 'EFFECT_OVERHEAT') {
-      applyDirectStageChange(attacker, 'spAttack', -2, messages);
-    } else if (damage > 0 && move.effect === 'EFFECT_PAY_DAY') {
-      battle.payDayMoney += attacker.level * 5;
-      messages.push('Coins were scattered everywhere!');
-    } else if (damage > 0 && move.effect === 'EFFECT_RAGE') {
-      attacker.volatile.rage = true;
-    } else if (damage > 0 && move.effect === 'EFFECT_TWINEEDLE') {
-      applyStatusEffect(defender, 'poison', messages, move, '', encounterState, battle, defenderSide);
-    } else if (damage > 0 && move.effect === 'EFFECT_SMELLINGSALT' && defender.status === 'paralysis') {
-      defender.status = 'none';
-      defender.statusTurns = 0;
-      defender.volatile.toxicCounter = 0;
-      messages.push(`${defender.species}'s paralysis was cured!`);
-    } else if (damage > 0 && move.effect === 'EFFECT_RAPID_SPIN') {
-      attacker.volatile.trapTurns = 0;
-      attacker.volatile.trappedBy = null;
-      attacker.volatile.leechSeededBy = null;
-      battle.sideState[attackerSide].spikesLayers = 0;
-      messages.push(`${attacker.species} was freed from binding effects!`);
-    } else if (damage > 0 && move.effect === 'EFFECT_TRAP' && defender.volatile.trapTurns <= 0) {
-      defender.volatile.trapTurns = 3 + (nextBattleRng(encounterState) & 3);
-      defender.volatile.trappedBy = attackerSide;
-      messages.push(`${defender.species} was trapped!`);
-    } else if (damage > 0 && move.effect === 'EFFECT_RECHARGE') {
-      attacker.volatile.rechargeTurns = 1;
-    }
-
-    if (damage > 0 && move.effect === 'EFFECT_RAMPAGE' && attacker.volatile.rampageTurns > 0) {
-      attacker.volatile.rampageTurns -= 1;
-      if (attacker.volatile.rampageTurns === 0) {
-        attacker.volatile.rampageMoveId = null;
-        applyConfusion(attacker, encounterState, messages);
-      }
-    } else if (damage > 0 && move.effect === 'EFFECT_UPROAR' && attacker.volatile.uproarTurns > 0) {
-      attacker.volatile.uproarTurns -= 1;
-      if (attacker.volatile.uproarTurns === 0) {
-        attacker.volatile.uproarMoveId = null;
-        messages.push(`${attacker.species} calmed down.`);
-      }
-    }
-
-    applyFaintRetaliation(battle, attackerSide, defenderSide, attacker, defender, move, messages);
-    if (hitsLanded > 0) {
-      rememberLandedMove(attackerSide, defenderSide, defender, effectiveMove);
-      rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-    }
-
-    if (move.effect === 'EFFECT_RECOIL' && attacker.abilityId !== 'ROCK_HEAD') {
-      const recoil = Math.max(1, Math.floor(damage / 4));
-      attacker.hp = Math.max(0, attacker.hp - recoil);
-      applyQueuedDamage(battle, attackerSide, attacker.hp);
-      pushMessage(messages, battle, `${attacker.species} is hit with recoil!`);
-    } else if (move.effect === 'EFFECT_DOUBLE_EDGE' && attacker.abilityId !== 'ROCK_HEAD') {
-      const recoil = Math.max(1, Math.floor(damage / 3));
-      attacker.hp = Math.max(0, attacker.hp - recoil);
-      applyQueuedDamage(battle, attackerSide, attacker.hp);
-      pushMessage(messages, battle, `${attacker.species} is hit with recoil!`);
-    } else if (move.effect === 'EFFECT_EXPLOSION') {
-      attacker.hp = 0;
-      applyQueuedDamage(battle, attackerSide, attacker.hp);
-    }
-
-    if (!hitSubstitute && (move.effect === 'EFFECT_ABSORB' || move.effect === 'EFFECT_DREAM_EATER')) {
-      healBattler(battle, attackerSide, attacker, Math.floor(damage / 2), messages);
-    }
-    maybeApplyShellBell(battle, attackerSide, attacker, damage, messages);
-  } else if (primaryStatusByEffect[move.effect]) {
-    const primaryStatus = primaryStatusByEffect[move.effect];
-    if (primaryStatus) {
-      applyStatusEffect(defender, primaryStatus, messages, move, 'But it failed!', encounterState, battle, defenderSide);
-    }
-  } else if (move.effect === 'EFFECT_CONFUSE') {
-    applyConfusion(defender, encounterState, messages);
-  } else if (applySideCondition(battle, attackerSide, move, messages)) {
-    // Message already appended.
-  } else if (applyWeatherMove(battle, move, messages)) {
-    // Message already appended.
-  } else if (move.effect === 'EFFECT_SUBSTITUTE') {
-    useSubstitute(battle, attackerSide, attacker, messages);
-  } else if (move.effect === 'EFFECT_LEECH_SEED') {
-    applyLeechSeed(attackerSide, defender, messages);
-  } else if (move.effect === 'EFFECT_HAZE') {
-    clearAllStatStages(battle, messages);
-  } else if (move.effect === 'EFFECT_FOCUS_ENERGY') {
-    useFocusEnergy(attacker, messages);
-  } else if (move.effect === 'EFFECT_TRANSFORM') {
-    applyTransform(attacker, defender, messages);
-  } else if (move.effect === 'EFFECT_CONVERSION') {
-    applyConversion(attacker, encounterState, messages);
-  } else if (move.effect === 'EFFECT_CONVERSION_2') {
-    applyConversion2(battle, attacker, encounterState, messages);
-  } else if (move.effect === 'EFFECT_LOCK_ON') {
-    if (defender.volatile.substituteHp > 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.lockOnBy = attackerSide;
-      defender.volatile.lockOnTurns = 2;
-      messages.push(`${attacker.species} took aim at ${defender.species}!`);
-    }
-  } else if (move.effect === 'EFFECT_DISABLE') {
-    const lastMove = getLastUsedMove(defender);
-    if (!lastMove || defender.volatile.disableTurns > 0 || lastMove.ppRemaining <= 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.disabledMoveId = lastMove.id;
-      defender.volatile.disableTurns = 2 + (nextBattleRng(encounterState) & 3);
-      messages.push(`${defender.species}'s ${lastMove.name} was disabled!`);
-    }
-  } else if (move.effect === 'EFFECT_ENCORE') {
-    const lastMove = getLastUsedMove(defender);
-    if (!lastMove || defender.volatile.encoreTurns > 0 || lastMove.id === 'ENCORE' || lastMove.id === 'MIRROR_MOVE' || lastMove.id === 'STRUGGLE' || lastMove.ppRemaining <= 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.encoreMoveId = lastMove.id;
-      defender.volatile.encoreTurns = 3 + (nextBattleRng(encounterState) & 3);
-      messages.push(`${defender.species} got an encore!`);
-    }
-  } else if (move.effect === 'EFFECT_SPITE') {
-    const lastMove = getLastUsedMove(defender);
-    if (!lastMove || lastMove.ppRemaining <= 1) {
-      messages.push('But it failed!');
-    } else {
-      const ppLoss = Math.min(lastMove.ppRemaining, 2 + (nextBattleRng(encounterState) & 3));
-      lastMove.ppRemaining -= ppLoss;
-      messages.push(`${defender.species}'s ${lastMove.name} lost ${ppLoss} PP!`);
-    }
-  } else if (move.effect === 'EFFECT_SPLASH') {
-    messages.push('But nothing happened!');
-  } else if (move.effect === 'EFFECT_SPIKES') {
-    const targetSideState = battle.sideState[defenderSide];
-    if (targetSideState.spikesLayers >= 3) {
-      messages.push('But it failed!');
-    } else {
-      targetSideState.spikesLayers += 1;
-      messages.push('Spikes were scattered around the foe!');
-    }
-  } else if (move.effect === 'EFFECT_ATTRACT') {
-    if (defender.volatile.infatuatedBy !== null || defender.volatile.substituteHp > 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.infatuatedBy = attackerSide;
-      messages.push(`${defender.species} fell in love!`);
-    }
-  } else if (move.effect === 'EFFECT_TORMENT') {
-    if (defender.volatile.tormented) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.tormented = true;
-      messages.push(`${defender.species} was subjected to torment!`);
-    }
-  } else if (move.effect === 'EFFECT_DESTINY_BOND') {
-    attacker.volatile.destinyBond = true;
-    messages.push(`${attacker.species} is trying to take its foe with it!`);
-  } else if (move.effect === 'EFFECT_GRUDGE') {
-    if (attacker.volatile.grudge) {
-      messages.push('But it failed!');
-    } else {
-      attacker.volatile.grudge = true;
-      messages.push(`${attacker.species} wants its foe to bear a grudge!`);
-    }
-  } else if (move.effect === 'EFFECT_FORESIGHT') {
-    if (defender.volatile.foresighted || defender.volatile.substituteHp > 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.foresighted = true;
-      messages.push(`${defender.species} was identified!`);
-    }
-  } else if (move.effect === 'EFFECT_CURSE') {
-    if (attacker.types.includes('ghost')) {
-      if (defender.volatile.cursed || defender.volatile.substituteHp > 0 || attacker.hp <= 1) {
-        messages.push('But it failed!');
-      } else {
-        attacker.hp = Math.max(0, attacker.hp - Math.max(1, Math.floor(attacker.maxHp / 2)));
-        applyQueuedDamage(battle, attackerSide, attacker.hp);
-        defender.volatile.cursed = true;
-        messages.push(`${attacker.species} laid a curse on ${defender.species}!`);
-      }
-    } else {
-      applyDirectStageChange(attacker, 'speed', -1, messages);
-      applyDirectStageChange(attacker, 'attack', 1, messages);
-      applyDirectStageChange(attacker, 'defense', 1, messages);
-    }
-  } else if (move.effect === 'EFFECT_STOCKPILE') {
-    if (attacker.volatile.stockpile >= 3) {
-      messages.push('But it failed!');
-    } else {
-      attacker.volatile.stockpile += 1;
-      messages.push(`${attacker.species} stockpiled ${attacker.volatile.stockpile}!`);
-    }
-  } else if (move.effect === 'EFFECT_SWALLOW') {
-    if (attacker.volatile.stockpile <= 0 || attacker.hp >= attacker.maxHp) {
-      attacker.volatile.stockpile = 0;
-      messages.push('But it failed!');
-    } else {
-      const healDivisor = attacker.volatile.stockpile === 1 ? 8 : attacker.volatile.stockpile === 2 ? 4 : 2;
-      healBattler(battle, attackerSide, attacker, Math.max(1, Math.floor(attacker.maxHp / healDivisor)), messages);
-      attacker.volatile.stockpile = 0;
-    }
-  } else if (move.effect === 'EFFECT_CHARGE') {
-    attacker.volatile.chargeTurns = 2;
-    messages.push(`${attacker.species} began charging power!`);
-  } else if (move.effect === 'EFFECT_MUD_SPORT') {
-    if (battle.mudSport) {
-      messages.push('But it failed!');
-    } else {
-      battle.mudSport = true;
-      messages.push('Electricity was weakened!');
-    }
-  } else if (move.effect === 'EFFECT_WATER_SPORT') {
-    if (battle.waterSport) {
-      messages.push('But it failed!');
-    } else {
-      battle.waterSport = true;
-      messages.push('Fire was weakened!');
-    }
-  } else if (move.effect === 'EFFECT_TEETER_DANCE') {
-    if (battle.sideState[defenderSide].safeguardTurns > 0) {
-      messages.push(`${defender.species}'s team is protected by Safeguard!`);
-    } else {
-      applyConfusion(defender, encounterState, messages);
-    }
-  } else if (move.effect === 'EFFECT_CAMOUFLAGE') {
-    const terrainType = typeByTerrain[battle.terrain] ?? 'normal';
-    if (attacker.types.length === 1 && attacker.types[0] === terrainType) {
-      messages.push('But it failed!');
-    } else {
-      attacker.types = [terrainType];
-      messages.push(`${attacker.species} changed type!`);
-    }
-  } else if (move.effect === 'EFFECT_MEAN_LOOK') {
-    if (defender.volatile.escapePreventedBy || defender.volatile.substituteHp > 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.escapePreventedBy = attackerSide;
-      messages.push(`${defender.species} can no longer escape!`);
-    }
-  } else if (move.effect === 'EFFECT_INGRAIN') {
-    if (attacker.volatile.rooted) {
-      messages.push('But it failed!');
-    } else {
-      attacker.volatile.rooted = true;
-      messages.push(`${attacker.species} planted its roots!`);
-    }
-  } else if (move.effect === 'EFFECT_MINIMIZE') {
-    attacker.volatile.minimized = true;
-    applyDirectStageChange(attacker, 'evasion', 1, messages);
-  } else if (move.effect === 'EFFECT_DEFENSE_CURL') {
-    attacker.volatile.defenseCurl = true;
-    applyDirectStageChange(attacker, 'defense', 1, messages);
-  } else if (move.effect === 'EFFECT_PSYCH_UP') {
-    attacker.statStages = { ...defender.statStages };
-    messages.push(`${attacker.species} copied the foe's stat changes!`);
-  } else if (move.effect === 'EFFECT_SWAGGER' || move.effect === 'EFFECT_FLATTER') {
-    applyDirectStageChange(defender, move.effect === 'EFFECT_SWAGGER' ? 'attack' : 'spAttack', move.effect === 'EFFECT_SWAGGER' ? 2 : 1, messages);
-    if (battle.sideState[defenderSide].safeguardTurns > 0) {
-      messages.push(`${defender.species}'s team is protected by Safeguard!`);
-    } else {
-      applyConfusion(defender, encounterState, messages);
-    }
-  } else if (move.effect === 'EFFECT_MEMENTO') {
-    if (defender.statStages.attack <= -6 && defender.statStages.spAttack <= -6 && defender.volatile.substituteHp <= 0) {
-      messages.push('But it failed!');
-    } else {
-      attacker.hp = 0;
-      applyQueuedDamage(battle, attackerSide, attacker.hp);
-      if (defender.volatile.substituteHp > 0) {
-        messages.push('But it had no effect!');
-      } else {
-        applyDirectStageChange(defender, 'attack', -2, messages);
-        applyDirectStageChange(defender, 'spAttack', -2, messages);
-      }
-    }
-  } else if (move.effect === 'EFFECT_TAUNT') {
-    if (defender.volatile.tauntTurns > 0) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.tauntTurns = 2;
-      messages.push(`${defender.species} fell for the taunt!`);
-    }
-  } else if (move.effect === 'EFFECT_ENDURE') {
-    const endured = tryUseProtect(attacker, encounterState, messages, defenderCanStillAct, `${attacker.species} braced itself!`);
-    attacker.volatile.protected = false;
-    attacker.volatile.enduring = endured;
-  } else if (move.effect === 'EFFECT_BELLY_DRUM') {
-    useBellyDrum(battle, attackerSide, attacker, messages);
-  } else if (applyComboStageMove(move, battle, attackerSide, defenderSide, attacker, defender, messages)) {
-    // Message already appended.
-  } else if (move.effect === 'EFFECT_YAWN') {
-    applyYawn(defender, defenderSide, battle, messages);
-  } else if (move.effect === 'EFFECT_NIGHTMARE') {
-    if (defender.status !== 'sleep' || defender.volatile.nightmare) {
-      messages.push('But it failed!');
-    } else {
-      defender.volatile.nightmare = true;
-      messages.push(`${defender.species} fell into a nightmare!`);
-    }
-  } else if (move.effect === 'EFFECT_PERISH_SONG') {
-    let affected = false;
-    for (const pokemon of [battle.playerMon, battle.wildMon]) {
-      if (pokemon.volatile.perishTurns === 0) {
-        pokemon.volatile.perishTurns = 3;
-        affected = true;
-      }
-    }
-    messages.push(affected ? 'All Pokémon hearing the song will faint in three turns!' : 'But it failed!');
-  } else if (move.effect === 'EFFECT_REFRESH') {
-    if (['poison', 'badPoison', 'burn', 'paralysis'].includes(attacker.status)) {
-      attacker.status = 'none';
-      attacker.statusTurns = 0;
-      attacker.volatile.toxicCounter = 0;
-      messages.push(`${attacker.species} became healthy!`);
-    } else {
-      messages.push('But it failed!');
-    }
-  } else if (move.effect === 'EFFECT_HEAL_BELL') {
-    for (const pokemon of battle.party) {
-      pokemon.status = 'none';
-      pokemon.statusTurns = 0;
-      pokemon.volatile.toxicCounter = 0;
-    }
-    battle.playerMon.status = 'none';
-    battle.playerMon.statusTurns = 0;
-    battle.playerMon.volatile.toxicCounter = 0;
-    messages.push('A bell chimed and cured status problems!');
-  } else if (move.effect === 'EFFECT_PAIN_SPLIT') {
-    const sharedHp = Math.floor((attacker.hp + defender.hp) / 2);
-    attacker.hp = Math.min(attacker.maxHp, sharedHp);
-    defender.hp = Math.min(defender.maxHp, sharedHp);
-    applyQueuedDamage(battle, attackerSide, attacker.hp);
-    applyQueuedDamage(battle, defenderSide, defender.hp);
-    messages.push('The battlers shared their pain!');
-  } else if (move.effect === 'EFFECT_TRICK') {
-    useTrick(attacker, defender, messages);
-  } else if (move.effect === 'EFFECT_RECYCLE') {
-    useRecycle(attacker, messages);
-  } else if (move.effect === 'EFFECT_BATON_PASS') {
-    useBatonPass(battle, attackerSide, attacker, messages);
-  } else if (move.effect === 'EFFECT_FOLLOW_ME') {
-    attacker.volatile.followMe = true;
-    messages.push(`${attacker.species} became the center of attention!`);
-  } else if (move.effect === 'EFFECT_HELPING_HAND') {
-    messages.push('But it failed!');
-  } else if (move.effect === 'EFFECT_MAGIC_COAT') {
-    if (!defenderCanStillAct) {
-      messages.push('But it failed!');
-    } else {
-      attacker.volatile.magicCoat = true;
-      messages.push(`${attacker.species} shrouded itself with Magic Coat!`);
-    }
-  } else if (move.effect === 'EFFECT_IMPRISON') {
-    if (attacker.volatile.imprisoning || !attacker.moves.some((knownMove) => defender.moves.some((defenderMove) => defenderMove.id === knownMove.id))) {
-      messages.push('But it failed!');
-    } else {
-      attacker.volatile.imprisoning = true;
-      messages.push(`${attacker.species} sealed the foe's move!`);
-    }
-  } else if (move.effect === 'EFFECT_SNATCH') {
-    if (!defenderCanStillAct) {
-      messages.push('But it failed!');
-    } else {
-      attacker.volatile.snatch = true;
-      messages.push(`${attacker.species} waits for a target to make a move!`);
-    }
-  } else if (move.effect === 'EFFECT_ROLE_PLAY') {
-    if (!defender.abilityId || attacker.abilityId === defender.abilityId) {
-      messages.push('But it failed!');
-    } else {
-      attacker.abilityId = defender.abilityId;
-      messages.push(`${attacker.species} copied ${defender.species}'s ability!`);
-    }
-  } else if (move.effect === 'EFFECT_SKILL_SWAP') {
-    if (!attacker.abilityId && !defender.abilityId) {
-      messages.push('But it failed!');
-    } else {
-      const attackerAbility = attacker.abilityId;
-      attacker.abilityId = defender.abilityId;
-      defender.abilityId = attackerAbility;
-      messages.push(`${attacker.species} swapped abilities with its target!`);
-    }
-  } else if (move.effect === 'EFFECT_WISH') {
-    const sideState = battle.sideState[attackerSide];
-    if (sideState.wishTurns > 0) {
-      messages.push('But it failed!');
-    } else {
-      sideState.wishTurns = 2;
-      sideState.wishHp = Math.max(1, Math.floor(attacker.maxHp / 2));
-      messages.push(`${attacker.species} made a wish!`);
-    }
-  } else if (move.effect === 'EFFECT_RESTORE_HP') {
-    healBattler(battle, attackerSide, attacker, Math.floor(attacker.maxHp / 2), messages);
-  } else if (move.effect === 'EFFECT_MORNING_SUN' || move.effect === 'EFFECT_SYNTHESIS' || move.effect === 'EFFECT_MOONLIGHT') {
-    const amount = battle.weather === 'sun'
-      ? Math.max(1, Math.floor((attacker.maxHp * 2) / 3))
-      : battle.weather === 'none'
-        ? Math.max(1, Math.floor(attacker.maxHp / 2))
-        : Math.max(1, Math.floor(attacker.maxHp / 4));
-    healBattler(battle, attackerSide, attacker, amount, messages);
-  } else if (move.effect === 'EFFECT_SOFTBOILED') {
-    healBattler(battle, attackerSide, attacker, Math.floor(attacker.maxHp / 2), messages);
-  } else if (move.effect === 'EFFECT_REST') {
-    if (attacker.hp >= attacker.maxHp || attacker.status === 'sleep') {
-      messages.push('But it failed!');
-    } else {
-      attacker.hp = attacker.maxHp;
-      attacker.status = 'sleep';
-      attacker.statusTurns = 3;
-      attacker.volatile.toxicCounter = 0;
-      applyQueuedDamage(battle, attackerSide, attacker.hp);
-      messages.push(`${attacker.species} went to sleep and became healthy!`);
-    }
-  } else if (!applyStageEffect(move.effect, attacker, defender, messages, battle, attackerSide, defenderSide)) {
-    pushMessage(messages, battle, 'But nothing happened!');
-  }
-
-  if (defender.hp === 0 && !messages.includes(getFaintMessage(defenderSide, battle))) {
-    pushMessage(messages, battle, getFaintMessage(defenderSide, battle));
-  }
-  if (attacker.hp === 0 && !messages.includes(getFaintMessage(attackerSide, battle))) {
-    pushMessage(messages, battle, getFaintMessage(attackerSide, battle));
-  }
-
-  if (move.target !== 'MOVE_TARGET_USER' && shouldRememberTakenMoveFromMessages(defender, messages)) {
-    rememberLandedMove(attackerSide, defenderSide, defender, move);
-    rememberTakenMove(attackerSide, defenderSide, attacker, defender, move);
-  }
-
-    return messages;
-  } finally {
-    finalizeBattleMoveVm(
-      attacker,
-      move,
-      {
-        moveWasAttempted,
-        resultingMoveHandledByCalledMove
-      },
-      {
-        choiceBandActive: moveWasAttempted
-          && getHeldItemHoldEffect(attacker) === 'HOLD_EFFECT_CHOICE_BAND'
-          && move.id !== 'STRUGGLE'
-          && !getChoicedMoveId(attacker)
-          && !(move.effect === 'EFFECT_BATON_PASS' && !messages.includes('But it failed!')),
-        skipLastSuccessfulMove: move.effect === 'EFFECT_BATON_PASS'
-      }
-    );
-  }
-};
+);
 
 const getActionOrder = (
   battle: BattleState,
@@ -5568,68 +5787,163 @@ const resolveFutureAttack = (
   applyFaintRetaliation(battle, futureAttack.sourceSide, targetSide, attacker, target, futureAttack.move, messages);
 };
 
+const getEndOfTurnTargetForSide = (
+  battle: BattleState,
+  side: BattleSideId
+): BattlePokemonSnapshot | null => {
+  const battlerId = getActiveBattlerIds(battle, side)
+    .find((candidate) => getBattlerSnapshot(battle, candidate)?.hp! > 0);
+  return battlerId === undefined ? null : getBattlerSnapshot(battle, battlerId);
+};
+
+const hasAnyLivingMonsForBattler = (
+  battle: BattleState,
+  battlerId: BattleBattlerId
+): boolean => {
+  const side = getBattlerSide(battlerId);
+  const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
+  const allowedIndexes = new Set(getBattlerOwnedPartyIndexes(battle, battlerId));
+  return participant.party.some((pokemon, index) => allowedIndexes.has(index) && pokemon.hp > 0);
+};
+
+const fillDoublesReplacementSlots = (battle: BattleState, messages: string[]): void => {
+  for (const battlerId of [0, 2, 1, 3] as const) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (pokemon && pokemon.hp > 0) {
+      continue;
+    }
+
+    const benchIndexes = getBattlerBenchIndexes(battle, battlerId);
+    const nextIndex = benchIndexes[0];
+    if (nextIndex === undefined) {
+      continue;
+    }
+
+    const side = getBattlerSide(battlerId);
+    const participant = side === 'player' ? battle.playerSide : battle.opponentSide;
+    const nextPokemon = participant.party[nextIndex];
+    if (!nextPokemon) {
+      continue;
+    }
+
+    resetBattlePokemonTransientState(nextPokemon);
+    setBattlerPartyIndex(battle, battlerId, nextIndex);
+    if (side === 'player' && !battle.playerParticipantPartyIndexes.includes(nextIndex)) {
+      battle.playerParticipantPartyIndexes.push(nextIndex);
+    }
+    messages.push(side === 'player'
+      ? `Go! ${nextPokemon.species}!`
+      : `${battle.opponentSide.name} sent out ${nextPokemon.species}!`);
+    applySpikesSwitchIn(battle, side, nextPokemon, messages);
+  }
+};
+
+const enqueueDoublesTurnMessages = (battle: BattleState, messages: string[]): void => {
+  fillDoublesReplacementSlots(battle, messages);
+
+  const playerHasLivingMons = ([0, 2] as const).some((battlerId) => hasAnyLivingMonsForBattler(battle, battlerId));
+  const opponentHasLivingMons = ([1, 3] as const).some((battlerId) => hasAnyLivingMonsForBattler(battle, battlerId));
+
+  if (!playerHasLivingMons) {
+    battle.postResult.outcome = 'lost';
+    battle.postResult.whiteout = hasBattleTypeFlag(battle, 'trainer');
+    battle.postResult.blackout = !hasBattleTypeFlag(battle, 'trainer');
+    queueMessages(battle, messages, 'resolved');
+    return;
+  }
+
+  if (!opponentHasLivingMons) {
+    battle.postResult.outcome = 'won';
+    battle.postResult.payDayTotal = battle.payDayMoney;
+    queueMessages(battle, messages, 'resolved');
+    return;
+  }
+
+  queueMessages(battle, messages, 'command', getPromptSummary(battle));
+};
+
 const resolveEndOfTurn = (battle: BattleState, encounterState: BattleEncounterState): string[] => {
   const messages: string[] = [];
   decrementSideConditions(battle, messages);
-  resolveFutureAttack(battle, 'opponent', battle.wildMon, messages);
-  resolveFutureAttack(battle, 'player', battle.playerMon, messages);
-  maybeUseWhiteHerb(battle.wildMon, messages);
-  maybeUseWhiteHerb(battle.playerMon, messages);
-  maybeUsePinchStatBerry(battle.wildMon, encounterState, messages);
-  maybeUsePinchStatBerry(battle.playerMon, encounterState, messages);
-  resolveWish(battle, 'opponent', battle.wildMon, messages);
-  resolveWish(battle, 'player', battle.playerMon, messages);
-  applyIngrainHealing(battle, 'opponent', battle.wildMon, messages);
-  applyIngrainHealing(battle, 'player', battle.playerMon, messages);
-  applyLeftoversHealing(battle, 'opponent', battle.wildMon, messages);
-  applyLeftoversHealing(battle, 'player', battle.playerMon, messages);
-  applyRainDishHealing(battle, 'opponent', battle.wildMon, messages);
-  applyRainDishHealing(battle, 'player', battle.playerMon, messages);
+  const opponentEndTarget = getEndOfTurnTargetForSide(battle, 'opponent');
+  const playerEndTarget = getEndOfTurnTargetForSide(battle, 'player');
+  if (opponentEndTarget) {
+    resolveFutureAttack(battle, 'opponent', opponentEndTarget, messages);
+  }
+  if (playerEndTarget) {
+    resolveFutureAttack(battle, 'player', playerEndTarget, messages);
+  }
+  for (const battlerId of getActiveBattlerIds(battle)) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (!pokemon) {
+      continue;
+    }
+    maybeUseWhiteHerb(pokemon, messages);
+    maybeUsePinchStatBerry(pokemon, encounterState, messages);
+  }
+  if (opponentEndTarget) {
+    resolveWish(battle, 'opponent', opponentEndTarget, messages);
+  }
+  if (playerEndTarget) {
+    resolveWish(battle, 'player', playerEndTarget, messages);
+  }
+  for (const battlerId of getActiveBattlerIds(battle)) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (!pokemon) {
+      continue;
+    }
+    const side = getBattlerSide(battlerId);
+    applyIngrainHealing(battle, side, pokemon, messages);
+    applyLeftoversHealing(battle, side, pokemon, messages);
+    applyRainDishHealing(battle, side, pokemon, messages);
+  }
   resolveWeatherEndOfTurn(battle, messages);
-  applyLeechSeedDrain(battle, 'opponent', battle.wildMon, messages);
-  applyLeechSeedDrain(battle, 'player', battle.playerMon, messages);
-
-  const enemyStatusMessage = applyStatusDamage(battle, 'opponent', battle.wildMon);
-  if (enemyStatusMessage) {
-    messages.push(enemyStatusMessage);
+  for (const battlerId of getActiveBattlerIds(battle)) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (!pokemon) {
+      continue;
+    }
+    const side = getBattlerSide(battlerId);
+    applyLeechSeedDrain(battle, side, pokemon, messages);
+    const statusMessage = applyStatusDamage(battle, side, pokemon);
+    if (statusMessage) {
+      messages.push(statusMessage);
+    }
+    applyNightmareDamage(battle, side, pokemon, messages);
+    applyCurseDamage(battle, side, pokemon, messages);
+    applyTrapDamage(battle, side, pokemon, messages);
+    decrementYawn(pokemon, messages);
+    decrementTaunt(pokemon);
+    decrementDisableAndEncore(pokemon);
+    decrementPerishSong(battle, side, pokemon, messages);
   }
 
-  const playerStatusMessage = applyStatusDamage(battle, 'player', battle.playerMon);
-  if (playerStatusMessage) {
-    messages.push(playerStatusMessage);
-  }
-
-  applyNightmareDamage(battle, 'opponent', battle.wildMon, messages);
-  applyNightmareDamage(battle, 'player', battle.playerMon, messages);
-  applyCurseDamage(battle, 'opponent', battle.wildMon, messages);
-  applyCurseDamage(battle, 'player', battle.playerMon, messages);
-  applyTrapDamage(battle, 'opponent', battle.wildMon, messages);
-  applyTrapDamage(battle, 'player', battle.playerMon, messages);
-  decrementYawn(battle.wildMon, messages);
-  decrementYawn(battle.playerMon, messages);
-  decrementTaunt(battle.wildMon);
-  decrementTaunt(battle.playerMon);
-  decrementDisableAndEncore(battle.wildMon);
-  decrementDisableAndEncore(battle.playerMon);
-  decrementPerishSong(battle, 'opponent', battle.wildMon, messages);
-  decrementPerishSong(battle, 'player', battle.playerMon, messages);
-
-  if (battle.wildMon.hp === 0 && !messages.includes(getFaintMessage('opponent', battle))) {
-    messages.push(getFaintMessage('opponent', battle));
-  }
-  if (battle.playerMon.hp === 0 && !messages.includes(getFaintMessage('player', battle))) {
-    messages.push(getFaintMessage('player', battle));
+  for (const side of ['opponent', 'player'] as const) {
+    for (const battlerId of getActiveBattlerIds(battle, side)) {
+      const pokemon = getBattlerSnapshot(battle, battlerId);
+      if (pokemon?.hp === 0 && !messages.includes(getFaintMessage(side, battle))) {
+        messages.push(getFaintMessage(side, battle));
+      }
+    }
   }
 
   clearSingleTurnVolatiles(battle);
   incrementActiveTurns(battle);
-  if (battle.playerMon.hp > 0 && battle.wildMon.hp > 0) {
+  if (
+    getActiveBattlerIds(battle, 'player').some((battlerId) => getBattlerSnapshot(battle, battlerId)?.hp! > 0)
+    && getActiveBattlerIds(battle, 'opponent').some((battlerId) => getBattlerSnapshot(battle, battlerId)?.hp! > 0)
+  ) {
     battle.battleTurnCounter = Math.min(0xff, battle.battleTurnCounter + 1);
   }
   return messages;
 };
 
 const enqueueTurnMessages = (battle: BattleState, messages: string[]): void => {
+  if (battle.format === 'doubles') {
+    enqueueDoublesTurnMessages(battle, messages);
+    return;
+  }
+
   if (battle.playerMon.hp === 0) {
     if (hasLivingBenchMon(battle)) {
       queueMessages(battle, messages, 'partySelect', 'Choose a Pokémon.');
@@ -5701,33 +6015,129 @@ const enqueueTurnMessages = (battle: BattleState, messages: string[]): void => {
 const hasPendingOpponentSendOut = (battle: BattleState): boolean =>
   battle.pendingOpponentPartyIndex !== null && battle.wildMon.hp === 0;
 
-const resolveEnemyOnlyTurn = (battle: BattleState, encounterState: BattleEncounterState, leadingMessages: string[]): void => {
-  battle.queuedControllerCommands = [];
-  const messages = [...leadingMessages];
+const executeDoublesMove = (
+  battle: BattleState,
+  attackerBattlerId: BattleBattlerId,
+  move: BattleMove,
+  encounterState: BattleEncounterState,
+  pendingActors: Set<BattleBattlerId>
+): string[] => {
+  const attacker = getBattlerSnapshot(battle, attackerBattlerId);
+  if (!attacker || attacker.hp <= 0) {
+    return [];
+  }
 
-  if (tryUseOpponentTrainerItem(battle, messages)) {
-    if (battle.playerMon.hp > 0 && battle.wildMon.hp > 0) {
-      messages.push(...resolveEndOfTurn(battle, encounterState));
+  const targets = getDoublesMoveTargets(battle, attackerBattlerId, move, encounterState);
+  const attackerSide = getBattlerSide(attackerBattlerId);
+  const messages: string[] = [];
+
+  if (targets.length === 0) {
+    return messages;
+  }
+
+  targets.forEach((targetBattlerId, index) => {
+    const target = getBattlerSnapshot(battle, targetBattlerId);
+    if (!target || (target.hp <= 0 && targetBattlerId !== attackerBattlerId)) {
+      return;
     }
-    enqueueTurnMessages(battle, messages);
-    return;
+
+    const defenderCanStillAct = pendingActors.has(targetBattlerId);
+    const targetMessages = withTemporaryBattlerPair(
+      battle,
+      attackerBattlerId,
+      targetBattlerId,
+      () => executeMove(
+        battle,
+        attackerSide,
+        move,
+        encounterState,
+	        defenderCanStillAct,
+	        index === 0
+	          ? { attackerBattlerId, defenderBattlerId: targetBattlerId }
+	          : {
+	            attackerBattlerId,
+	            defenderBattlerId: targetBattlerId,
+	            consumePp: false,
+	            announce: false,
+	            preserveLastMoveUsed: true
+	          }
+	      )
+    );
+    messages.push(...targetMessages);
+  });
+
+  return messages;
+};
+
+const resolveDoublesTurn = (
+  battle: BattleState,
+  encounterState: BattleEncounterState,
+  leadingMessages: string[] = [],
+  enemyOnly = false
+): void => {
+  battle.vm.locals.turnResolver = enemyOnly ? 'enemyOnlyDoubles' : 'selectedMoveDoubles';
+  const messages = [...leadingMessages];
+  const activeBattlers = getActiveBattlerIds(battle)
+    .filter((battlerId) => !enemyOnly || getBattlerSide(battlerId) === 'opponent');
+  const battlerMoves = new Map<BattleBattlerId, BattleMove>();
+
+  for (const battlerId of activeBattlers) {
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    if (!pokemon || pokemon.hp <= 0) {
+      continue;
+    }
+    if (getBattlerSide(battlerId) === 'opponent' && tryUseOpponentTrainerSwitch(battle, messages, encounterState, battlerId)) {
+      continue;
+    }
+    const move = getBattlerTurnMove(battle, battlerId, encounterState);
+    if (move) {
+      battlerMoves.set(battlerId, move);
+    }
   }
 
-  const enemyMove = getEnemyTurnMove(battle, encounterState);
-  if (enemyMove) {
-    messages.push(...executeMove(battle, 'opponent', enemyMove, encounterState));
+  const order = getDoublesActionOrder(battle, battlerMoves, encounterState);
+  battle.vm.locals.turnActionOrder = order.join(',');
+  const pendingActors = new Set(order);
+
+  for (const battlerId of order) {
+    pendingActors.delete(battlerId);
+    const pokemon = getBattlerSnapshot(battle, battlerId);
+    const move = battlerMoves.get(battlerId);
+    if (!pokemon || !move || pokemon.hp <= 0) {
+      continue;
+    }
+
+    messages.push(...executeDoublesMove(battle, battlerId, move, encounterState, pendingActors));
+    if (battle.moveEndedBattle) {
+      queueMessages(battle, messages, 'resolved');
+      return;
+    }
   }
 
-  if (battle.moveEndedBattle) {
-    queueMessages(battle, messages, 'resolved');
-    return;
-  }
-
-  if (battle.playerMon.hp > 0 && battle.wildMon.hp > 0) {
+  if (
+    getActiveBattlerIds(battle, 'player').some((battlerId) => getBattlerSnapshot(battle, battlerId)?.hp! > 0)
+    && getActiveBattlerIds(battle, 'opponent').some((battlerId) => getBattlerSnapshot(battle, battlerId)?.hp! > 0)
+  ) {
     messages.push(...resolveEndOfTurn(battle, encounterState));
   }
 
   enqueueTurnMessages(battle, messages);
+};
+
+const resolveEnemyOnlyTurn = (battle: BattleState, encounterState: BattleEncounterState, leadingMessages: string[]): void => {
+  battle.queuedControllerCommands = [];
+  if (battle.format === 'doubles') {
+    resolveDoublesTurn(battle, encounterState, leadingMessages, true);
+    return;
+  }
+  runEnemyOnlyTurnVm(battle, leadingMessages, {
+    getEnemyMove: () => getEnemyTurnMove(battle, encounterState),
+    tryUseOpponentTrainerItem: (messages) => tryResolveOpponentTrainerAction(battle, messages, encounterState),
+    executeEnemyMove: (move) => executeMove(battle, 'opponent', move, encounterState),
+    resolveEndOfTurn: () => resolveEndOfTurn(battle, encounterState),
+    enqueueTurnMessages: (messages) => enqueueTurnMessages(battle, messages),
+    queueResolvedMessages: (messages) => queueMessages(battle, messages, 'resolved')
+  });
 };
 
 const sendOutPendingOpponent = (
@@ -5748,7 +6158,6 @@ const sendOutPendingOpponent = (
   }
 
   resetBattlePokemonTransientState(nextOpponentMon);
-  battle.opponentSide.activePartyIndexes = [nextIndex];
   battle.pendingOpponentPartyIndex = null;
   setActiveBattlePartyMember(battle, 'opponent', nextOpponentMon);
   refreshActiveMovePointers(battle);
@@ -5818,6 +6227,7 @@ const resolvePlayerSwitchTurn = (
   // Mirrors battle_main.c::SetActionsAndBattlersTurnOrder: switch actions are
   // ordered before moves, but the opposing battler's move still resolves.
   if (voluntary && battle.wildMon.hp > 0) {
+    appendDecompSwitchActionTrace(battle);
     resolveEnemyOnlyTurn(battle, encounterState, messages);
     return;
   }
@@ -5831,44 +6241,26 @@ const resolvePlayerSwitchTurn = (
 
 const resolveSelectedMoveTurn = (battle: BattleState, encounterState: BattleEncounterState): void => {
   battle.queuedControllerCommands = [];
-  const playerMove = getPlayerTurnMove(battle);
-  const enemyMove = getEnemyTurnMove(battle, encounterState);
-  if (!playerMove || !enemyMove) {
+  if (battle.format === 'doubles') {
+    resolveDoublesTurn(battle, encounterState);
     return;
   }
-
-  const messages: string[] = [];
-  const order = getActionOrder(battle, playerMove, enemyMove, encounterState);
-  const pendingActors = new Set<'player' | 'opponent'>(order);
-
-  for (const actor of order) {
-    if (battle.playerMon.hp === 0 || battle.wildMon.hp === 0) {
-      break;
-    }
-
-    pendingActors.delete(actor);
-    if (actor === 'opponent' && tryUseOpponentTrainerItem(battle, messages)) {
-      continue;
-    }
-    const defenderSide = actor === 'player' ? 'opponent' : 'player';
-    messages.push(...executeMove(
+  runSingleBattleTurnVm(battle, {
+    getPlayerMove: () => getPlayerTurnMove(battle),
+    getEnemyMove: () => getEnemyTurnMove(battle, encounterState),
+    getActionOrder: (playerMove, enemyMove) => getActionOrder(battle, playerMove, enemyMove, encounterState),
+    tryUseOpponentTrainerItem: (messages) => tryResolveOpponentTrainerAction(battle, messages, encounterState),
+    executeMove: (actor, move, defenderCanStillAct) => executeMove(
       battle,
       actor,
-      actor === 'player' ? playerMove : enemyMove,
+      move,
       encounterState,
-      pendingActors.has(defenderSide)
-    ));
-    if (battle.moveEndedBattle) {
-      queueMessages(battle, messages, 'resolved');
-      return;
-    }
-  }
-
-  if (battle.playerMon.hp > 0 && battle.wildMon.hp > 0) {
-    messages.push(...resolveEndOfTurn(battle, encounterState));
-  }
-
-  enqueueTurnMessages(battle, messages);
+      defenderCanStillAct
+    ),
+    resolveEndOfTurn: () => resolveEndOfTurn(battle, encounterState),
+    enqueueTurnMessages: (messages) => enqueueTurnMessages(battle, messages),
+    queueResolvedMessages: (messages) => queueMessages(battle, messages, 'resolved')
+  });
 };
 
 const chooseWildEncounterMon = (
@@ -5949,10 +6341,35 @@ const getBattleTypeFlagsForConfig = (config: BattleStartConfig): BattleTypeFlag[
 const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleState => {
   const mode = config.mode ?? 'wild';
   const format = config.format ?? 'singles';
-  const playerParty = normalizeBattleParty(config.playerParty, createDefaultPlayerBattleParty);
+  const controlMode = config.controlMode ?? 'singlePlayer';
+  const basePlayerParty = normalizeBattleParty(config.playerParty, createDefaultPlayerBattleParty);
   const partnerParty = normalizeBattleParty(config.partnerParty, () => []);
+  const playerParty = (
+    format === 'doubles'
+    && controlMode === 'partner'
+    && partnerParty.length > 0
+  )
+    ? [...basePlayerParty, ...partnerParty]
+    : basePlayerParty;
   const opponentParty = normalizeBattleParty(config.opponentParty, createDefaultOpponentBattleParty);
-  const activePlayerPartyIndexes = getConfiguredActivePartyIndexes(config, 'player', playerParty, config.activePlayerPartyIndex, format);
+  let activePlayerPartyIndexes = getConfiguredActivePartyIndexes(config, 'player', playerParty, config.activePlayerPartyIndex, format);
+  if (format === 'doubles' && controlMode === 'partner' && partnerParty.length > 0) {
+    const partnerOffset = basePlayerParty.length;
+    const configuredPartnerBattler = (config.activeBattlers ?? []).find((battler) =>
+      battler.battlerId === 2
+      && battler.active
+      && !battler.absent
+      && battler.partyIndex !== null
+    );
+    const configuredPartnerIndex = configuredPartnerBattler
+      ? Math.min(playerParty.length - 1, partnerOffset + (configuredPartnerBattler.partyIndex ?? 0))
+      : partnerOffset;
+    activePlayerPartyIndexes = normalizeActivePartyIndexes(
+      playerParty,
+      [activePlayerPartyIndexes[0] ?? 0, configuredPartnerIndex],
+      format
+    );
+  }
   const activeOpponentPartyIndexes = getConfiguredActivePartyIndexes(config, 'opponent', opponentParty, config.activeOpponentPartyIndex, format);
   const activePlayerPartyIndex = activePlayerPartyIndexes[0]!;
   const activeOpponentPartyIndex = activeOpponentPartyIndexes[0]!;
@@ -5965,7 +6382,7 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     phase: 'intro',
     mode,
     format,
-    controlMode: config.controlMode ?? 'singlePlayer',
+    controlMode,
     terrain: config.terrain ?? 'BATTLE_TERRAIN_GRASS',
     mapBattleScene: config.mapBattleScene ?? DEFAULT_BATTLE_SCENE,
     battleStyle: config.battleStyle ?? 'shift',
@@ -5984,11 +6401,12 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     },
     opponentTrainerItems: [...(config.opponentTrainerItems ?? [])],
     opponentTrainerAiFlags: [...(config.opponentTrainerAiFlags ?? [])],
-    playerParticipantPartyIndexes: [activePlayerPartyIndex],
+    playerParticipantPartyIndexes: [...activePlayerPartyIndexes],
     defeatedOpponentPartyIndexes: [],
     rewardedOpponentPartyIndexes: [],
     rewardsApplied: false,
     battlers: createBattlerRuntimeState(activePlayerPartyIndexes, activeOpponentPartyIndexes, format),
+    moveMemory: createBattleMoveMemory(),
     playerMon,
     party: playerParty,
     wildMon: opponentMon,
@@ -6037,6 +6455,7 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     resumeSummary: ''
   };
 
+  installBattleCompatibilityViews(battle);
   refreshActiveMovePointers(battle);
   refreshBattleCommandsForType(battle);
   appendBattleTraceEvent(battle, {
@@ -6069,6 +6488,7 @@ export const configureBattleState = (battle: BattleState, config: BattleStartCon
 };
 
 export const startConfiguredBattle = (battle: BattleState, config: BattleStartConfig = {}): BattleState => {
+  allocateBattleResources(battle);
   configureBattleState(battle, config);
   battle.active = true;
   battle.phase = 'intro';
@@ -6092,6 +6512,70 @@ export const getBattlePostResult = (battle: BattleState): BattlePostResult =>
 
 export const clearBattlePostResult = (battle: BattleState): void => {
   resetBattlePostResult(battle.postResult);
+};
+
+export const dismissResolvedBattle = (
+  battle: BattleState,
+  options: {
+    preservePostResult?: boolean;
+    preserveCaughtMon?: boolean;
+  } = {}
+): void => {
+  freeBattleResources(battle);
+  const preservedCaughtMon = options.preserveCaughtMon && battle.caughtMon
+    ? cloneBattlePokemon(battle.caughtMon)
+    : null;
+  const preservedPostResult = options.preservePostResult
+    ? cloneBattlePostResult(battle.postResult)
+    : null;
+
+  battle.active = false;
+  battle.phase = 'intro';
+  battle.turnSummary = '';
+  battle.damagePreview = null;
+  battle.caughtMon = null;
+  battle.moveEndedBattle = false;
+  battle.pendingOpponentPartyIndex = null;
+  battle.rewardsApplied = false;
+  battle.playerParticipantPartyIndexes = [];
+  battle.defeatedOpponentPartyIndexes = [];
+  battle.rewardedOpponentPartyIndexes = [];
+  battle.selectedShiftPromptIndex = 0;
+  battle.queuedMessages = [];
+  battle.queuedControllerCommands = [];
+  battle.currentScriptLabel = null;
+  battle.moveMemory = createBattleMoveMemory();
+  resetBattleVmState(battle.vm);
+  resetBattlePostResult(battle.postResult);
+  battle.sideState = {
+    player: createSideState(),
+    opponent: createSideState()
+  };
+  battle.battleTypeFlags = [];
+  battle.safariBalls = 30;
+  battle.safariCatchFactor = getInitialSafariCatchFactor(battle.wildMon);
+  battle.safariEscapeFactor = getInitialSafariEscapeFactor(battle.wildMon);
+  battle.safariRockThrowCounter = 0;
+  battle.safariBaitThrowCounter = 0;
+  battle.weather = 'none';
+  battle.weatherTurns = 0;
+  battle.mudSport = false;
+  battle.waterSport = false;
+  battle.payDayMoney = 0;
+  battle.battleTurnCounter = 0;
+  battle.caughtSpeciesIds = [];
+  for (const partyMember of battle.party) {
+    resetBattlePokemonTransientState(partyMember);
+  }
+  resetBattlePokemonTransientState(battle.wildMon);
+
+  if (preservedCaughtMon) {
+    battle.caughtMon = preservedCaughtMon;
+  }
+
+  if (preservedPostResult) {
+    battle.postResult = preservedPostResult;
+  }
 };
 
 export const startTrainerBattle = (battle: BattleState, config: BattleStartConfig = {}): BattleState => {
@@ -6134,7 +6618,8 @@ export const tryStartWildBattle = (
   }
 
   const wildMon = chooseWildEncounterMon(encounterGroup, encounter);
-  const terrain = getBattleTerrainForScene(mapBattleScene, { mapId, encounterKind: 'land' });
+  const encounterKind = battleConfig?.encounterKind ?? 'land';
+  const terrain = getBattleTerrainForScene(mapBattleScene, { mapId, encounterKind });
   startConfiguredBattle(battle, {
     mode: battleConfig?.mode ?? 'wild',
     mapBattleScene,
@@ -6289,6 +6774,10 @@ const handleSafariBallThrow = (
     battle.caughtMon = cloneBattlePokemon(battle.wildMon);
     battle.postResult.outcome = 'caught';
     battle.postResult.caughtSpecies = battle.wildMon.species;
+    battle.postResult.caughtPokemon = {
+      species: battle.wildMon.species,
+      level: battle.wildMon.level
+    };
     if (!battle.caughtSpeciesIds.includes(battle.wildMon.species)) {
       battle.caughtSpeciesIds.push(battle.wildMon.species);
     }
@@ -6641,44 +7130,10 @@ export const stepBattle = (
 
   if (battle.phase === 'resolved') {
     if (input.interactPressed || input.cancelPressed || input.startPressed) {
-      battle.active = false;
-      battle.phase = 'intro';
-      battle.turnSummary = '';
-      battle.damagePreview = null;
-      battle.caughtMon = null;
-      battle.moveEndedBattle = false;
-      battle.pendingOpponentPartyIndex = null;
-      battle.rewardsApplied = false;
-      battle.playerParticipantPartyIndexes = [];
-      battle.defeatedOpponentPartyIndexes = [];
-      battle.rewardedOpponentPartyIndexes = [];
-      battle.selectedShiftPromptIndex = 0;
-      battle.queuedMessages = [];
-      battle.queuedControllerCommands = [];
-      battle.currentScriptLabel = null;
-      resetBattleVmState(battle.vm);
-      resetBattlePostResult(battle.postResult);
-      battle.sideState = {
-        player: createSideState(),
-        opponent: createSideState()
-      };
-      battle.battleTypeFlags = [];
-      battle.safariBalls = 30;
-      battle.safariCatchFactor = getInitialSafariCatchFactor(battle.wildMon);
-      battle.safariEscapeFactor = getInitialSafariEscapeFactor(battle.wildMon);
-      battle.safariRockThrowCounter = 0;
-      battle.safariBaitThrowCounter = 0;
-      battle.weather = 'none';
-      battle.weatherTurns = 0;
-      battle.mudSport = false;
-      battle.waterSport = false;
-      battle.payDayMoney = 0;
-      battle.battleTurnCounter = 0;
-      battle.caughtSpeciesIds = [];
-      for (const partyMember of battle.party) {
-        resetBattlePokemonTransientState(partyMember);
-      }
-      resetBattlePokemonTransientState(battle.wildMon);
+      dismissResolvedBattle(battle, {
+        preserveCaughtMon: true,
+        preservePostResult: true
+      });
     }
     return;
   }
@@ -6776,6 +7231,7 @@ export const stepBattle = (
     const escaped = tryRunFromBattle(battle.playerMon, battle.wildMon, battle.runAttempts, encounterState);
     battle.runAttempts += 1;
     if (escaped) {
+      appendDecompControllerActionTrace(battle);
       battle.currentScriptLabel = 'BattleScript_GotAwaySafely';
       battle.postResult.outcome = 'escaped';
       queueMessages(battle, ['Got away safely!'], 'resolved');
@@ -6848,6 +7304,10 @@ export const stepBattle = (
         battle.currentScriptLabel = 'BattleScript_OldMan_Pokedude_CaughtMessage';
         battle.postResult.outcome = 'caught';
         battle.postResult.caughtSpecies = battle.wildMon.species;
+        battle.postResult.caughtPokemon = {
+          species: battle.wildMon.species,
+          level: battle.wildMon.level
+        };
         queueMessages(
           battle,
           [`${capture.ballLabel} thrown!`, `Gotcha! ${battle.wildMon.species} was caught!`],
@@ -6859,6 +7319,10 @@ export const stepBattle = (
       battle.caughtMon = cloneBattlePokemon(battle.wildMon);
       battle.postResult.outcome = 'caught';
       battle.postResult.caughtSpecies = battle.wildMon.species;
+      battle.postResult.caughtPokemon = {
+        species: battle.wildMon.species,
+        level: battle.wildMon.level
+      };
       if (!battle.caughtSpeciesIds.includes(battle.wildMon.species)) {
         battle.caughtSpeciesIds.push(battle.wildMon.species);
       }

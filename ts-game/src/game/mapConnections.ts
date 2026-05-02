@@ -1,7 +1,8 @@
 import { vec2 } from '../core/vec2';
 import type { PlayerState } from './player';
 import type { TileMap } from '../world/tileMap';
-import { isWalkableAtTile } from '../world/tileMap';
+import { MapGridGetElevationAt } from '../world/tileMap';
+import { getCollisionAtCoords, resolveStepTarget } from './fieldCollision';
 
 export interface MapConnectionTransition {
   map: TileMap;
@@ -19,56 +20,47 @@ export const resolveMapConnectionTransition = (
     return null;
   }
 
-  const connection = map.connections.find((entry) => entry.direction === direction);
-  if (!connection) {
+  const target = resolveStepTarget(
+    map,
+    { x: playerTileX, y: playerTileY },
+    direction,
+    loadMapById
+  );
+  if (!target?.viaConnection) {
     return null;
   }
 
-  const atConnectedEdge = (
-    (direction === 'up' && playerTileY === 0)
-    || (direction === 'down' && playerTileY === map.height - 1)
-    || (direction === 'left' && playerTileX === 0)
-    || (direction === 'right' && playerTileX === map.width - 1)
+  const elevation = MapGridGetElevationAt(map, playerTileX, playerTileY);
+  const collision = getCollisionAtCoords(
+    map,
+    {
+      id: 'player',
+      currentTile: vec2(playerTileX, playerTileY),
+      previousTile: vec2(playerTileX, playerTileY),
+      facing: direction,
+      initialTile: vec2(playerTileX, playerTileY),
+      movementRangeX: 0,
+      movementRangeY: 0,
+      currentElevation: elevation,
+      previousElevation: elevation,
+      trackedByCamera: true,
+      avatarMode: 'normal'
+    },
+    direction,
+    target,
+    [],
+    loadMapById
   );
 
-  if (!atConnectedEdge) {
-    return null;
-  }
-
-  const destinationMap = loadMapById(connection.map);
-  if (!destinationMap) {
-    return null;
-  }
-
-  const destinationTile = vec2(playerTileX, playerTileY);
-  switch (direction) {
-    case 'up':
-      destinationTile.x = playerTileX - connection.offset;
-      destinationTile.y = destinationMap.height - 1;
-      break;
-    case 'down':
-      destinationTile.x = playerTileX - connection.offset;
-      destinationTile.y = 0;
-      break;
-    case 'left':
-      destinationTile.x = destinationMap.width - 1;
-      destinationTile.y = playerTileY - connection.offset;
-      break;
-    case 'right':
-      destinationTile.x = 0;
-      destinationTile.y = playerTileY - connection.offset;
-      break;
-  }
-
-  if (!isWalkableAtTile(destinationMap, destinationTile.x, destinationTile.y)) {
+  if (collision.result !== 'none') {
     return null;
   }
 
   return {
-    map: destinationMap,
+    map: target.map,
     playerPosition: {
-      x: destinationTile.x * destinationMap.tileSize,
-      y: destinationTile.y * destinationMap.tileSize
+      x: target.tile.x * target.map.tileSize,
+      y: target.tile.y * target.map.tileSize
     }
   };
 };

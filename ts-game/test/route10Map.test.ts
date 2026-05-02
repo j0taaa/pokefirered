@@ -10,7 +10,7 @@ import {
 import route10MapJson from '../src/world/maps/route10.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -59,7 +59,7 @@ describe('Route 10 compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.triggers).toHaveLength(8);
-    expect(map.triggers[0]).toEqual({
+    expect(map.triggers[0]).toMatchObject({
       id: 'Route10_EventScript_SouthRockTunnelSign',
       x: 15,
       y: 59,

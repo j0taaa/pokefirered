@@ -1,5 +1,6 @@
 import regionMapSectionsSource from '../../../src/data/region_map/region_map_sections.json';
 import { getPokedexCounts, isNationalDexEnabled } from './decompPokedexUi';
+import { formatDecompDecimal, StringConvertMode } from './decompStringUtil';
 
 interface RegionMapSectionEntry {
   id: string;
@@ -18,6 +19,20 @@ export enum SaveStatId {
   BADGES,
   TIME_HR_RT_ALIGN
 }
+
+export const SAVE_MENU_UTIL_C_TRANSLATION_UNIT = 'src/save_menu_util.c';
+export const EXT_CTRL_CODE_BEGIN = 0xfc;
+export const EXT_CTRL_CODE_COLOR = 0x01;
+export const EXT_CTRL_CODE_SHADOW = 0x03;
+export const CHAR_0 = 0xa1;
+export const CHAR_COLON = 0xf0;
+export const EOS = 0xff;
+export const SAVE_STAT_NAME = SaveStatId.NAME;
+export const SAVE_STAT_POKEDEX = SaveStatId.POKEDEX;
+export const SAVE_STAT_TIME = SaveStatId.TIME;
+export const SAVE_STAT_LOCATION = SaveStatId.LOCATION;
+export const SAVE_STAT_BADGES = SaveStatId.BADGES;
+export const SAVE_STAT_TIME_HR_RT_ALIGN = SaveStatId.TIME_HR_RT_ALIGN;
 
 export interface SaveStatContext {
   playerName: string;
@@ -84,9 +99,17 @@ export const formatSavePlayTime = (
   playTimeMinutes: number,
   rightAlignHours = false
 ): string => {
-  const hours = clampPlayTimePart(playTimeHours, 999).toString();
-  const minutes = clampPlayTimePart(playTimeMinutes, 59).toString().padStart(2, '0');
-  return `${rightAlignHours ? hours.padStart(3, ' ') : hours}:${minutes}`;
+  const hours = formatDecompDecimal(
+    clampPlayTimePart(playTimeHours, 999),
+    rightAlignHours ? StringConvertMode.RIGHT_ALIGN : StringConvertMode.LEFT_ALIGN,
+    3
+  );
+  const minutes = formatDecompDecimal(
+    clampPlayTimePart(playTimeMinutes, 59),
+    StringConvertMode.LEADING_ZEROS,
+    2
+  );
+  return `${hours}:${minutes}`;
 };
 
 export const saveStatToString = (statId: SaveStatId, context: SaveStatContext): string => {
@@ -107,3 +130,66 @@ export const saveStatToString = (statId: SaveStatId, context: SaveStatContext): 
       return '';
   }
 };
+
+const stringToGameBytes = (value: string): number[] => [...value].map((char) => char.charCodeAt(0));
+
+const decimalToGameBytes = (
+  value: number,
+  mode: StringConvertMode,
+  width: number
+): number[] => stringToGameBytes(formatDecompDecimal(value, mode, width));
+
+export function SaveStatToString(
+  gameStatId: SaveStatId,
+  context: SaveStatContext,
+  color: number
+): number[] {
+  const dest: number[] = [
+    EXT_CTRL_CODE_BEGIN,
+    EXT_CTRL_CODE_COLOR,
+    color & 0xff,
+    EXT_CTRL_CODE_BEGIN,
+    EXT_CTRL_CODE_SHADOW,
+    (color + 1) & 0xff
+  ];
+
+  switch (gameStatId) {
+    case SAVE_STAT_NAME:
+      dest.push(...stringToGameBytes(context.playerName), EOS);
+      break;
+    case SAVE_STAT_POKEDEX:
+      dest.push(
+        ...decimalToGameBytes(
+          getSavePokedexCount(context.hasPokedex, context.seenSpecies, context.caughtSpecies),
+          StringConvertMode.LEFT_ALIGN,
+          3
+        ),
+        EOS
+      );
+      break;
+    case SAVE_STAT_TIME:
+      dest.push(
+        ...decimalToGameBytes(clampPlayTimePart(context.playTimeHours, 999), StringConvertMode.LEFT_ALIGN, 3),
+        CHAR_COLON,
+        ...decimalToGameBytes(clampPlayTimePart(context.playTimeMinutes, 59), StringConvertMode.LEADING_ZEROS, 2),
+        EOS
+      );
+      break;
+    case SAVE_STAT_TIME_HR_RT_ALIGN:
+      dest.push(
+        ...decimalToGameBytes(clampPlayTimePart(context.playTimeHours, 999), StringConvertMode.RIGHT_ALIGN, 3),
+        CHAR_COLON,
+        ...decimalToGameBytes(clampPlayTimePart(context.playTimeMinutes, 59), StringConvertMode.LEADING_ZEROS, 2),
+        EOS
+      );
+      break;
+    case SAVE_STAT_LOCATION:
+      dest.push(...stringToGameBytes(getMapSectionDisplayName(context.regionMapSection)), EOS);
+      break;
+    case SAVE_STAT_BADGES:
+      dest.push(CHAR_0 + countEarnedBadges(context.flags), 10, EOS);
+      break;
+  }
+
+  return dest;
+}

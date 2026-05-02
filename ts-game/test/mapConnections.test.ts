@@ -11,6 +11,7 @@ import {
   loadLavenderTownMap,
   loadPalletTownMap,
   loadPewterCityMap,
+  loadRoute1Map,
   loadRoute2Map,
   loadRoute21NorthMap,
   loadRoute21SouthMap,
@@ -29,10 +30,29 @@ import {
   loadVermilionCityMap,
   loadViridianCityMap
 } from '../src/world/mapSource';
+import type { TileMap } from '../src/world/tileMap';
+
+const createConnectionTestMap = (overrides: Partial<TileMap> = {}): TileMap => ({
+  id: 'MAP_TEST',
+  width: 2,
+  height: 2,
+  tileSize: 16,
+  walkable: new Array(4).fill(true),
+  collisionValues: new Array(4).fill(0),
+  tileBehaviors: new Array(4).fill(0),
+  elevations: new Array(4).fill(0),
+  connections: [],
+  triggers: [],
+  npcs: [],
+  hiddenItems: [],
+  warps: [],
+  ...overrides
+});
 
 describe('map connections', () => {
   test('matches Route 2 and Viridian City decomp connection offsets', () => {
     const palletTown = loadPalletTownMap();
+    const route1 = loadRoute1Map();
     const route2 = loadRoute2Map();
     const route21North = loadRoute21NorthMap();
     const route21South = loadRoute21SouthMap();
@@ -42,6 +62,10 @@ describe('map connections', () => {
     expect(palletTown.connections).toEqual([
       { map: 'MAP_ROUTE1', offset: 0, direction: 'up' },
       { map: 'MAP_ROUTE21_NORTH', offset: 0, direction: 'down' }
+    ]);
+    expect(route1.connections).toEqual([
+      { map: 'MAP_VIRIDIAN_CITY', offset: -12, direction: 'up' },
+      { map: 'MAP_PALLET_TOWN', offset: 0, direction: 'down' }
     ]);
     expect(route2.connections).toEqual([
       { map: 'MAP_PEWTER_CITY', offset: -12, direction: 'up' },
@@ -80,6 +104,22 @@ describe('map connections', () => {
     expect(transition).not.toBeNull();
     expect(transition?.map.id).toBe('MAP_VIRIDIAN_CITY');
     expect(transition?.playerPosition).toEqual({ x: 20 * 16, y: 0 });
+  });
+
+  test('transitions from Pallet Town north edge into Route 1 after Oak no longer blocks the route', () => {
+    const transition = resolveMapConnectionTransition(loadPalletTownMap(), 12, 0, 'up', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE1');
+    expect(transition?.playerPosition).toEqual({ x: 12 * 16, y: 39 * 16 });
+  });
+
+  test('transitions from Route 1 south edge into Pallet Town using the reciprocal offset', () => {
+    const transition = resolveMapConnectionTransition(loadRoute1Map(), 12, 39, 'down', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_PALLET_TOWN');
+    expect(transition?.playerPosition).toEqual({ x: 12 * 16, y: 0 });
   });
 
   test('transitions from Route 2 north edge into Pewter City using the decomp offset', () => {
@@ -161,6 +201,64 @@ describe('map connections', () => {
 
   test('returns null for unloaded destination maps', () => {
     expect(resolveMapConnectionTransition(loadVermilionCityMap(), 47, 16, 'right', loadMapById)).toBeNull();
+  });
+
+  test('rejects connected edge transitions when destination collision gates block them', () => {
+    const source = createConnectionTestMap({
+      id: 'MAP_SOURCE',
+      connections: [{ map: 'MAP_DEST', offset: 0, direction: 'right' }]
+    });
+
+    const blockedCollision = createConnectionTestMap({
+      id: 'MAP_DEST',
+      collisionValues: [
+        1, 0,
+        0, 0
+      ]
+    });
+    expect(resolveMapConnectionTransition(
+      source,
+      1,
+      0,
+      'right',
+      (mapId) => mapId === 'MAP_DEST' ? blockedCollision : null
+    )).toBeNull();
+
+    const blockedDirectional = createConnectionTestMap({
+      id: 'MAP_DEST',
+      tileBehaviors: [
+        0x31, 0,
+        0, 0
+      ]
+    });
+    expect(resolveMapConnectionTransition(
+      source,
+      1,
+      0,
+      'right',
+      (mapId) => mapId === 'MAP_DEST' ? blockedDirectional : null
+    )).toBeNull();
+
+    const blockedElevation = createConnectionTestMap({
+      id: 'MAP_DEST',
+      elevations: [
+        2, 0,
+        0, 0
+      ]
+    });
+    expect(resolveMapConnectionTransition(
+      {
+        ...source,
+        elevations: [
+          0, 1,
+          0, 0
+        ]
+      },
+      1,
+      0,
+      'right',
+      (mapId) => mapId === 'MAP_DEST' ? blockedElevation : null
+    )).toBeNull();
   });
 
   test('loads Route 22 through the shared map loader', () => {

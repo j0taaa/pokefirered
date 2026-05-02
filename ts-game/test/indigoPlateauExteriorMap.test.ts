@@ -10,7 +10,7 @@ import {
 import indigoPlateauExteriorMapJson from '../src/world/maps/indigoPlateauExterior.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -58,7 +58,7 @@ describe('Indigo Plateau exterior compact map source', () => {
       { map: 'MAP_ROUTE23', offset: 0, direction: 'down' }
     ]);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.triggers).toEqual([]);
+    expect(map.triggers).toMatchObject([]);
     expect(map.hiddenItems).toEqual([]);
     expect(map.npcs).toEqual([
       {

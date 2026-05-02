@@ -7,7 +7,7 @@ This repository currently contains the Pokémon FireRed / LeafGreen decompilatio
 - ✅ Existing decompilation source remains the primary codebase.
 - ✅ A dedicated destination folder for the TypeScript/browser version has been created at `ts-game/`.
 - ✅ This README and repository guidance have been updated to support incremental migration planning.
-- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, a shared decomp-backed bag/inventory slice, and an in-progress decomp-backed battle engine + canvas battle scene are in `ts-game/`, including battle runtime scaffolding for side/party/battler state, a first battle-VM cutover, structured post-battle results, deterministic battle trace serialization, and new parser modules for decomp battle scripts / battle AI / trainer battle metadata.
+- 🚧 Browser port is now at an early playable prototype: map rendering, keyboard movement, collisions, a shared decomp-backed bag/inventory slice, and an in-progress decomp-backed battle engine + canvas battle scene are in `ts-game/`, including battle runtime scaffolding for side/party/battler state, a battle-VM-owned singles move pipeline, real doubles / partner / link turn execution, battler-derived active-mon compatibility views, structured post-battle results, deterministic battle trace serialization, new parser modules for decomp battle scripts / battle AI / trainer battle metadata, and a host-side `tools/battletrace` oracle that boots the modern decomp ROM under mGBA/GDB and reads native battle-trace results from EWRAM for the seeded parity corpus.
 
 ## Original project outputs
 
@@ -63,7 +63,7 @@ Current completion snapshot:
 7. ✅ Trigger zones + script callback hooks v1 (sign/step/warp prototype events)
 8. ✅ UI menus foundation (START menu open/close + selection + tests)
 9. ✅ Battle slice v1 (wild encounter entry + move select + damage preview prototype)
-10. 🚧 Battle parity foundation (decomp-backed move/learnset parsing, battle-script and battle-AI ingestion, script-shaped battle flow, canvas battle scene integration, and a decomp-shaped battle runtime scaffold with side/party/battler bookkeeping, VM state, post-battle results, and trace events/serialization)
+10. 🚧 Battle parity foundation (decomp-backed move/learnset parsing, battle-script and battle-AI ingestion, script-shaped battle flow, canvas battle scene integration, a decomp-shaped battle runtime scaffold with side/party/battler bookkeeping, VM-owned singles move execution, live doubles / partner / link turn handling, battler-derived active-mon compatibility views, post-battle results, and trace events/serialization, plus seeded TS-side battle parity fixtures and a native decomp-backed `tools/battletrace` oracle for core battle-flow comparison)
 
 ## Developer setup (decomp side)
 

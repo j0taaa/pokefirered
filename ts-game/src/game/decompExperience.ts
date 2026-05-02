@@ -1,7 +1,21 @@
+import experienceTablesSource from '../../../src/data/pokemon/experience_tables.h?raw';
 import type { DecompGrowthRate } from './decompSpecies';
 
 const cube = (value: number): number => value * value * value;
 const square = (value: number): number => value * value;
+
+export const EXPERIENCE_TABLES_SOURCE = experienceTablesSource;
+
+export const EXPERIENCE_TABLE_ROW_LABELS = [
+  'Medium Fast',
+  'Erratic',
+  'Fluctuating',
+  'Medium Slow',
+  'Fast',
+  'Slow',
+  'Medium Fast copy 2 (unused? to-do: investigate)',
+  'Medium Fast copy 3 (unused? to-do: investigate)'
+] as const;
 
 export const getExperienceForLevel = (
   growthRate: DecompGrowthRate,
@@ -39,6 +53,23 @@ export const getExperienceForLevel = (
       return Math.floor(((Math.floor(n / 2) + 32) * cube(n)) / 50);
   }
 };
+
+export const parseExperienceTableRowLabels = (source: string): string[] =>
+  [...source.matchAll(/\{\s*\/\/\s*([^\n]+)/gu)].map((match) => match[1].trim());
+
+const buildExperienceTableRow = (growthRate: DecompGrowthRate): number[] =>
+  Array.from({ length: 101 }, (_unused, level) => (level === 0 ? 0 : getExperienceForLevel(growthRate, level)));
+
+export const gExperienceTables = [
+  buildExperienceTableRow('GROWTH_MEDIUM_FAST'),
+  buildExperienceTableRow('GROWTH_ERRATIC'),
+  buildExperienceTableRow('GROWTH_FLUCTUATING'),
+  buildExperienceTableRow('GROWTH_MEDIUM_SLOW'),
+  buildExperienceTableRow('GROWTH_FAST'),
+  buildExperienceTableRow('GROWTH_SLOW'),
+  buildExperienceTableRow('GROWTH_MEDIUM_FAST'),
+  buildExperienceTableRow('GROWTH_MEDIUM_FAST')
+];
 
 export const getLevelForExperience = (
   growthRate: DecompGrowthRate,

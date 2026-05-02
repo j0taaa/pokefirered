@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { createBattleEncounterState, createBattleState, startConfiguredBattle, stepBattle } from '../src/game/battle';
+import { createBattleEncounterState, createBattleState, getBattlerMoveMemory, startConfiguredBattle, stepBattle } from '../src/game/battle';
 import { serializeBattleTrace } from '../src/game/battleTraceSerializer';
 
 const neutralInput = {
@@ -55,8 +55,9 @@ describe('battle trace serializer', () => {
       side: 'player',
       species: battle.playerMon.species,
       moveMemory: {
-        printedMoveId: battle.playerMon.volatile.lastPrintedMoveId,
-        resultingMoveId: battle.playerMon.volatile.lastMoveUsedId
+        chosenMoveId: getBattlerMoveMemory(battle, 0).chosenMoveId,
+        printedMoveId: getBattlerMoveMemory(battle, 0).printedMoveId,
+        resultingMoveId: getBattlerMoveMemory(battle, 0).resultingMoveId
       }
     });
     expect(trace.trace.some((event) => event.type === 'script')).toBe(true);

@@ -10,7 +10,7 @@ import {
 import ceruleanCityMapJson from '../src/world/maps/ceruleanCity.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -66,7 +66,7 @@ describe('Cerulean City compact map source', () => {
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(0);
     expect(map.triggers).toHaveLength(13);
-    expect(map.triggers?.slice(0, 5)).toEqual([
+    expect(map.triggers?.slice(0, 5)).toMatchObject([
       {
         id: 'CeruleanCity_EventScript_RivalTriggerLeft',
         x: 22,

@@ -11,6 +11,15 @@ export interface FieldPokemonEvs {
 
 export interface FieldPokemon {
   species: string;
+  nickname?: string;
+  moves?: string[];
+  otName?: string;
+  otId?: number;
+  personality?: number;
+  friendship?: number;
+  isEgg?: boolean;
+  heldItemId?: string | null;
+  mailId?: number;
   level: number;
   expProgress?: number;
   evs?: FieldPokemonEvs;
@@ -84,6 +93,7 @@ export const createDefaultPokedex = (): PokedexState => ({
 export const cloneFieldPokemon = (pokemon: FieldPokemon): FieldPokemon => ({
   ...pokemon,
   evs: pokemon.evs ? { ...pokemon.evs } : undefined,
+  moves: pokemon.moves ? [...pokemon.moves] : undefined,
   types: [...pokemon.types]
 });
 
@@ -126,6 +136,11 @@ export const addPokemonToParty = (party: FieldPokemon[], pokemon: FieldPokemon):
 
 export const getSpeciesDisplayName = (species: string): string =>
   normalizeSpecies(species).replace(/_/gu, ' ');
+
+export const getFieldPokemonDisplayName = (pokemon: FieldPokemon): string =>
+  pokemon.nickname && pokemon.nickname.length > 0
+    ? pokemon.nickname
+    : getSpeciesDisplayName(pokemon.species);
 
 export const healFieldPokemon = (pokemon: FieldPokemon): void => {
   pokemon.hp = pokemon.maxHp;

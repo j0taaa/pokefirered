@@ -1,4 +1,5 @@
 import { getItemDefinition } from './bag';
+import { expandRuntimePlaceholders } from './decompDynamicPlaceholderTextUtil';
 import type { ScriptRuntimeState } from './scripts';
 
 export interface MartDialogueState {
@@ -375,20 +376,25 @@ const stockSummaryLine = (items: readonly string[]): string =>
 
 export type MartHandlerContext = {
   dialogue: MartDialogueState;
-  runtime: ScriptRuntimeState;
+  runtime?: ScriptRuntimeState;
 };
+
+const expandDialogueLines = (
+  lines: string[],
+  runtime?: ScriptRuntimeState
+): string[] => (runtime ? lines.map((line) => expandRuntimePlaceholders(line, runtime)) : lines);
 
 export const createClerkScriptHandler = (
   clerkLocalId: string,
   items: readonly string[]
 ): ((context: MartHandlerContext) => void) => {
-  return ({ dialogue }: MartHandlerContext): void => {
+  return ({ dialogue, runtime }: MartHandlerContext): void => {
     const stockLine = stockSummaryLine(items);
-    openDialogueSequence(dialogue, clerkLocalId, [
+    openDialogueSequence(dialogue, clerkLocalId, expandDialogueLines([
       CLERK_DIALOGUE.mayIHelpYou,
       stockLine,
       CLERK_DIALOGUE.pleaseComeAgain
-    ]);
+    ], runtime));
   };
 };
 
@@ -411,20 +417,31 @@ export const createTwoIslandClerkHandler = (
   clerkLocalId: string
 ): ((context: MartHandlerContext) => void) => {
   return ({ dialogue, runtime }: MartHandlerContext): void => {
-    const tier = getTwoIslandTier(runtime);
+    const tier = runtime ? getTwoIslandTier(runtime) : TWO_ISLAND_TIERS[0];
     const lines: string[] = [];
-    if (!runtime.flags.has(tier.introFlag)) {
+    if (runtime && !runtime.flags.has(tier.introFlag)) {
       lines.push(tier.introText);
     }
     lines.push(CLERK_DIALOGUE.mayIHelpYou);
     lines.push(stockSummaryLine(tier.items));
     lines.push(CLERK_DIALOGUE.pleaseComeAgain);
-    openDialogueSequence(dialogue, clerkLocalId, lines);
+    openDialogueSequence(dialogue, clerkLocalId, expandDialogueLines(lines, runtime));
   };
 };
 
 export const getMartStockForMap = (mapId: string): MartStock | undefined =>
   MART_STOCKS.find((stock) => stock.mapId === mapId);
+
+export const getMartStockForScriptId = (
+  scriptId: string,
+  runtime?: ScriptRuntimeState
+): readonly string[] => {
+  if (scriptId === TWO_ISLAND_SCRIPT_ID && runtime) {
+    return getTwoIslandTierItems(runtime);
+  }
+
+  return MART_STOCKS.find((stock) => stock.scriptId === scriptId)?.items ?? [];
+};
 
 export const getMartItemsForMap = (mapId: string): readonly string[] => {
   const stock = getMartStockForMap(mapId);
@@ -753,12 +770,12 @@ export const MART_NPC_DIALOGUES: MartNpcDialogue[] = [
 
 export const buildMartNpcScriptEntries = (): Record<
   string,
-  (context: { dialogue: MartDialogueState }) => void
+  (context: { dialogue: MartDialogueState; runtime?: ScriptRuntimeState }) => void
 > => {
-  const entries: Record<string, (context: { dialogue: MartDialogueState }) => void> = {};
+  const entries: Record<string, (context: { dialogue: MartDialogueState; runtime?: ScriptRuntimeState }) => void> = {};
   for (const npc of MART_NPC_DIALOGUES) {
-    entries[npc.scriptId] = ({ dialogue }) => {
-      openDialogueSequence(dialogue, npc.speakerId, npc.lines);
+    entries[npc.scriptId] = ({ dialogue, runtime }) => {
+      openDialogueSequence(dialogue, npc.speakerId, expandDialogueLines(npc.lines, runtime));
     };
   }
   return entries;

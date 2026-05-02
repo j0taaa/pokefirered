@@ -1,4 +1,4 @@
-import type { PlayerState } from './player';
+import { clearPlayerMovement, type PlayerState } from './player';
 import type { ScriptRuntimeState } from './scripts';
 import { isValidBagState, sanitizeBagState } from './bag';
 import {
@@ -7,6 +7,12 @@ import {
   startPlayTimeCounter,
   type PlayTimeCounter
 } from './decompPlayTime';
+import {
+  cloneDecompNewGameState,
+  createDefaultNewGameState,
+  createDefaultPcStorageState,
+  type DecompNewGameState
+} from './decompNewGame';
 import { UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK } from './decompSaveLocation';
 import {
   cloneParty,
@@ -36,6 +42,7 @@ export interface SaveSnapshot {
   };
   runtime: {
     vars: Record<string, number>;
+    stringVars: Record<string, string>;
     flags: string[];
     consumedTriggerIds: string[];
     startMenu: ScriptRuntimeState['startMenu'];
@@ -51,6 +58,8 @@ export interface SaveSnapshot {
     party: ScriptRuntimeState['party'];
     pokedex: ScriptRuntimeState['pokedex'];
     bag: ScriptRuntimeState['bag'];
+    pcStorage?: ScriptRuntimeState['pcStorage'];
+    newGame?: ScriptRuntimeState['newGame'];
   };
 }
 
@@ -70,6 +79,11 @@ const isObjectWithNumberValues = (value: unknown): value is Record<string, numbe
   !!value
   && typeof value === 'object'
   && Object.values(value as Record<string, unknown>).every((entry) => typeof entry === 'number');
+
+const isObjectWithStringValues = (value: unknown): value is Record<string, string> =>
+  !!value
+  && typeof value === 'object'
+  && Object.values(value as Record<string, unknown>).every((entry) => typeof entry === 'string');
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
@@ -100,6 +114,15 @@ const isFieldPokemon = (value: unknown): value is FieldPokemon => {
 
   const candidate = value as Record<string, unknown>;
   return typeof candidate.species === 'string'
+    && (candidate.nickname === undefined || typeof candidate.nickname === 'string')
+    && (candidate.moves === undefined || (Array.isArray(candidate.moves) && candidate.moves.every((entry) => typeof entry === 'string')))
+    && (candidate.otName === undefined || typeof candidate.otName === 'string')
+    && (candidate.otId === undefined || Number.isInteger(candidate.otId))
+    && (candidate.personality === undefined || Number.isInteger(candidate.personality))
+    && (candidate.friendship === undefined || Number.isInteger(candidate.friendship))
+    && (candidate.isEgg === undefined || typeof candidate.isEgg === 'boolean')
+    && (candidate.heldItemId === undefined || candidate.heldItemId === null || typeof candidate.heldItemId === 'string')
+    && (candidate.mailId === undefined || Number.isInteger(candidate.mailId))
     && Number.isInteger(candidate.level)
     && typeof candidate.maxHp === 'number'
     && typeof candidate.hp === 'number'
@@ -117,6 +140,73 @@ const isFieldPokemon = (value: unknown): value is FieldPokemon => {
 
 const isFieldPokemonArray = (value: unknown): value is FieldPokemon[] =>
   Array.isArray(value) && value.every((entry) => isFieldPokemon(entry));
+
+const isPcStorageState = (value: unknown): value is ScriptRuntimeState['pcStorage'] => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.currentBox)
+    && isStringArray(candidate.boxNames)
+    && Array.isArray(candidate.boxes)
+    && (candidate.boxes as unknown[]).every((box) => isFieldPokemonArray(box))
+    && (candidate.currentBox as number) >= 0
+    && (candidate.currentBox as number) < (candidate.boxNames as string[]).length
+    && (candidate.boxNames as string[]).length === (candidate.boxes as unknown[]).length;
+};
+
+const isDecompMailSlot = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Array.isArray(candidate.words)
+    && candidate.words.length === 9
+    && candidate.words.every((entry) => Number.isInteger(entry))
+    && typeof candidate.playerName === 'string'
+    && Number.isInteger(candidate.trainerId)
+    && (typeof candidate.species === 'string' || Number.isInteger(candidate.species))
+    && (candidate.itemId === null || typeof candidate.itemId === 'string');
+};
+
+const isBagSlot = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.itemId === 'string' && Number.isInteger(candidate.quantity);
+};
+
+const isDecompNewGameState = (value: unknown): value is DecompNewGameState => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.differentSaveFile === 'boolean'
+    && typeof candidate.unkFlag1 === 'boolean'
+    && typeof candidate.unkFlag2 === 'boolean'
+    && Array.isArray(candidate.pcItems)
+    && candidate.pcItems.every((entry) => isBagSlot(entry))
+    && Array.isArray(candidate.mail)
+    && candidate.mail.every((entry) => isDecompMailSlot(entry))
+    && typeof candidate.battleTowerCleared === 'boolean'
+    && typeof candidate.trainerTowerResultsCleared === 'boolean'
+    && Number.isInteger(candidate.berryPowderAmount)
+    && typeof candidate.berryPickingResultsCleared === 'boolean'
+    && typeof candidate.pokemonJumpResultsCleared === 'boolean'
+    && typeof candidate.mysteryGiftCleared === 'boolean'
+    && typeof candidate.renewableItemFlagsInitialized === 'boolean'
+    && typeof candidate.easyChatInitialized === 'boolean'
+    && typeof candidate.trainerFanClubCleared === 'boolean'
+    && typeof candidate.unionRoomRegisteredTextsInitialized === 'boolean'
+    && typeof candidate.fameCheckerCleared === 'boolean'
+    && typeof candidate.enigmaBerriesCleared === 'boolean'
+    && typeof candidate.roamerCleared === 'boolean';
+};
 
 const isPokedexState = (value: unknown): value is PokedexState => {
   if (!value || typeof value !== 'object') {
@@ -166,6 +256,7 @@ export const createSaveSnapshot = (
     },
     runtime: {
       vars,
+      stringVars: { ...runtime.stringVars },
       flags: [...runtime.flags],
       consumedTriggerIds: [...runtime.consumedTriggerIds],
       startMenu: { ...runtime.startMenu },
@@ -180,7 +271,13 @@ export const createSaveSnapshot = (
       },
       party: cloneParty(runtime.party),
       pokedex: clonePokedex(runtime.pokedex),
-      bag: JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag']
+      bag: JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag'],
+      pcStorage: {
+        currentBox: runtime.pcStorage.currentBox,
+        boxNames: [...runtime.pcStorage.boxNames],
+        boxes: runtime.pcStorage.boxes.map((box) => cloneParty(box))
+      },
+      newGame: cloneDecompNewGameState(runtime.newGame)
     }
   };
 };
@@ -222,6 +319,7 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     !startMenu
     || !isStartMenuMode(startMenu.mode)
     || typeof startMenu.playerName !== 'string'
+    || (startMenu.playerGender !== undefined && startMenu.playerGender !== 'male' && startMenu.playerGender !== 'female')
     || typeof startMenu.hasPokedex !== 'boolean'
     || typeof startMenu.hasPokemon !== 'boolean'
     || !Number.isInteger(startMenu.seenPokemonCount)
@@ -230,7 +328,12 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
-  if (!isObjectWithNumberValues(runtime.vars) || !isStringArray(runtime.flags) || !isStringArray(runtime.consumedTriggerIds)) {
+  if (
+    !isObjectWithNumberValues(runtime.vars)
+    || (runtime.stringVars !== undefined && !isObjectWithStringValues(runtime.stringVars))
+    || !isStringArray(runtime.flags)
+    || !isStringArray(runtime.consumedTriggerIds)
+  ) {
     return null;
   }
 
@@ -279,6 +382,14 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
+  if (runtime.pcStorage !== undefined && !isPcStorageState(runtime.pcStorage)) {
+    return null;
+  }
+
+  if (runtime.newGame !== undefined && !isDecompNewGameState(runtime.newGame)) {
+    return null;
+  }
+
   return {
     schemaVersion: SAVE_SCHEMA_VERSION,
     mapId: candidate.mapId,
@@ -291,11 +402,13 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     },
     runtime: {
       vars: { ...(runtime.vars as Record<string, number>) },
+      stringVars: { ...((runtime.stringVars as Record<string, string> | undefined) ?? {}) },
       flags: [...(runtime.flags as string[])],
       consumedTriggerIds: [...(runtime.consumedTriggerIds as string[])],
       startMenu: {
         mode: startMenu.mode,
         playerName: startMenu.playerName,
+        playerGender: startMenu.playerGender === 'female' ? 'female' : 'male',
         hasPokedex: startMenu.hasPokedex,
         hasPokemon: startMenu.hasPokemon,
         seenPokemonCount: startMenu.seenPokemonCount as number
@@ -319,7 +432,17 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
       },
       party: cloneParty(runtime.party as FieldPokemon[]),
       pokedex: clonePokedex(runtime.pokedex as PokedexState),
-      bag: sanitizeBagState(JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag'])
+      bag: sanitizeBagState(JSON.parse(JSON.stringify(runtime.bag)) as ScriptRuntimeState['bag']),
+      pcStorage: isPcStorageState(runtime.pcStorage)
+        ? {
+            currentBox: runtime.pcStorage.currentBox,
+            boxNames: [...runtime.pcStorage.boxNames],
+            boxes: runtime.pcStorage.boxes.map((box) => cloneParty(box))
+          }
+        : createDefaultPcStorageState(),
+      newGame: isDecompNewGameState(runtime.newGame)
+        ? cloneDecompNewGameState(runtime.newGame)
+        : createDefaultNewGameState()
     }
   };
 };
@@ -383,10 +506,16 @@ export const applySaveSnapshot = (
   player.position.x = snapshot.player.x;
   player.position.y = snapshot.player.y;
   player.facing = snapshot.player.facing;
-  player.moving = false;
-  player.animationTime = 0;
+  clearPlayerMovement(player);
 
   runtime.vars = { ...snapshot.runtime.vars };
+  runtime.stringVars = {
+    STR_VAR_1: '',
+    STR_VAR_2: '',
+    STR_VAR_3: '',
+    STR_VAR_4: '',
+    ...snapshot.runtime.stringVars
+  };
   runtime.flags = new Set<string>(snapshot.runtime.flags);
   runtime.consumedTriggerIds = new Set<string>(snapshot.runtime.consumedTriggerIds);
   runtime.startMenu = { ...snapshot.runtime.startMenu };
@@ -401,6 +530,16 @@ export const applySaveSnapshot = (
   runtime.party = cloneParty(snapshot.runtime.party);
   runtime.pokedex = clonePokedex(snapshot.runtime.pokedex);
   runtime.bag = sanitizeBagState(JSON.parse(JSON.stringify(snapshot.runtime.bag)) as ScriptRuntimeState['bag']);
+  runtime.pcStorage = snapshot.runtime.pcStorage
+    ? {
+        currentBox: snapshot.runtime.pcStorage.currentBox,
+        boxNames: [...snapshot.runtime.pcStorage.boxNames],
+        boxes: snapshot.runtime.pcStorage.boxes.map((box) => cloneParty(box))
+      }
+    : createDefaultPcStorageState();
+  runtime.newGame = snapshot.runtime.newGame
+    ? cloneDecompNewGameState(snapshot.runtime.newGame)
+    : createDefaultNewGameState();
   runtime.vars.playTimeSeconds = (runtime.playTime.hours * 3600) + (runtime.playTime.minutes * 60) + runtime.playTime.seconds;
   runtime.vars.playTimeMinutes = (runtime.playTime.hours * 60) + runtime.playTime.minutes;
   runtime.saveCounter = snapshot.saveIndex;

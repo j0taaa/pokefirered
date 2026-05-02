@@ -5,31 +5,19 @@
  */
 
 import textboxBinUrl from '../../../graphics/battle_interface/textbox.bin?url';
+import {
+  BG_SCREEN_TILE_WIDTH,
+  BG_TILE_SIZE
+} from './decompBgRegs';
+import { copyWrappedBgTilemapRegion, decodeBgMapEntry } from './decompCableCarUtil';
 
-const TILE = 8;
-const MAP_TILES_W = 32;
+const TILE = BG_TILE_SIZE;
+const MAP_TILES_W = BG_SCREEN_TILE_WIDTH;
 const MAP_VISIBLE_TILES_H = 20;
 const TILESET_TILES_PER_ROW = 16;
 
 export const BATTLE_TEXTBOX_PIXEL_W = 240;
 export const BATTLE_TEXTBOX_PIXEL_H = MAP_VISIBLE_TILES_H * TILE;
-
-const readMapEntry = (
-  tilemap: Uint8Array,
-  tileX: number,
-  tileY: number
-): { id: number; hflip: boolean; vflip: boolean; pal: number } => {
-  const offset = (tileY * MAP_TILES_W + tileX) * 2;
-  const lo = tilemap[offset] ?? 0;
-  const hi = tilemap[offset + 1] ?? 0;
-  const word = lo | (hi << 8);
-  return {
-    id: word & 0x03ff,
-    hflip: (word & 0x0400) !== 0,
-    vflip: (word & 0x0800) !== 0,
-    pal: (word >> 12) & 0x0f
-  };
-};
 
 const blitMapTile = (
   dest: CanvasRenderingContext2D,
@@ -75,10 +63,11 @@ export const buildBattleTextboxBackgroundCanvas = (
   }
   ctx.imageSmoothingEnabled = false;
 
+  const visibleRegion = copyWrappedBgTilemapRegion(tilemap, 0, 0, MAP_TILES_W, MAP_VISIBLE_TILES_H);
   const tilesW = Math.floor(BATTLE_TEXTBOX_PIXEL_W / TILE);
   for (let ty = 0; ty < MAP_VISIBLE_TILES_H; ty += 1) {
     for (let tx = 0; tx < tilesW; tx += 1) {
-      const { id, hflip, vflip, pal } = readMapEntry(tilemap, tx, ty);
+      const { id, hflip, vflip, pal } = decodeBgMapEntry(visibleRegion[ty * MAP_TILES_W + tx] ?? 0);
       if (id === 0 && pal === 0) {
         continue;
       }

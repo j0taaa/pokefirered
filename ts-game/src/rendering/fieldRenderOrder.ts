@@ -10,6 +10,7 @@ const METATILE_LAYER_TYPE_COVERED = 1;
 const METATILE_LAYER_TYPE_SPLIT = 2;
 const DEFAULT_ELEVATION = 3;
 const ELEVATION_TO_PRIORITY = [2, 2, 2, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 0, 2] as const;
+const ELEVATION_TO_SUBPRIORITY = [115, 115, 83, 115, 83, 115, 83, 115, 83, 115, 83, 115, 83, 0, 0, 115] as const;
 
 export const FIELD_RENDER_ORDER: readonly FieldRenderStage[] = [
   { type: 'sprites', priority: 3 },
@@ -44,6 +45,42 @@ export const getSpritePriorityForElevation = (elevation?: number): number => {
 
   return ELEVATION_TO_PRIORITY[DEFAULT_ELEVATION];
 };
+
+const normalizeElevation = (elevation?: number): number => {
+  if (Number.isInteger(elevation)) {
+    const normalizedElevation = elevation as number;
+    if (normalizedElevation >= 0 && normalizedElevation < ELEVATION_TO_PRIORITY.length) {
+      return normalizedElevation;
+    }
+  }
+
+  return DEFAULT_ELEVATION;
+};
+
+export const getSpriteSubpriorityForElevation = (
+  elevation: number | undefined,
+  worldY: number,
+  tileSize = 16,
+  subpriorityOffset = 1
+): number => {
+  const normalizedElevation = normalizeElevation(elevation);
+  const yBand = (16 - (((worldY + tileSize + 8) & 0xff) >> 4)) << 1;
+  return ELEVATION_TO_SUBPRIORITY[normalizedElevation] + yBand + subpriorityOffset;
+};
+
+export interface FieldObjectRenderState {
+  priority: number;
+  subpriority: number;
+}
+
+export const getFieldObjectRenderState = (
+  elevation: number | undefined,
+  worldY: number,
+  tileSize = 16
+): FieldObjectRenderState => ({
+  priority: getSpritePriorityForElevation(elevation),
+  subpriority: getSpriteSubpriorityForElevation(elevation, worldY, tileSize)
+});
 
 export const getMapElevationAtTile = (map: TileMap, tileX: number, tileY: number): number => {
   if (!map.elevations || tileX < 0 || tileY < 0 || tileX >= map.width || tileY >= map.height) {

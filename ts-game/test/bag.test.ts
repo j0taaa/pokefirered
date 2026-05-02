@@ -63,4 +63,30 @@ describe('bag state', () => {
     expect(getBagQuantity(bag, 'ITEM_POTION')).toBe(0);
     expect(panel.message?.text).toContain('tossed away');
   });
+
+  test('toss quantity prompt follows the decomp helper with right +10 and up/down wrap', () => {
+    const bag = createBagState();
+    const panel = createBagPanelState();
+    addBagItem(bag, 'ITEM_POTION', 25);
+
+    stepBagPanel(panel, bag, { ...neutralInput, interact: true, interactPressed: true });
+    stepBagPanel(panel, bag, { ...neutralInput, down: true, downPressed: true });
+    stepBagPanel(panel, bag, { ...neutralInput, down: true, downPressed: true });
+    stepBagPanel(panel, bag, { ...neutralInput, interact: true, interactPressed: true });
+    expect(panel.quantityPrompt?.quantity).toBe(1);
+
+    stepBagPanel(panel, bag, { ...neutralInput, right: true, rightPressed: true });
+    expect(panel.quantityPrompt?.quantity).toBe(11);
+
+    stepBagPanel(panel, bag, { ...neutralInput, down: true, downPressed: true });
+    expect(panel.quantityPrompt?.quantity).toBe(10);
+
+    for (let i = 0; i < 10; i += 1) {
+      stepBagPanel(panel, bag, { ...neutralInput, down: true, downPressed: true });
+    }
+    expect(panel.quantityPrompt?.quantity).toBe(25);
+
+    stepBagPanel(panel, bag, { ...neutralInput, up: true, upPressed: true });
+    expect(panel.quantityPrompt?.quantity).toBe(1);
+  });
 });

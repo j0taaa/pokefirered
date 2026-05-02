@@ -1,6 +1,7 @@
 export interface SaveLocationRuntimeState {
   specialSaveWarpFlags: number;
   gcnLinkFlags: number;
+  currentMapId?: string;
 }
 
 export const CONTINUE_GAME_WARP = 1 << 0;
@@ -87,3 +88,48 @@ export const setPostgameFlags = (runtime: SaveLocationRuntimeState): void => {
   runtime.specialSaveWarpFlags |= CHAMPION_SAVEWARP;
   runtime.gcnLinkFlags |= POSTGAME_GCN_LINK_FLAGS_MASK;
 };
+
+export function IsCurMapInLocationList(
+  runtime: SaveLocationRuntimeState,
+  list: readonly string[]
+): boolean {
+  return isMapInLocationList(runtime.currentMapId ?? 'MAP_UNDEFINED', list);
+}
+
+export function IsCurMapPokeCenter(runtime: SaveLocationRuntimeState): boolean {
+  return IsCurMapInLocationList(runtime, SAVE_LOCATION_POKE_CENTER_LIST);
+}
+
+export function IsCurMapReloadLocation(runtime: SaveLocationRuntimeState): boolean {
+  return IsCurMapInLocationList(runtime, SAVE_LOCATION_RELOAD_LOC_LIST);
+}
+
+export function IsCurMapInEmptyList(runtime: SaveLocationRuntimeState): boolean {
+  return IsCurMapInLocationList(runtime, EMPTY_MAP_LIST);
+}
+
+export function TrySetPokeCenterWarpStatus(runtime: SaveLocationRuntimeState): void {
+  runtime.specialSaveWarpFlags = updateBit(runtime.specialSaveWarpFlags, POKECENTER_SAVEWARP, IsCurMapPokeCenter(runtime));
+}
+
+export function TrySetReloadWarpStatus(runtime: SaveLocationRuntimeState): void {
+  runtime.specialSaveWarpFlags = updateBit(runtime.specialSaveWarpFlags, LOBBY_SAVEWARP, IsCurMapReloadLocation(runtime));
+}
+
+export function TrySetUnknownWarpStatus(runtime: SaveLocationRuntimeState): void {
+  runtime.specialSaveWarpFlags = updateBit(runtime.specialSaveWarpFlags, UNK_SPECIAL_SAVE_WARP_FLAG_3, IsCurMapInEmptyList(runtime));
+}
+
+export function TrySetMapSaveWarpStatus(runtime: SaveLocationRuntimeState): void {
+  TrySetPokeCenterWarpStatus(runtime);
+  TrySetReloadWarpStatus(runtime);
+  TrySetUnknownWarpStatus(runtime);
+}
+
+export function SetUnlockedPokedexFlags(runtime: SaveLocationRuntimeState): void {
+  setUnlockedPokedexFlags(runtime);
+}
+
+export function SetPostgameFlags(runtime: SaveLocationRuntimeState): void {
+  setPostgameFlags(runtime);
+}

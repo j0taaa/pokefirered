@@ -53,6 +53,17 @@ describe('save persistence', () => {
     runtime.options.frameType = 4;
     runtime.playTime = createPlayTimeCounterFromSeconds(3723, 17);
     runtime.party[0]!.championRibbon = true;
+    runtime.party[0]!.personality = 0x12345678;
+    runtime.party[0]!.mailId = 4;
+    runtime.newGame.differentSaveFile = true;
+    runtime.newGame.pcItems = [{ itemId: 'ITEM_POTION', quantity: 1 }];
+    runtime.newGame.mail[0] = {
+      ...runtime.newGame.mail[0]!,
+      playerName: 'PLAYER',
+      trainerId: 0x1234,
+      species: 30012,
+      itemId: 'ITEM_ORANGE_MAIL'
+    };
     runtime.consumedTriggerIds.add('route-warning');
     setScriptFlag(runtime, 'story.route-warning');
     trySetMapSaveWarpStatus(runtime, 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F');
@@ -91,6 +102,16 @@ describe('save persistence', () => {
       .toBe(UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK);
     expect(newRuntime.playTime).toMatchObject({ hours: 1, minutes: 2, seconds: 3, vblanks: 17 });
     expect(newRuntime.party[0]?.championRibbon).toBe(true);
+    expect(newRuntime.party[0]?.personality).toBe(0x12345678);
+    expect(newRuntime.party[0]?.mailId).toBe(4);
+    expect(newRuntime.newGame.differentSaveFile).toBe(true);
+    expect(newRuntime.newGame.pcItems).toEqual([{ itemId: 'ITEM_POTION', quantity: 1 }]);
+    expect(newRuntime.newGame.mail[0]).toMatchObject({
+      playerName: 'PLAYER',
+      trainerId: 0x1234,
+      species: 30012,
+      itemId: 'ITEM_ORANGE_MAIL'
+    });
     expect(newRuntime.saveCounter).toBe(1);
   });
 

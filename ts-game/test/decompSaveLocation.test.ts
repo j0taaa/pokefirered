@@ -1,8 +1,19 @@
 import { describe, expect, test } from 'vitest';
 import {
   CHAMPION_SAVEWARP,
+  IsCurMapInEmptyList,
+  IsCurMapPokeCenter,
+  IsCurMapReloadLocation,
+  LOBBY_SAVEWARP,
   POKECENTER_SAVEWARP,
   POSTGAME_GCN_LINK_FLAGS_MASK,
+  SetPostgameFlags,
+  SetUnlockedPokedexFlags,
+  TrySetMapSaveWarpStatus,
+  TrySetPokeCenterWarpStatus,
+  TrySetReloadWarpStatus,
+  TrySetUnknownWarpStatus,
+  UNK_SPECIAL_SAVE_WARP_FLAG_3,
   UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK,
   isMapPokeCenter,
   setPostgameFlags,
@@ -32,6 +43,39 @@ describe('decomp save_location', () => {
     expect(runtime.gcnLinkFlags).toBe(UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK);
 
     setPostgameFlags(runtime);
+    expect(runtime.specialSaveWarpFlags & CHAMPION_SAVEWARP).toBe(CHAMPION_SAVEWARP);
+    expect(runtime.gcnLinkFlags & POSTGAME_GCN_LINK_FLAGS_MASK).toBe(POSTGAME_GCN_LINK_FLAGS_MASK);
+  });
+
+  test('exact C-name save-location helpers use current map and preserve flag side effects', () => {
+    const runtime = {
+      currentMapId: 'MAP_CERULEAN_CITY',
+      specialSaveWarpFlags: 0xff,
+      gcnLinkFlags: 0
+    };
+
+    expect(IsCurMapPokeCenter(runtime)).toBe(false);
+    expect(IsCurMapReloadLocation(runtime)).toBe(false);
+    expect(IsCurMapInEmptyList(runtime)).toBe(false);
+    TrySetMapSaveWarpStatus(runtime);
+    expect(runtime.specialSaveWarpFlags & POKECENTER_SAVEWARP).toBe(0);
+    expect(runtime.specialSaveWarpFlags & LOBBY_SAVEWARP).toBe(0);
+    expect(runtime.specialSaveWarpFlags & UNK_SPECIAL_SAVE_WARP_FLAG_3).toBe(0);
+
+    runtime.currentMapId = 'MAP_CERULEAN_CITY_POKEMON_CENTER_1F';
+    TrySetPokeCenterWarpStatus(runtime);
+    expect(IsCurMapPokeCenter(runtime)).toBe(true);
+    expect(runtime.specialSaveWarpFlags & POKECENTER_SAVEWARP).toBe(POKECENTER_SAVEWARP);
+
+    runtime.specialSaveWarpFlags = 0xff;
+    TrySetReloadWarpStatus(runtime);
+    TrySetUnknownWarpStatus(runtime);
+    expect(runtime.specialSaveWarpFlags & LOBBY_SAVEWARP).toBe(0);
+    expect(runtime.specialSaveWarpFlags & UNK_SPECIAL_SAVE_WARP_FLAG_3).toBe(0);
+
+    SetUnlockedPokedexFlags(runtime);
+    expect(runtime.gcnLinkFlags).toBe(UNLOCKED_POKEDEX_GCN_LINK_FLAGS_MASK);
+    SetPostgameFlags(runtime);
     expect(runtime.specialSaveWarpFlags & CHAMPION_SAVEWARP).toBe(CHAMPION_SAVEWARP);
     expect(runtime.gcnLinkFlags & POSTGAME_GCN_LINK_FLAGS_MASK).toBe(POSTGAME_GCN_LINK_FLAGS_MASK);
   });

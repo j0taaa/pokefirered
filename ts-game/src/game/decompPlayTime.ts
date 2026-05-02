@@ -8,6 +8,8 @@ export interface PlayTimeCounter {
   vblanks: number;
 }
 
+export const PLAY_TIME_C_TRANSLATION_UNIT = 'src/play_time.c';
+
 const MAX_HOURS = 999;
 const MAX_COMPONENT = 59;
 
@@ -35,6 +37,10 @@ export const resetPlayTimeCounter = (counter: PlayTimeCounter): void => {
   counter.vblanks = 0;
 };
 
+export function PlayTimeCounter_Reset(counter: PlayTimeCounter): void {
+  resetPlayTimeCounter(counter);
+}
+
 export const setPlayTimeCounterToMax = (counter: PlayTimeCounter): void => {
   counter.state = 'MAXED_OUT';
   counter.hours = MAX_HOURS;
@@ -43,6 +49,10 @@ export const setPlayTimeCounterToMax = (counter: PlayTimeCounter): void => {
   counter.vblanks = MAX_COMPONENT;
 };
 
+export function PlayTimeCounter_SetToMax(counter: PlayTimeCounter): void {
+  setPlayTimeCounterToMax(counter);
+}
+
 export const startPlayTimeCounter = (counter: PlayTimeCounter): void => {
   counter.state = 'RUNNING';
   if (counter.hours > MAX_HOURS) {
@@ -50,9 +60,17 @@ export const startPlayTimeCounter = (counter: PlayTimeCounter): void => {
   }
 };
 
+export function PlayTimeCounter_Start(counter: PlayTimeCounter): void {
+  startPlayTimeCounter(counter);
+}
+
 export const stopPlayTimeCounter = (counter: PlayTimeCounter): void => {
   counter.state = 'STOPPED';
 };
+
+export function PlayTimeCounter_Stop(counter: PlayTimeCounter): void {
+  stopPlayTimeCounter(counter);
+}
 
 const tickPlayTimeCounter = (counter: PlayTimeCounter): void => {
   counter.vblanks += 1;
@@ -86,6 +104,10 @@ export const updatePlayTimeCounter = (counter: PlayTimeCounter, vblankTicks = 1)
     }
   }
 };
+
+export function PlayTimeCounter_Update(counter: PlayTimeCounter): void {
+  updatePlayTimeCounter(counter);
+}
 
 export const getTotalPlayTimeSeconds = (counter: PlayTimeCounter): number =>
   (counter.hours * 3600) + (counter.minutes * 60) + counter.seconds;

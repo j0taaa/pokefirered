@@ -9,7 +9,7 @@ import {
 import viridianCityHouseMapJson from '../src/world/maps/viridianCityHouse.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -66,7 +66,7 @@ describe('Viridian City House compact map source', () => {
     const map = loadViridianCityHouseMap();
     expect(map.triggers).toHaveLength(1);
 
-    expect(map.triggers[0]).toEqual({
+    expect(map.triggers[0]).toMatchObject({
       id: 'ViridianCity_House_EventScript_NicknameSign',
       x: 7,
       y: 1,

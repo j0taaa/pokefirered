@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import {
+  PLAY_TIME_C_TRANSLATION_UNIT,
+  PlayTimeCounter_Reset,
+  PlayTimeCounter_SetToMax,
+  PlayTimeCounter_Start,
+  PlayTimeCounter_Stop,
+  PlayTimeCounter_Update,
   createPlayTimeCounter,
   createPlayTimeCounterFromSeconds,
   getTotalPlayTimeMinutes,
@@ -12,6 +18,28 @@ import {
 } from '../src/game/decompPlayTime';
 
 describe('decomp play time parity', () => {
+  test('exports the src/play_time.c translation unit and C-shaped entrypoints', () => {
+    expect(PLAY_TIME_C_TRANSLATION_UNIT).toBe('src/play_time.c');
+
+    const counter = createPlayTimeCounterFromSeconds(1, 59, 'RUNNING');
+    PlayTimeCounter_Update(counter);
+    expect(counter).toMatchObject({ hours: 0, minutes: 0, seconds: 2, vblanks: 0 });
+
+    PlayTimeCounter_Stop(counter);
+    PlayTimeCounter_Update(counter);
+    expect(counter).toMatchObject({ state: 'STOPPED', seconds: 2, vblanks: 0 });
+
+    PlayTimeCounter_Reset(counter);
+    expect(counter).toMatchObject({ state: 'STOPPED', hours: 0, minutes: 0, seconds: 0, vblanks: 0 });
+
+    counter.hours = 1000;
+    PlayTimeCounter_Start(counter);
+    expect(counter).toMatchObject({ state: 'MAXED_OUT', hours: 999, minutes: 59, seconds: 59, vblanks: 59 });
+
+    PlayTimeCounter_SetToMax(counter);
+    expect(counter).toMatchObject({ state: 'MAXED_OUT', hours: 999, minutes: 59, seconds: 59, vblanks: 59 });
+  });
+
   test('resets and starts like src/play_time.c', () => {
     const counter = createPlayTimeCounterFromSeconds(3661, 12, 'RUNNING');
 

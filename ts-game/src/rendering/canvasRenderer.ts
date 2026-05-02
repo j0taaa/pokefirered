@@ -47,7 +47,23 @@ import trainerCardBgBinUrl from '../../../graphics/trainer_card/bg.bin?url';
 import trainerCardBadgesUrl from '../../../graphics/trainer_card/badges.png';
 import trainerCardFrontBinUrl from '../../../graphics/trainer_card/front.bin?url';
 import trainerCardTilesUrl from '../../../graphics/trainer_card/tiles.png';
+import namingScreenBackButtonUrl from '../../../graphics/naming_screen/back_button.png';
+import namingScreenBackgroundBinUrl from '../../../graphics/naming_screen/background.bin?url';
+import namingScreenCursorUrl from '../../../graphics/naming_screen/cursor.png';
+import namingScreenInputArrowUrl from '../../../graphics/naming_screen/input_arrow.png';
+import namingScreenKeyboardLowerBinUrl from '../../../graphics/naming_screen/keyboard_lower.bin?url';
+import namingScreenKeyboardSymbolsBinUrl from '../../../graphics/naming_screen/keyboard_symbols.bin?url';
+import namingScreenKeyboardUpperBinUrl from '../../../graphics/naming_screen/keyboard_upper.bin?url';
+import namingScreenMenuUrl from '../../../graphics/naming_screen/menu.png';
+import namingScreenOkButtonUrl from '../../../graphics/naming_screen/ok_button.png';
+import namingScreenPageSwapButtonUrl from '../../../graphics/naming_screen/page_swap_button.png';
+import namingScreenPageSwapFrameUrl from '../../../graphics/naming_screen/page_swap_frame.png';
+import namingScreenPageSwapLowerUrl from '../../../graphics/naming_screen/page_swap_lower.png';
+import namingScreenPageSwapOthersUrl from '../../../graphics/naming_screen/page_swap_others.png';
+import namingScreenPageSwapUpperUrl from '../../../graphics/naming_screen/page_swap_upper.png';
+import namingScreenUnderscoreUrl from '../../../graphics/naming_screen/underscore.png';
 import menuMessageWindowUrl from '../../../graphics/text_window/menu_message.png';
+import signpostWindowUrl from '../../../graphics/text_window/signpost.png';
 import stdWindowFrameUrl from '../../../graphics/text_window/std.png';
 import stdWindowFrameType1Url from '../../../graphics/text_window/type1.png';
 import stdWindowFrameType2Url from '../../../graphics/text_window/type2.png';
@@ -67,12 +83,15 @@ import {
   getNationalDexNumber
 } from '../game/decompPokedex';
 import type { FieldPoisonEffectState } from '../game/decompFieldPoison';
+import { getFieldPaletteFadeAlpha } from '../game/decompFieldPaletteFade';
+import type { PcScreenEffectState } from '../game/decompPcScreenEffect';
 import { Q_8_8_div, Q_8_8_mul } from '../game/decompMathUtil';
 import { getMoney } from '../game/decompMoney';
 import { getPokedexCounts, isNationalDexEnabled } from '../game/decompPokedexUi';
 import { countEarnedBadges } from '../game/decompSaveMenuUtil';
 import { getSafariZoneBallCount, getSafariZoneStepsRemaining, SAFARI_ZONE_TOTAL_STEPS } from '../game/decompSafariZone';
 import { getDecompSpeciesInfo } from '../game/decompSpecies';
+import { formatDecompDecimal, StringConvertMode } from '../game/decompStringUtil';
 import {
   getBagDescription,
   getBagPocketLabel,
@@ -99,6 +118,12 @@ import type { NpcState } from '../game/npc';
 import type { PlayerState } from '../game/player';
 import type { ScriptRuntimeState } from '../game/scripts';
 import type { DialogueState } from '../game/interaction';
+import { getVisibleFieldText } from '../game/decompFieldMessageBox';
+import {
+  getNamingScreenCursorRenderState,
+  getNamingScreenKeyboardChars,
+  getNamingScreenKeyboardId
+} from '../game/decompNamingScreen';
 import type { TileMap } from '../world/tileMap';
 import { DecompTextureStore } from './decompTextureStore';
 import {
@@ -107,9 +132,8 @@ import {
   getHelpMessageWindowTileId
 } from './decompHelpMessage';
 import {
-  FIELD_RENDER_ORDER,
-  getMapElevationAtPixel,
-  getSpritePriorityForElevation
+  getFieldObjectRenderState,
+  getMapElevationAtPixel
 } from './fieldRenderOrder';
 import {
   DEX_AREA_MAP_KANTO_RECT,
@@ -299,7 +323,8 @@ const PLAYER_GRAPHICS_ID = 'OBJ_EVENT_GFX_RED_NORMAL';
 interface FieldEntityDrawRequest {
   kind: 'npc' | 'player';
   priority: number;
-  sortY: number;
+  subpriority: number;
+  sequence: number;
   npc?: NpcState;
   player?: PlayerState;
 }
@@ -311,7 +336,17 @@ const FIELD_MESSAGE_WINDOW = { x: 16, y: 120, w: 208, h: 32 } as const;
 const FIELD_MESSAGE_TEXT = { x: 24, y: 125, maxWidth: 192, lineHeight: 12 } as const;
 const FIELD_MESSAGE_MAX_LINES = 2;
 const FIELD_MENU_TILE_SIZE = 8;
+const FIELD_MENU_MAX_RIGHT = 28 * FIELD_MENU_TILE_SIZE;
 const FIELD_MENU_ROW_HEIGHT = 16;
+const SHOP_MONEY_WINDOW = { x: 8, y: 8, w: 64, h: 24 } as const;
+const SHOP_MAIN_MENU_WINDOW = { x: 16, y: 8, w: 96, h: 48 } as const;
+const SHOP_LIST_WINDOW = { x: 88, y: 8, w: 136, h: 96 } as const;
+const SHOP_QUANTITY_WINDOW = { x: 136, y: 72, w: 96, h: 32 } as const;
+const SHOP_YES_NO_WINDOW = { x: 168, y: 72, w: 48, h: 32 } as const;
+const SHOP_DESCRIPTION_WINDOW = { x: 40, y: 112, w: 200, h: 48 } as const;
+const SHOP_MAIN_OPTIONS = ['BUY', 'SELL', 'SEE YA!'] as const;
+const SHOP_LIST_LINE_HEIGHT = 12;
+const SHOP_LIST_VISIBLE_ROWS = 6;
 
 interface RenderOverlayState {
   startMenu: StartMenuState;
@@ -320,9 +355,56 @@ interface RenderOverlayState {
   bag?: BagState;
   dialogue?: DialogueState;
   fieldPoison?: FieldPoisonEffectState;
+  pcScreenEffect?: PcScreenEffectState;
 }
 
 type NonBagMenuPanel = Exclude<NonNullable<StartMenuState['panel']>, BagPanelState>;
+
+export interface FieldChoiceWindowLayoutInput {
+  kind: 'yesno' | 'multichoice' | 'listmenu';
+  options: string[];
+  columns: number;
+  tilemapLeft: number;
+  tilemapTop: number;
+  maxVisibleOptions?: number;
+  scrollOffset?: number;
+}
+
+export const getFieldChoiceWindowRect = (
+  choice: FieldChoiceWindowLayoutInput,
+  measureText: (text: string) => number
+): { x: number; y: number; w: number; h: number } | null => {
+  if (choice.options.length === 0) {
+    return null;
+  }
+
+  const visibleOptions = choice.kind === 'listmenu'
+    ? choice.options.slice(
+      choice.scrollOffset ?? 0,
+      (choice.scrollOffset ?? 0) + Math.max(1, choice.maxVisibleOptions ?? choice.options.length)
+    )
+    : choice.options;
+  const widestLabel = choice.options.reduce((width, option) =>
+    Math.max(width, measureText(option)), 0);
+  const tilesWidePerColumn = Math.max(4, Math.ceil((widestLabel + 9) / FIELD_MENU_TILE_SIZE) + 1);
+  const totalColumns = Math.max(1, choice.columns);
+  const rowCount = Math.ceil(visibleOptions.length / totalColumns);
+  const tilesHigh = totalColumns > 1 ? rowCount * 2 : choice.options.length <= 8
+    ? [1, 2, 4, 6, 7, 9, 11, 13, 14][choice.options.length] ?? 1
+    : [1, 2, 4, 6, 7, 9, 11, 13, 14][Math.min(8, visibleOptions.length)] ?? 14;
+
+  const w = tilesWidePerColumn * totalColumns * FIELD_MENU_TILE_SIZE;
+  const h = tilesHigh * FIELD_MENU_TILE_SIZE;
+  const unclampedX = choice.tilemapLeft * FIELD_MENU_TILE_SIZE;
+  const unclampedY = choice.tilemapTop * FIELD_MENU_TILE_SIZE;
+
+  return {
+    x: Math.max(0, Math.min(unclampedX, FIELD_MENU_MAX_RIGHT - w)),
+    y: Math.max(0, Math.min(unclampedY, GBA_VIEW_HEIGHT - h)),
+    w,
+    h
+  };
+};
 
 export class CanvasRenderer {
   private readonly canvas: HTMLCanvasElement;
@@ -330,6 +412,7 @@ export class CanvasRenderer {
   private readonly textureStore: DecompTextureStore;
   private readonly stdWindowFrame = this.loadImage(stdWindowFrameUrl);
   private readonly menuMessageWindow = this.loadImage(menuMessageWindowUrl);
+  private readonly signpostWindow = this.loadImage(signpostWindowUrl);
   private readonly helpMessageWindowTiles = this.loadImage(helpMessageWindowUrl);
   private readonly pokedexMiniPage = this.loadImage(pokedexMiniPageUrl);
   private readonly pokedexSidebar = this.loadImage(pokedexSidebarUrl);
@@ -383,6 +466,23 @@ export class CanvasRenderer {
   /** `bg.bin` + `front.bin` / `back.bin` + `tiles.png` — same sources as `trainer_card.c`. */
   private trainerCardTilemaps: { bg: Uint16Array; front: Uint16Array; back: Uint16Array } | null = null;
   private trainerCardLayerCache: { front: HTMLCanvasElement; back: HTMLCanvasElement } | null = null;
+  private readonly namingScreenMenuTiles = this.loadImage(namingScreenMenuUrl);
+  private readonly namingScreenCursor = this.loadImage(namingScreenCursorUrl);
+  private readonly namingScreenBackButton = this.loadImage(namingScreenBackButtonUrl);
+  private readonly namingScreenOkButton = this.loadImage(namingScreenOkButtonUrl);
+  private readonly namingScreenPageSwapFrame = this.loadImage(namingScreenPageSwapFrameUrl);
+  private readonly namingScreenPageSwapButton = this.loadImage(namingScreenPageSwapButtonUrl);
+  private readonly namingScreenPageSwapUpper = this.loadImage(namingScreenPageSwapUpperUrl);
+  private readonly namingScreenPageSwapLower = this.loadImage(namingScreenPageSwapLowerUrl);
+  private readonly namingScreenPageSwapOthers = this.loadImage(namingScreenPageSwapOthersUrl);
+  private readonly namingScreenInputArrow = this.loadImage(namingScreenInputArrowUrl);
+  private readonly namingScreenUnderscore = this.loadImage(namingScreenUnderscoreUrl);
+  private namingScreenTilemaps: {
+    background: Uint16Array;
+    upper: Uint16Array;
+    lower: Uint16Array;
+    symbols: Uint16Array;
+  } | null = null;
   private readonly bagSprite = this.loadImage(bagSpriteUrl);
   private readonly stdWindowFrames = [
     this.loadImage(stdWindowFrameType1Url),
@@ -422,6 +522,7 @@ export class CanvasRenderer {
     this.ctx.imageSmoothingEnabled = false;
     this.textureStore = new DecompTextureStore();
     this.beginTrainerCardTilemapLoad();
+    this.beginNamingScreenTilemapLoad();
     this.trainerCardTiles.addEventListener('load', () => {
       this.trainerCardLayerCache = null;
     });
@@ -445,6 +546,34 @@ export class CanvasRenderer {
       .catch(() => {
         this.trainerCardTilemaps = null;
         this.trainerCardLayerCache = null;
+      });
+  }
+
+  private beginNamingScreenTilemapLoad(): void {
+    const decode = (buffer: ArrayBuffer): Uint16Array => {
+      const u16 = new Uint16Array(buffer);
+      const expected = 32 * 20;
+      if (u16.length !== expected) {
+        throw new Error(`naming screen tilemap: expected ${expected} u16, got ${u16.length}`);
+      }
+      return u16;
+    };
+    void Promise.all([
+      fetch(namingScreenBackgroundBinUrl).then((r) => r.arrayBuffer()),
+      fetch(namingScreenKeyboardUpperBinUrl).then((r) => r.arrayBuffer()),
+      fetch(namingScreenKeyboardLowerBinUrl).then((r) => r.arrayBuffer()),
+      fetch(namingScreenKeyboardSymbolsBinUrl).then((r) => r.arrayBuffer())
+    ])
+      .then(([background, upper, lower, symbols]) => {
+        this.namingScreenTilemaps = {
+          background: decode(background),
+          upper: decode(upper),
+          lower: decode(lower),
+          symbols: decode(symbols)
+        };
+      })
+      .catch(() => {
+        this.namingScreenTilemaps = null;
       });
   }
 
@@ -579,7 +708,16 @@ export class CanvasRenderer {
     const endY = Math.min(map.height, startY + Math.ceil(renderCamera.viewportHeight / tileSize) + 1);
 
     const drawQueue = this.buildEntityDrawQueue(map, player, npcs);
-    const layeredFieldReady = this.textureStore.hasMapTextures(map);
+    const layeredFieldReady = this.textureStore.drawMapLayer(
+      ctx,
+      map,
+      renderCamera,
+      startX,
+      startY,
+      endX,
+      endY,
+      'bottom'
+    );
 
     if (!layeredFieldReady) {
       for (let y = startY; y < endY; y += 1) {
@@ -601,27 +739,11 @@ export class CanvasRenderer {
         }
       }
     } else {
-      this.drawEntities(drawQueue, renderCamera);
+      this.drawEntities(drawQueue, renderCamera, 3);
     }
 
     if (layeredFieldReady) {
-      for (const stage of FIELD_RENDER_ORDER) {
-        if (stage.type === 'sprites') {
-          this.drawEntities(drawQueue, renderCamera, stage.priority);
-          continue;
-        }
-
-        this.textureStore.drawMapLayer(
-          ctx,
-          map,
-          renderCamera,
-          startX,
-          startY,
-          endX,
-          endY,
-          stage.pass
-        );
-      }
+      this.textureStore.drawMapLayer(ctx, map, renderCamera, startX, startY, endX, endY, 'middle');
     }
 
     for (const trigger of map.triggers) {
@@ -631,14 +753,35 @@ export class CanvasRenderer {
       this.ctx.fillRect(tx + 5, ty + 5, 6, 6);
     }
 
+    if (layeredFieldReady) {
+      this.drawEntities(drawQueue, renderCamera, 2);
+      this.textureStore.drawMapLayer(ctx, map, renderCamera, startX, startY, endX, endY, 'top');
+      this.drawEntities(drawQueue, renderCamera, 1);
+      this.drawEntities(drawQueue, renderCamera, 0);
+    } else {
+      this.drawEntities(drawQueue, renderCamera);
+    }
+
     if (overlays?.fieldPoison?.active && overlays.fieldPoison.mosaic > 0) {
       this.applyFieldMosaic(overlays.fieldPoison.mosaic);
     }
-    if (overlays?.dialogue?.active) {
-      this.drawFieldDialogueWindow(overlays.dialogue);
+    if (overlays?.pcScreenEffect?.active) {
+      this.drawPcScreenEffectOverlay(overlays.pcScreenEffect);
+    }
+    if (overlays?.dialogue?.monPic) {
+      this.drawFieldMonPic(overlays.dialogue.monPic);
+    }
+    if (overlays?.dialogue && (overlays.dialogue.active || overlays.dialogue.shop)) {
+      this.drawFieldDialogueWindow(overlays.dialogue, overlays.runtime);
+    }
+    if (overlays?.dialogue?.namingScreen) {
+      this.drawFieldNamingScreen(overlays.dialogue);
     }
     if (overlays) {
       this.drawStartMenuOverlay(overlays.startMenu, overlays.runtime);
+    }
+    if (overlays?.runtime) {
+      this.drawFieldPaletteFadeOverlay(overlays.runtime);
     }
   }
 
@@ -698,6 +841,36 @@ export class CanvasRenderer {
       this.canvas.width,
       this.canvas.height
     );
+    this.ctx.restore();
+  }
+
+  private drawPcScreenEffectOverlay(effect: PcScreenEffectState): void {
+    const left = this.gbaX(effect.win0Left);
+    const right = this.gbaX(effect.win0Right);
+    const top = this.gbaY(effect.win0Top);
+    const bottom = this.gbaY(effect.win0Bottom);
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+
+    this.ctx.save();
+    this.ctx.fillStyle = '#000';
+    this.ctx.fillRect(0, 0, width, Math.max(0, top));
+    this.ctx.fillRect(0, Math.max(0, bottom), width, Math.max(0, height - bottom));
+    this.ctx.fillRect(0, top, Math.max(0, left), Math.max(0, bottom - top));
+    this.ctx.fillRect(Math.max(0, right), top, Math.max(0, width - right), Math.max(0, bottom - top));
+    this.ctx.restore();
+  }
+
+  private drawFieldPaletteFadeOverlay(runtime: ScriptRuntimeState): void {
+    const alpha = getFieldPaletteFadeAlpha(runtime);
+    if (alpha <= 0) {
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha;
+    this.ctx.fillStyle = runtime.fieldPaletteFade.blendColor === 'white' ? '#fff' : '#000';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.restore();
   }
 
@@ -1365,8 +1538,12 @@ export class CanvasRenderer {
     const width = 68;
     const height = 34;
     this.drawWindowFrame(x, y, width, height, 'std');
-    this.drawMenuText(`${currentSteps.toString().padStart(3, ' ')}/${totalSteps}`, x + 8, y + 12);
-    this.drawMenuText(`BALLS ${balls.toString().padStart(2, ' ')}`, x + 8, y + 24);
+    this.drawMenuText(
+      `${formatDecompDecimal(currentSteps, StringConvertMode.RIGHT_ALIGN, 3)}/${formatDecompDecimal(totalSteps, StringConvertMode.RIGHT_ALIGN, 3)}`,
+      x + 8,
+      y + 12
+    );
+    this.drawMenuText(`BALLS ${formatDecompDecimal(balls, StringConvertMode.RIGHT_ALIGN, 2)}`, x + 8, y + 24);
   }
 
   private drawStartMenuPanel(panel: NonBagMenuPanel, runtime: ScriptRuntimeState): void {
@@ -2659,10 +2836,12 @@ export class CanvasRenderer {
     }
   }
 
-  private drawWindowFrame(x: number, y: number, width: number, height: number, variant: 'std' | 'message'): void {
+  private drawWindowFrame(x: number, y: number, width: number, height: number, variant: 'std' | 'message' | 'signpost'): void {
     const frame = variant === 'message'
       ? this.menuMessageWindow
-      : this.stdWindowFrames[this.activeFrameType] ?? this.stdWindowFrame;
+      : variant === 'signpost'
+        ? this.signpostWindow
+        : this.stdWindowFrames[this.activeFrameType] ?? this.stdWindowFrame;
     if (frame.complete && frame.naturalWidth > 0) {
       this.drawNineSlice(frame, x, y, width, height, WINDOW_SLICE, WINDOW_SLICE);
       return;
@@ -2684,10 +2863,12 @@ export class CanvasRenderer {
     y: number,
     width: number,
     height: number,
-    variant: 'std' | 'message'
+    variant: 'std' | 'message' | 'signpost'
   ): void {
     const frame = variant === 'message'
       ? this.menuMessageWindow
+      : variant === 'signpost'
+        ? this.signpostWindow
       : this.stdWindowFrames[this.activeFrameType] ?? this.stdWindowFrame;
     if (frame.complete && frame.naturalWidth > 0) {
       const sx = this.gbaX(8);
@@ -2833,13 +3014,12 @@ export class CanvasRenderer {
   }
 
   private drawFieldAdvanceArrow(x: number, y: number): void {
-    const bob = Math.floor(Date.now() / 250) % 2;
     this.ctx.save();
     this.ctx.fillStyle = '#303030';
     this.ctx.beginPath();
-    this.ctx.moveTo(x, y + bob);
-    this.ctx.lineTo(x + this.gbaX(6), y + bob);
-    this.ctx.lineTo(x + this.gbaX(3), y + this.gbaY(4) + bob);
+    this.ctx.moveTo(x, y);
+    this.ctx.lineTo(x + this.gbaX(6), y);
+    this.ctx.lineTo(x + this.gbaX(3), y + this.gbaY(4));
     this.ctx.closePath();
     this.ctx.fill();
     this.ctx.restore();
@@ -2847,31 +3027,11 @@ export class CanvasRenderer {
 
   private getFieldChoiceWindowRect(dialogue: DialogueState): { x: number; y: number; w: number; h: number } | null {
     const choice = dialogue.choice;
-    if (!choice || choice.options.length === 0) {
+    if (!choice) {
       return null;
     }
 
-    const visibleOptions = choice.kind === 'listmenu'
-      ? choice.options.slice(
-        choice.scrollOffset ?? 0,
-        (choice.scrollOffset ?? 0) + Math.max(1, choice.maxVisibleOptions ?? choice.options.length)
-      )
-      : choice.options;
-    const widestLabel = choice.options.reduce((width, option) =>
-      Math.max(width, this.measureMenuText(option)), 0);
-    const tilesWidePerColumn = Math.max(4, Math.ceil((widestLabel + 9) / FIELD_MENU_TILE_SIZE) + 1);
-    const totalColumns = Math.max(1, choice.columns);
-    const rowCount = Math.ceil(visibleOptions.length / totalColumns);
-    const tilesHigh = totalColumns > 1 ? rowCount * 2 : choice.options.length <= 8
-      ? [1, 2, 4, 6, 7, 9, 11, 13, 14][choice.options.length] ?? 1
-      : [1, 2, 4, 6, 7, 9, 11, 13, 14][Math.min(8, visibleOptions.length)] ?? 14;
-
-    return {
-      x: choice.tilemapLeft * FIELD_MENU_TILE_SIZE,
-      y: choice.tilemapTop * FIELD_MENU_TILE_SIZE,
-      w: tilesWidePerColumn * totalColumns * FIELD_MENU_TILE_SIZE,
-      h: tilesHigh * FIELD_MENU_TILE_SIZE
-    };
+    return getFieldChoiceWindowRect(choice, (text) => this.measureMenuText(text));
   }
 
   private drawFieldChoiceCursor(x: number, y: number): void {
@@ -2949,32 +3109,432 @@ export class CanvasRenderer {
     }
   }
 
-  private drawFieldDialogueWindow(dialogue: DialogueState): void {
+  private drawWrappedFieldText(
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    maxLines: number,
+    lineHeight: number
+  ): void {
+    const explicitLines = text.split('\n');
+    const wrappedLines = explicitLines.flatMap((line) =>
+      this.wrapMenuText(line, Math.max(this.gbaX(24), maxWidth))
+    );
+
+    wrappedLines.slice(0, maxLines).forEach((line, index) => {
+      this.drawFieldMessageText(line, x, y + this.gbaY(lineHeight * index));
+    });
+  }
+
+  private drawMartMoneyBox(runtime: ScriptRuntimeState): void {
+    const wx = this.gbaX(SHOP_MONEY_WINDOW.x);
+    const wy = this.gbaY(SHOP_MONEY_WINDOW.y);
+    const ww = this.gbaX(SHOP_MONEY_WINDOW.w);
+    const wh = this.gbaY(SHOP_MONEY_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+    this.drawSmallText('MONEY', wx + this.gbaX(8), wy + this.gbaY(5));
+    const moneyText = `¥${getMoney(runtime)}`;
+    this.drawSmallText(
+      moneyText,
+      wx + ww - this.gbaX(8) - this.measureSmallTextWidth(moneyText),
+      wy + this.gbaY(13)
+    );
+  }
+
+  private drawMartMainMenu(dialogue: DialogueState): void {
+    const shop = dialogue.shop;
+    if (!shop) {
+      return;
+    }
+
+    const wx = this.gbaX(SHOP_MAIN_MENU_WINDOW.x);
+    const wy = this.gbaY(SHOP_MAIN_MENU_WINDOW.y);
+    const ww = this.gbaX(SHOP_MAIN_MENU_WINDOW.w);
+    const wh = this.gbaY(SHOP_MAIN_MENU_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    SHOP_MAIN_OPTIONS.forEach((option, index) => {
+      const optionX = wx + this.gbaX(18);
+      const optionY = wy + this.gbaY(7 + index * 14);
+      if (shop.selectedIndex === index) {
+        this.drawFieldChoiceCursor(optionX - this.gbaX(10), optionY + this.gbaY(1));
+      }
+      this.drawFieldMessageText(option, optionX, optionY);
+    });
+  }
+
+  private drawMartBuyList(dialogue: DialogueState): void {
+    const shop = dialogue.shop;
+    if (!shop) {
+      return;
+    }
+
+    const wx = this.gbaX(SHOP_LIST_WINDOW.x);
+    const wy = this.gbaY(SHOP_LIST_WINDOW.y);
+    const ww = this.gbaX(SHOP_LIST_WINDOW.w);
+    const wh = this.gbaY(SHOP_LIST_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    const allRows = [...shop.items, '__EXIT__'];
+    const visibleRows = allRows.slice(shop.scrollOffset, shop.scrollOffset + SHOP_LIST_VISIBLE_ROWS);
+    const nameX = wx + this.gbaX(14);
+    const priceRight = wx + ww - this.gbaX(8);
+
+    visibleRows.forEach((row, visibleIndex) => {
+      const absoluteIndex = shop.scrollOffset + visibleIndex;
+      const rowY = wy + this.gbaY(6 + visibleIndex * SHOP_LIST_LINE_HEIGHT);
+      if (shop.selectedIndex === absoluteIndex) {
+        this.drawFieldChoiceCursor(nameX - this.gbaX(10), rowY + this.gbaY(1));
+      }
+
+      if (row === '__EXIT__') {
+        this.drawFieldMessageText('EXIT', nameX, rowY);
+        return;
+      }
+
+      const definition = getItemDefinition(row);
+      this.drawFieldMessageText(definition.name, nameX, rowY);
+      const priceText = `${definition.price}`;
+      this.drawSmallText(priceText, priceRight - this.measureSmallTextWidth(priceText), rowY + this.gbaY(1));
+    });
+
+    if (allRows.length > SHOP_LIST_VISIBLE_ROWS) {
+      const arrowX = this.gbaX(SHOP_LIST_WINDOW.x + SHOP_LIST_WINDOW.w - 10);
+      if (shop.scrollOffset > 0) {
+        this.ctx.save();
+        this.ctx.fillStyle = '#303030';
+        this.ctx.beginPath();
+        this.ctx.moveTo(arrowX, this.gbaY(SHOP_LIST_WINDOW.y + 6));
+        this.ctx.lineTo(arrowX + this.gbaX(5), this.gbaY(SHOP_LIST_WINDOW.y + 6));
+        this.ctx.lineTo(arrowX + this.gbaX(2.5), this.gbaY(SHOP_LIST_WINDOW.y + 2));
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+      if (shop.scrollOffset + visibleRows.length < allRows.length) {
+        this.drawFieldAdvanceArrow(arrowX, this.gbaY(SHOP_LIST_WINDOW.y + SHOP_LIST_WINDOW.h - 7));
+      }
+    }
+  }
+
+  private drawMartSellList(runtime: ScriptRuntimeState): void {
+    const wx = this.gbaX(SHOP_LIST_WINDOW.x);
+    const wy = this.gbaY(SHOP_LIST_WINDOW.y);
+    const ww = this.gbaX(SHOP_LIST_WINDOW.w);
+    const wh = this.gbaY(SHOP_LIST_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    const label = getBagPocketLabel(runtime.bag.selectedPocket);
+    this.drawSmallText(label, wx + this.gbaX(8), wy + this.gbaY(3));
+
+    const nameX = wx + this.gbaX(14);
+    const qtyRight = wx + ww - this.gbaX(8);
+    const visibleRows = getBagVisibleRows(runtime.bag);
+
+    visibleRows.forEach((row, visibleIndex) => {
+      const rowY = wy + this.gbaY(14 + visibleIndex * SHOP_LIST_LINE_HEIGHT);
+      if (row.isSelected) {
+        this.drawFieldChoiceCursor(nameX - this.gbaX(10), rowY + this.gbaY(1));
+      }
+
+      this.drawFieldMessageText(row.label, nameX, rowY);
+      if (row.quantity !== null) {
+        const qtyText = `x${row.quantity}`;
+        this.drawSmallText(qtyText, qtyRight - this.measureSmallTextWidth(qtyText), rowY + this.gbaY(1));
+      }
+    });
+  }
+
+  private drawMartDescriptionBox(text: string): void {
+    const wx = this.gbaX(SHOP_DESCRIPTION_WINDOW.x);
+    const wy = this.gbaY(SHOP_DESCRIPTION_WINDOW.y);
+    const ww = this.gbaX(SHOP_DESCRIPTION_WINDOW.w);
+    const wh = this.gbaY(SHOP_DESCRIPTION_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+    this.drawWrappedFieldText(text, wx + this.gbaX(8), wy + this.gbaY(6), ww - this.gbaX(16), 3, 12);
+  }
+
+  private drawMartQuantityBox(dialogue: DialogueState, runtime: ScriptRuntimeState): void {
+    const shop = dialogue.shop;
+    if (!shop || !shop.currentItemId) {
+      return;
+    }
+
+    const wx = this.gbaX(SHOP_QUANTITY_WINDOW.x);
+    const wy = this.gbaY(SHOP_QUANTITY_WINDOW.y);
+    const ww = this.gbaX(SHOP_QUANTITY_WINDOW.w);
+    const wh = this.gbaY(SHOP_QUANTITY_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    const definition = getItemDefinition(shop.currentItemId);
+    const unitPrice = shop.mode.startsWith('sell') ? Math.floor(definition.price / 2) : definition.price;
+    const totalText = `¥${unitPrice * shop.quantity}`;
+    this.drawFieldMessageText(`x${shop.quantity}`, wx + this.gbaX(12), wy + this.gbaY(6));
+    this.drawSmallText(totalText, wx + ww - this.gbaX(8) - this.measureSmallTextWidth(totalText), wy + this.gbaY(18));
+    if (shop.maxQuantity > 1) {
+      const capText = `MAX ${shop.maxQuantity}`;
+      this.drawSmallText(capText, wx + this.gbaX(8), wy + this.gbaY(18));
+    }
+
+    if (shop.mode === 'buyQuantity') {
+      this.drawMartDescriptionBox(definition.description);
+    } else {
+      const description = `${getBagPocketLabel(runtime.bag.selectedPocket)}\n${getBagDescription(runtime.bag)}`;
+      this.drawMartDescriptionBox(description);
+    }
+  }
+
+  private drawMartConfirmWindow(dialogue: DialogueState): void {
+    const shop = dialogue.shop;
+    if (!shop) {
+      return;
+    }
+
+    const wx = this.gbaX(SHOP_YES_NO_WINDOW.x);
+    const wy = this.gbaY(SHOP_YES_NO_WINDOW.y);
+    const ww = this.gbaX(SHOP_YES_NO_WINDOW.w);
+    const wh = this.gbaY(SHOP_YES_NO_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
+
+    ['YES', 'NO'].forEach((option, index) => {
+      const optionX = wx + this.gbaX(16);
+      const optionY = wy + this.gbaY(6 + index * 12);
+      if (shop.selectedIndex === index) {
+        this.drawFieldChoiceCursor(optionX - this.gbaX(10), optionY + this.gbaY(1));
+      }
+      this.drawFieldMessageText(option, optionX, optionY);
+    });
+  }
+
+  private drawMartShopOverlay(dialogue: DialogueState, runtime: ScriptRuntimeState): void {
+    const shop = dialogue.shop;
+    if (!shop) {
+      return;
+    }
+
+    const visibleMode = shop.mode === 'message' ? shop.pendingMode ?? 'mainMenu' : shop.mode;
+    this.drawMartMoneyBox(runtime);
+
+    if (visibleMode === 'mainMenu') {
+      this.drawMartMainMenu(dialogue);
+    }
+
+    if (visibleMode === 'buyList' || visibleMode === 'buyQuantity' || visibleMode === 'buyConfirm') {
+      this.drawMartBuyList(dialogue);
+      const selectedItemId = shop.currentItemId
+        ?? shop.items[Math.min(shop.selectedIndex, Math.max(0, shop.items.length - 1))]
+        ?? null;
+      const description = selectedItemId
+        ? getItemDefinition(selectedItemId).description
+        : 'Quit shopping.';
+      this.drawMartDescriptionBox(description);
+    }
+
+    if (visibleMode === 'sellList' || visibleMode === 'sellQuantity' || visibleMode === 'sellConfirm') {
+      this.drawMartSellList(runtime);
+      this.drawMartDescriptionBox(`${getBagPocketLabel(runtime.bag.selectedPocket)}\n${getBagDescription(runtime.bag)}`);
+    }
+
+    if (visibleMode === 'buyQuantity' || visibleMode === 'sellQuantity') {
+      this.drawMartQuantityBox(dialogue, runtime);
+    }
+
+    if (visibleMode === 'buyConfirm' || visibleMode === 'sellConfirm') {
+      this.drawMartConfirmWindow(dialogue);
+    }
+
     const wx = this.gbaX(FIELD_MESSAGE_WINDOW.x);
     const wy = this.gbaY(FIELD_MESSAGE_WINDOW.y);
     const ww = this.gbaX(FIELD_MESSAGE_WINDOW.w);
     const wh = this.gbaY(FIELD_MESSAGE_WINDOW.h);
     this.drawWindowFrameGbaBorder(wx, wy, ww, wh, 'std');
-
-    const textX = this.gbaX(FIELD_MESSAGE_TEXT.x);
-    const textY = this.gbaY(FIELD_MESSAGE_TEXT.y);
-    const maxWidth = this.gbaX(FIELD_MESSAGE_TEXT.maxWidth);
-    const explicitLines = dialogue.text.split('\n');
-    const wrappedLines = explicitLines.flatMap((line) =>
-      this.wrapMenuText(line, Math.max(this.gbaX(24), maxWidth))
+    this.drawWrappedFieldText(
+      shop.prompt,
+      this.gbaX(FIELD_MESSAGE_TEXT.x),
+      this.gbaY(FIELD_MESSAGE_TEXT.y),
+      this.gbaX(FIELD_MESSAGE_TEXT.maxWidth),
+      FIELD_MESSAGE_MAX_LINES,
+      FIELD_MESSAGE_TEXT.lineHeight
     );
+  }
 
-    wrappedLines.slice(0, FIELD_MESSAGE_MAX_LINES).forEach((line, index) => {
-      this.drawFieldMessageText(line, textX, textY + this.gbaY(FIELD_MESSAGE_TEXT.lineHeight * index));
-    });
+  private drawFieldDialogueWindow(dialogue: DialogueState, runtime: ScriptRuntimeState): void {
+    if (dialogue.shop) {
+      this.drawMartShopOverlay(dialogue, runtime);
+      return;
+    }
+
+    const wx = this.gbaX(FIELD_MESSAGE_WINDOW.x);
+    const wy = this.gbaY(FIELD_MESSAGE_WINDOW.y);
+    const ww = this.gbaX(FIELD_MESSAGE_WINDOW.w);
+    const wh = this.gbaY(FIELD_MESSAGE_WINDOW.h);
+    this.drawWindowFrameGbaBorder(wx, wy, ww, wh, dialogue.fieldMessageBox.frame);
+
+    const visibleText = getVisibleFieldText(dialogue.fieldMessageBox, dialogue.text);
+    this.drawWrappedFieldText(
+      visibleText,
+      this.gbaX(FIELD_MESSAGE_TEXT.x),
+      this.gbaY(FIELD_MESSAGE_TEXT.y),
+      this.gbaX(FIELD_MESSAGE_TEXT.maxWidth),
+      FIELD_MESSAGE_MAX_LINES,
+      FIELD_MESSAGE_TEXT.lineHeight
+    );
 
     if (dialogue.choice) {
       this.drawFieldChoiceWindow(dialogue);
-    } else if (dialogue.queueIndex < dialogue.queue.length - 1) {
+    } else if (
+      !dialogue.fieldMessageBox.autoScroll
+      && !dialogue.fieldMessageBox.printer.active
+      && dialogue.queueIndex < dialogue.queue.length - 1
+    ) {
       this.drawFieldAdvanceArrow(
         this.gbaX(FIELD_MESSAGE_WINDOW.x + FIELD_MESSAGE_WINDOW.w - 14),
-        this.gbaY(FIELD_MESSAGE_WINDOW.y + FIELD_MESSAGE_WINDOW.h - 9)
+        this.gbaY(FIELD_MESSAGE_WINDOW.y + FIELD_MESSAGE_WINDOW.h - 9 + dialogue.fieldMessageBox.printer.downArrowYPosIndex)
       );
+    }
+  }
+
+  private drawFieldMonPic(monPic: NonNullable<DialogueState['monPic']>): void {
+    const speciesKey = monPic.species.replace(/^SPECIES_/u, '').toUpperCase();
+    const pics = this.pokemonBattlePics.get(speciesKey);
+    const img = pics?.front ?? this.pokemonIcons.get(speciesKey);
+    const coords = getBattleSpriteCoords(monPic.species, 'opponent');
+    const tileX = monPic.tilemapLeft * 8;
+    const tileY = monPic.tilemapTop * 8;
+    const centerX = tileX + 32;
+    const centerY = tileY + 32 + coords.yOffset;
+    const dx = this.gbaX(centerX - coords.width / 2);
+    const dy = this.gbaY(centerY - coords.height / 2);
+    const dw = this.gbaX(coords.width);
+    const dh = this.gbaY(coords.height);
+
+    if (img?.complete && img.naturalWidth > 0) {
+      this.ctx.save();
+      this.ctx.imageSmoothingEnabled = false;
+      this.ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, dx, dy, dw, dh);
+      this.ctx.restore();
+      return;
+    }
+
+    this.drawPokemonIcon(speciesKey, this.gbaX(tileX), this.gbaY(tileY), this.gbaX(64), this.gbaY(64));
+  }
+
+  private drawFieldNamingScreen(dialogue: DialogueState): void {
+    const naming = dialogue.namingScreen;
+    if (!naming) {
+      return;
+    }
+
+    this.ctx.save();
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.fillStyle = '#f8f8f8';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    const keyboardId = getNamingScreenKeyboardId(naming);
+    const maps = this.namingScreenTilemaps;
+    if (maps && this.namingScreenMenuTiles.complete && this.namingScreenMenuTiles.naturalWidth > 0) {
+      this.drawNamingScreenTilemap(maps.background);
+      this.drawNamingScreenTilemap(maps[keyboardId]);
+    } else {
+      this.drawWindowFrameGbaBorder(this.gbaX(8), this.gbaY(24), this.gbaX(224), this.gbaY(136), 'std');
+    }
+
+    const speciesKey = naming.species.replace(/^SPECIES_/u, '').toUpperCase();
+    const icon = this.pokemonIcons.get(speciesKey);
+    if (icon?.complete && icon.naturalWidth > 0) {
+      this.ctx.drawImage(icon, this.gbaX(40), this.gbaY(24), this.gbaX(32), this.gbaY(32));
+    }
+
+    this.drawNamingScreenText(`${getSpeciesDisplayName(speciesKey)}${naming.title}`, 73, 33);
+    const inputBaseX = (240 - naming.maxLength * 8) / 2 + 6;
+    this.drawImageAtGbaCenter(this.namingScreenInputArrow, inputBaseX - 5, 56);
+    for (let i = 0; i < naming.maxLength; i += 1) {
+      this.drawImageAtGbaCenter(this.namingScreenUnderscore, inputBaseX + i * 8 + 3, 60);
+      const char = naming.textBuffer[i];
+      if (char) {
+        this.drawNamingScreenText(char, inputBaseX + i * 8, 49);
+      }
+    }
+
+    const rows = getNamingScreenKeyboardChars(naming);
+    const columnX = keyboardId === 'symbols'
+      ? [38, 60, 82, 104, 126, 148]
+      : [38, 50, 62, 94, 106, 118, 130, 161];
+    for (let row = 0; row < rows.length; row += 1) {
+      for (let col = 0; col < (rows[row]?.length ?? 0); col += 1) {
+        const char = rows[row]?.[col];
+        if (char !== undefined) {
+          this.drawNamingScreenText(char, columnX[col] ?? 38, 89 + row * 16);
+        }
+      }
+    }
+
+    this.drawNamingButtons(naming.currentPage);
+    const cursor = getNamingScreenCursorRenderState(naming);
+    this.drawImageAtGbaCenter(this.namingScreenCursor, cursor.screenX, cursor.screenY);
+
+    this.drawSmallText('MOVE', this.gbaX(148), this.gbaY(2), '#20305f');
+    this.drawSmallText('OK', this.gbaX(183), this.gbaY(2), '#20305f');
+    this.drawSmallText('BACK', this.gbaX(205), this.gbaY(2), '#20305f');
+    this.ctx.restore();
+  }
+
+  private drawNamingScreenText(text: string, gbaX: number, gbaY: number): void {
+    this.drawFieldMessageText(text, this.gbaX(gbaX), this.gbaY(gbaY));
+  }
+
+  private drawImageAtGbaCenter(image: HTMLImageElement, gbaCenterX: number, gbaCenterY: number): void {
+    if (!(image.complete && image.naturalWidth > 0)) {
+      return;
+    }
+    const w = image.naturalWidth;
+    const h = image.naturalHeight;
+    this.ctx.drawImage(image, this.gbaX(gbaCenterX - w / 2), this.gbaY(gbaCenterY - h / 2), this.gbaX(w), this.gbaY(h));
+  }
+
+  private drawNamingButtons(page: 'symbols' | 'upper' | 'lower'): void {
+    this.drawImageAtGbaCenter(this.namingScreenPageSwapFrame, 204, 88);
+    this.drawImageAtGbaCenter(this.namingScreenPageSwapButton, 204, 83);
+    const nextPageImage = page === 'upper'
+      ? this.namingScreenPageSwapLower
+      : page === 'lower'
+        ? this.namingScreenPageSwapOthers
+        : this.namingScreenPageSwapUpper;
+    this.drawImageAtGbaCenter(nextPageImage, 204, 84);
+    this.drawImageAtGbaCenter(this.namingScreenBackButton, 204, 116);
+    this.drawImageAtGbaCenter(this.namingScreenOkButton, 204, 140);
+  }
+
+  private drawNamingScreenTilemap(tilemap: Uint16Array): void {
+    const tileset = this.namingScreenMenuTiles;
+    if (!(tileset.complete && tileset.naturalWidth > 0)) {
+      return;
+    }
+
+    const tileSize = 8;
+    const tilesPerRow = Math.floor(tileset.naturalWidth / tileSize);
+    for (let ty = 0; ty < 20; ty += 1) {
+      for (let tx = 0; tx < 30; tx += 1) {
+        const entry = tilemap[ty * 32 + tx] ?? 0;
+        const tileId = entry & 0x03ff;
+        const sx = (tileId % tilesPerRow) * tileSize;
+        const sy = Math.floor(tileId / tilesPerRow) * tileSize;
+        if (sy >= tileset.naturalHeight) {
+          continue;
+        }
+        this.ctx.drawImage(
+          tileset,
+          sx,
+          sy,
+          tileSize,
+          tileSize,
+          this.gbaX(tx * tileSize),
+          this.gbaY(ty * tileSize),
+          this.gbaX(tileSize),
+          this.gbaY(tileSize)
+        );
+      }
     }
   }
 
@@ -3091,26 +3651,38 @@ export class CanvasRenderer {
   }
 
   private buildEntityDrawQueue(map: TileMap, player: PlayerState, npcs: NpcState[]): FieldEntityDrawRequest[] {
-    const getEntityPriority = (position: { x: number; y: number }): number =>
-      getSpritePriorityForElevation(getMapElevationAtPixel(map, {
+    const getFallbackElevation = (position: { x: number; y: number }): number =>
+      getMapElevationAtPixel(map, {
         x: position.x + Math.floor(map.tileSize / 2),
         y: position.y + map.tileSize - 1
-      }));
+      });
+    const getEntityRenderState = (position: { x: number; y: number }, elevation?: number) =>
+      getFieldObjectRenderState(elevation ?? getFallbackElevation(position), position.y, map.tileSize);
 
     return [
-      ...npcs.map((npc) => ({
-        kind: 'npc' as const,
-        priority: getEntityPriority(npc.position),
-        sortY: npc.position.y + 16,
-        npc
-      })),
+      ...npcs.map((npc, index) => {
+        const renderState = getEntityRenderState(npc.position, npc.previousElevation ?? npc.currentElevation);
+        return {
+          kind: 'npc' as const,
+          priority: npc.fixedPriority && npc.renderPriority !== undefined ? npc.renderPriority : renderState.priority,
+          subpriority: npc.fixedPriority && npc.renderSubpriority !== undefined
+            ? npc.renderSubpriority
+            : renderState.subpriority,
+          sequence: index,
+          npc
+        };
+      }),
       {
         kind: 'player' as const,
-        priority: getEntityPriority(player.position),
-        sortY: player.position.y + 16,
+        ...getEntityRenderState(player.position, player.previousElevation ?? player.currentElevation),
+        sequence: npcs.length,
         player
       }
-    ].sort((left, right) => left.sortY - right.sortY);
+    ].sort((left, right) =>
+      right.priority - left.priority
+      || right.subpriority - left.subpriority
+      || left.sequence - right.sequence
+    );
   }
 
   private drawEntities(
@@ -3176,7 +3748,8 @@ export class CanvasRenderer {
       facing: player.facing,
       moving: player.moving,
       animationTime: player.animationTime,
-      graphicsId: PLAYER_GRAPHICS_ID
+      graphicsId: PLAYER_GRAPHICS_ID,
+      walkAnimationPhase: player.walkAnimationPhase
     })) {
       return;
     }

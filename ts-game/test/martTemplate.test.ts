@@ -373,13 +373,14 @@ describe('martTemplate Two Island progressive shop', () => {
     expect(dialogue.queue[1]).toContain('May I help you?');
   });
 
-  it('createTwoIslandClerkHandler shows tier 4 intro with {PLAYER}', () => {
+  it('createTwoIslandClerkHandler expands {PLAYER} in tier 4 intro', () => {
     const handler = createTwoIslandClerkHandler('TwoIsland_Clerk');
     const runtime = createScriptRuntimeState();
+    runtime.startMenu.playerName = 'LEAF';
     runtime.vars['VAR_MAP_SCENE_TWO_ISLAND'] = 4;
     const dialogue = createDialogueState();
     handler({ dialogue, runtime });
-    expect(dialogue.queue[0]).toContain('{PLAYER}');
+    expect(dialogue.queue[0]).toContain('LEAF');
     expect(dialogue.queue[1]).toContain('May I help you?');
     expect(dialogue.queue[2]).toContain('REPEAT BALL');
   });

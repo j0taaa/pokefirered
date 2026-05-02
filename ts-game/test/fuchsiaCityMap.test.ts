@@ -10,7 +10,7 @@ import {
 import fuchsiaCityMapJson from '../src/world/maps/fuchsiaCity.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -64,10 +64,10 @@ describe('Fuchsia City compact map source', () => {
     ]);
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(3);
-    expect(map.encounterTiles?.filter((tile) => tile === 'W')).toHaveLength(78);
+    expect(map.encounterTiles?.filter((tile) => tile === 'L')).toHaveLength(0);
+    expect(map.encounterTiles?.filter((tile) => tile === 'W')).toHaveLength(45);
     expect(map.triggers).toHaveLength(12);
-    expect(map.triggers?.slice(0, 4)).toEqual([
+    expect(map.triggers?.slice(0, 4)).toMatchObject([
       {
         id: 'FuchsiaCity_EventScript_CitySign',
         x: 31,

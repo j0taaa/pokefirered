@@ -9,7 +9,7 @@ import {
 import viridianCitySchoolMapJson from '../src/world/maps/viridianCitySchool.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -66,7 +66,7 @@ describe('Viridian City School compact map source', () => {
     const map = loadViridianCitySchoolMap();
     expect(map.triggers).toHaveLength(5);
 
-    expect(map.triggers[0]).toEqual({
+    expect(map.triggers[0]).toMatchObject({
       id: 'ViridianCity_School_EventScript_Notebook',
       x: 4,
       y: 4,

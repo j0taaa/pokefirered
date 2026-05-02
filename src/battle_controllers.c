@@ -3,6 +3,7 @@
 #include "battle_ai_script_commands.h"
 #include "battle_anim.h"
 #include "battle_controllers.h"
+#include "battle_trace_harness.h"
 #include "battle_message.h"
 #include "cable_club.h"
 #include "link.h"
@@ -799,6 +800,7 @@ void BtlController_EmitPrintString(u8 bufferId, u16 stringID)
         stringInfo->textBuffs[1][i] = gBattleTextBuff2[i];
         stringInfo->textBuffs[2][i] = gBattleTextBuff3[i];
     }
+    BattleTraceHarness_RecordPrintString(gActiveBattler, stringID);
     PrepareBufferDataTransfer(bufferId, sBattleBuffersTransferData, sizeof(struct BattleMsgData) + 4);
 }
 
@@ -838,6 +840,7 @@ void BtlController_EmitChooseAction(u8 bufferId, u8 action, u16 itemId)
     sBattleBuffersTransferData[1] = action;
     sBattleBuffersTransferData[2] = itemId;
     sBattleBuffersTransferData[3] = (itemId & 0xFF00) >> 8;
+    BattleTraceHarness_RecordChooseAction(gActiveBattler, action, itemId);
     PrepareBufferDataTransfer(bufferId, sBattleBuffersTransferData, 4);
 }
 
@@ -846,6 +849,7 @@ static void BtlController_EmitUnknownYesNoBox(u8 bufferId, u32 arg1) // TODO: Do
 {
     sBattleBuffersTransferData[0] = CONTROLLER_UNKNOWNYESNOBOX;
     sBattleBuffersTransferData[1] = arg1;
+    BattleTraceHarness_RecordUnknownYesNoBox(gActiveBattler, arg1);
     PrepareBufferDataTransfer(bufferId, sBattleBuffersTransferData, 2);
 }
 
@@ -859,6 +863,7 @@ void BtlController_EmitChooseMove(u8 bufferId, bool8 isDoubleBattle, bool8 NoPpN
     sBattleBuffersTransferData[3] = 0;
     for (i = 0; i < sizeof(*movePpData); i++)
         sBattleBuffersTransferData[4 + i] = *((u8 *)(movePpData) + i);
+    BattleTraceHarness_RecordChooseMove(gActiveBattler, isDoubleBattle);
     PrepareBufferDataTransfer(bufferId, sBattleBuffersTransferData, sizeof(*movePpData) + 4);
 }
 
@@ -869,6 +874,7 @@ void BtlController_EmitChooseItem(u8 bufferId, u8 *battlePartyOrder)
     sBattleBuffersTransferData[0] = CONTROLLER_OPENBAG;
     for (i = 0; i < PARTY_SIZE / 2; i++)
         sBattleBuffersTransferData[1 + i] = battlePartyOrder[i];
+    BattleTraceHarness_RecordChooseItem(gActiveBattler);
     PrepareBufferDataTransfer(bufferId, sBattleBuffersTransferData, 4);
 }
 
@@ -882,6 +888,7 @@ void BtlController_EmitChoosePokemon(u8 bufferId, u8 caseId, u8 slotId, u8 abili
     sBattleBuffersTransferData[3] = abilityId;
     for (i = 0; i < 3; i++)
         sBattleBuffersTransferData[4 + i] = data[i];
+    BattleTraceHarness_RecordChoosePokemon(gActiveBattler, caseId, slotId);
     PrepareBufferDataTransfer(bufferId, sBattleBuffersTransferData, 8);  // Only 7 bytes were written.
 }
 

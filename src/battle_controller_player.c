@@ -17,6 +17,7 @@
 #include "battle_interface.h"
 #include "battle_message.h"
 #include "battle_script_commands.h"
+#include "battle_trace_harness.h"
 #include "reshow_battle_screen.h"
 #include "constants/battle_anim.h"
 #include "constants/items.h"
@@ -219,6 +220,14 @@ static void CompleteOnBattlerSpritePosX_0(void)
 static void HandleInputChooseAction(void)
 {
     u16 itemId = gBattleBufferA[gActiveBattler][2] | (gBattleBufferA[gActiveBattler][3] << 8);
+    u8 action;
+
+    if (BattleTraceHarness_TryHandleChooseAction(gActiveBattler, &action))
+    {
+        BtlController_EmitTwoReturnValues(1, action, 0);
+        PlayerBufferExecCompleted();
+        return;
+    }
 
     DoBounceEffect(gActiveBattler, BOUNCE_HEALTHBOX, 7, 1);
     DoBounceEffect(gActiveBattler, BOUNCE_MON, 7, 1);
@@ -321,6 +330,15 @@ static void HandleInputChooseTarget(void)
 {
     s32 i;
     u8 identities[4];
+    u8 moveSlot;
+    u8 targetBattler;
+
+    if (BattleTraceHarness_TryHandleChooseMove(gActiveBattler, &moveSlot, &targetBattler))
+    {
+        BtlController_EmitTwoReturnValues(1, 10, moveSlot | (targetBattler << 8));
+        PlayerBufferExecCompleted();
+        return;
+    }
 
     memcpy(identities, sTargetIdentities, NELEMS(sTargetIdentities));
     DoBounceEffect(gMultiUsePlayerCursor, BOUNCE_HEALTHBOX, 15, 1);
@@ -438,8 +456,68 @@ void HandleInputChooseMove(void)
 {
     bool32 canSelectTarget = FALSE;
     struct ChooseMoveStruct *moveInfo = (struct ChooseMoveStruct *)(&gBattleBufferA[gActiveBattler][4]);
+    u8 harnessMoveSlot;
+    u8 harnessTargetBattler;
 
     PreviewDeterminativeMoveTargets();
+    if (BattleTraceHarness_TryHandleChooseMove(gActiveBattler, &harnessMoveSlot, &harnessTargetBattler))
+    {
+        u8 moveTarget;
+
+        gMoveSelectionCursor[gActiveBattler] = harnessMoveSlot;
+        if (moveInfo->moves[gMoveSelectionCursor[gActiveBattler]] == MOVE_CURSE)
+        {
+            if (moveInfo->monType1 != TYPE_GHOST && moveInfo->monType2 != TYPE_GHOST)
+                moveTarget = MOVE_TARGET_USER;
+            else
+                moveTarget = MOVE_TARGET_SELECTED;
+        }
+        else
+        {
+            moveTarget = gBattleMoves[moveInfo->moves[gMoveSelectionCursor[gActiveBattler]]].target;
+        }
+
+        if (moveTarget & MOVE_TARGET_USER)
+            gMultiUsePlayerCursor = gActiveBattler;
+        else
+            gMultiUsePlayerCursor = harnessTargetBattler;
+
+        if (!gBattleBufferA[gActiveBattler][1])
+        {
+            if (moveTarget & MOVE_TARGET_USER_OR_SELECTED && !gBattleBufferA[gActiveBattler][2])
+                ++canSelectTarget;
+        }
+        else
+        {
+            if (!(moveTarget & (MOVE_TARGET_RANDOM | MOVE_TARGET_BOTH | MOVE_TARGET_DEPENDS | MOVE_TARGET_FOES_AND_ALLY | MOVE_TARGET_OPPONENTS_FIELD | MOVE_TARGET_USER)))
+                ++canSelectTarget;
+            if (moveInfo->currentPp[gMoveSelectionCursor[gActiveBattler]] == 0)
+            {
+                canSelectTarget = FALSE;
+            }
+            else if (!(moveTarget & (MOVE_TARGET_USER | MOVE_TARGET_USER_OR_SELECTED)) && CountAliveMonsInBattle(BATTLE_ALIVE_EXCEPT_ACTIVE) <= 1)
+            {
+                gMultiUsePlayerCursor = GetDefaultMoveTarget(gActiveBattler);
+                canSelectTarget = FALSE;
+            }
+        }
+
+        ResetPaletteFadeControl();
+        BeginNormalPaletteFade(0xF0000, 0, 0, 0, RGB_WHITE);
+        if (!canSelectTarget)
+        {
+            BtlController_EmitTwoReturnValues(1, 10, gMoveSelectionCursor[gActiveBattler] | (gMultiUsePlayerCursor << 8));
+            PlayerBufferExecCompleted();
+        }
+        else
+        {
+            gBattlerControllerFuncs[gActiveBattler] = HandleInputChooseTarget;
+            gMultiUsePlayerCursor = harnessTargetBattler;
+            gSprites[gBattlerSpriteIds[gMultiUsePlayerCursor]].callback = SpriteCB_ShowAsMoveTarget;
+        }
+        return;
+    }
+
     if (JOY_NEW(A_BUTTON))
     {
         u8 moveTarget;
@@ -1299,10 +1377,19 @@ static void OpenPartyMenuToChooseMon(void)
     if (!gPaletteFade.active)
     {
         u8 caseId;
+        u8 harnessPartyIndex;
 
         gBattlerControllerFuncs[gActiveBattler] = WaitForMonSelection;
         caseId = gTasks[gBattleControllerData[gActiveBattler]].data[0];
         DestroyTask(gBattleControllerData[gActiveBattler]);
+
+        if (BattleTraceHarness_TryHandleChoosePokemon(gActiveBattler, &harnessPartyIndex))
+        {
+            BtlController_EmitChosenMonReturnValue(1, harnessPartyIndex, gBattlePartyCurrentOrder);
+            PlayerBufferExecCompleted();
+            return;
+        }
+
         FreeAllWindowBuffers();
         OpenPartyMenuInTutorialBattle(caseId);
     }
@@ -1312,6 +1399,15 @@ static void WaitForMonSelection(void)
 {
     if (gMain.callback2 == BattleMainCB2 && !gPaletteFade.active)
     {
+        u8 harnessPartyIndex;
+
+        if (BattleTraceHarness_TryHandleChoosePokemon(gActiveBattler, &harnessPartyIndex))
+        {
+            BtlController_EmitChosenMonReturnValue(1, harnessPartyIndex, gBattlePartyCurrentOrder);
+            PlayerBufferExecCompleted();
+            return;
+        }
+
         if (gPartyMenuUseExitCallback == TRUE)
             BtlController_EmitChosenMonReturnValue(1, gSelectedMonPartyId, gBattlePartyCurrentOrder);
         else
@@ -1324,6 +1420,16 @@ static void WaitForMonSelection(void)
 
 static void OpenBagAndChooseItem(void)
 {
+    u16 itemId;
+
+    if (BattleTraceHarness_TryHandleChooseItem(gActiveBattler, &itemId))
+    {
+        gSpecialVar_ItemId = itemId;
+        BtlController_EmitOneReturnValue(1, gSpecialVar_ItemId);
+        PlayerBufferExecCompleted();
+        return;
+    }
+
     if (!gPaletteFade.active)
     {
         gBattlerControllerFuncs[gActiveBattler] = CompleteWhenChoseItem;

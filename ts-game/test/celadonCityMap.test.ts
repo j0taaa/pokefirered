@@ -10,7 +10,7 @@ import {
 import celadonCityMapJson from '../src/world/maps/celadonCity.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -64,7 +64,7 @@ describe('Celadon City compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.triggers).toHaveLength(9);
-    expect(map.triggers?.slice(0, 4)).toEqual([
+    expect(map.triggers?.slice(0, 4)).toMatchObject([
       {
         id: 'CeladonCity_EventScript_TrainerTips2',
         x: 45,

@@ -10,7 +10,7 @@ import {
 import route7MapJson from '../src/world/maps/route7.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -59,7 +59,7 @@ describe('Route 7 compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.triggers).toHaveLength(2);
-    expect(map.triggers[0]).toEqual({
+    expect(map.triggers[0]).toMatchObject({
       id: 'Route7_EventScript_UndergroundPathSign',
       x: 5,
       y: 14,

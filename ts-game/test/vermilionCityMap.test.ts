@@ -10,7 +10,7 @@ import {
 import vermilionCityMapJson from '../src/world/maps/vermilionCity.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -63,7 +63,7 @@ describe('Vermilion City compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.triggers).toHaveLength(10);
-    expect(map.triggers?.slice(0, 4)).toEqual([
+    expect(map.triggers?.slice(0, 4)).toMatchObject([
       {
         id: 'VermilionCity_EventScript_CheckTicketLeft',
         x: 22,

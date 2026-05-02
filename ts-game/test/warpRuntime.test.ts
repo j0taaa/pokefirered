@@ -1,10 +1,28 @@
 import { describe, expect, test } from 'vitest';
 import { vec2 } from '../src/core/vec2';
 import { createPlayer, stepPlayer } from '../src/game/player';
+import { createScriptRuntimeState } from '../src/game/scripts';
+import { applyWarpTransitionEffect } from '../src/game/warpEffects';
 import {
   findWarpAtTile,
+  GetInFrontOfPlayerPosition,
+  GetPlayerCurMetatileBehavior,
+  getWarpEffectForBehavior,
+  IsArrowWarpMetatileBehavior,
+  IsDirectionalStairWarpMetatileBehavior,
+  IsWarpMetatileBehavior,
   isArrowWarpMetatileBehavior,
   isWarpMetatileBehavior,
+  MetatileBehavior_IsEscalator,
+  MetatileBehavior_IsFallWarp,
+  MetatileBehavior_IsLadder,
+  MetatileBehavior_IsLavaridge1FWarp,
+  MetatileBehavior_IsLavaridgeB1FWarp,
+  MetatileBehavior_IsNonAnimDoor,
+  MetatileBehavior_IsUnionRoomWarp,
+  MetatileBehavior_IsWarpDoor,
+  MetatileBehavior_IsWarpPad,
+  resolveArrowWarpTransition,
   resolveFacingDoorWarpTransition,
   resolveWarpTransition
 } from '../src/game/warps';
@@ -52,6 +70,7 @@ import {
   type CompactMapSource
 } from '../src/world/mapSource';
 import type { TileMap } from '../src/world/tileMap';
+import { MapGridGetMetatileBehaviorAt } from '../src/world/tileMap';
 import indigoPlateauExteriorMapJson from '../src/world/maps/indigoPlateauExterior.json';
 
 const createTestMap = (overrides: Partial<TileMap> = {}): TileMap => ({
@@ -87,22 +106,315 @@ describe('warp runtime', () => {
     })).toThrow(/behaviorRows/i);
   });
 
-  test('matches decomp warp-door and arrow-warp behavior checks', () => {
-    expect(isWarpMetatileBehavior(0x69)).toBe(true);
-    expect(isWarpMetatileBehavior(0x67)).toBe(true);
-    expect(isWarpMetatileBehavior(0x00)).toBe(false);
+  test('matches decomp warp metatile behavior predicates', () => {
+    expect(MetatileBehavior_IsWarpDoor(0x69)).toBe(true);
+    expect(MetatileBehavior_IsWarpDoor(0x68)).toBe(false);
+    expect(MetatileBehavior_IsLadder(0x61)).toBe(true);
+    expect(MetatileBehavior_IsEscalator(0x6a)).toBe(true);
+    expect(MetatileBehavior_IsEscalator(0x6b)).toBe(true);
+    expect(MetatileBehavior_IsEscalator(0x6c)).toBe(false);
+    expect(MetatileBehavior_IsNonAnimDoor(0x60)).toBe(true);
+    expect(MetatileBehavior_IsLavaridgeB1FWarp(0x68)).toBe(false);
+    expect(MetatileBehavior_IsLavaridge1FWarp(0x68)).toBe(true);
+    expect(MetatileBehavior_IsWarpPad(0x67)).toBe(true);
+    expect(MetatileBehavior_IsFallWarp(0x66)).toBe(true);
+    expect(MetatileBehavior_IsUnionRoomWarp(0x71)).toBe(true);
+
+    for (const behavior of [0x69, 0x61, 0x6a, 0x6b, 0x60, 0x68, 0x67, 0x66, 0x71]) {
+      expect(IsWarpMetatileBehavior(behavior)).toBe(true);
+      expect(isWarpMetatileBehavior(behavior)).toBe(true);
+    }
+
+    for (const behavior of [0x00, 0x62, 0x63, 0x64, 0x65, 0x6c, 0x6d, 0x6e, 0x6f]) {
+      expect(IsWarpMetatileBehavior(behavior)).toBe(false);
+      expect(isWarpMetatileBehavior(behavior)).toBe(false);
+    }
+  });
+
+  test('matches decomp directional and arrow-warp behavior checks', () => {
+    expect(IsArrowWarpMetatileBehavior(0x64, 'up')).toBe(true);
     expect(isArrowWarpMetatileBehavior(0x64, 'up')).toBe(true);
-    expect(isArrowWarpMetatileBehavior(0x64, 'down')).toBe(false);
+    expect(IsArrowWarpMetatileBehavior(0x64, 'down')).toBe(false);
+    expect(IsArrowWarpMetatileBehavior(0x65, 'down')).toBe(true);
+    expect(IsArrowWarpMetatileBehavior(0x63, 'left')).toBe(true);
+    expect(IsArrowWarpMetatileBehavior(0x62, 'right')).toBe(true);
+
+    expect(IsDirectionalStairWarpMetatileBehavior(0x6d, 'left')).toBe(true);
+    expect(IsDirectionalStairWarpMetatileBehavior(0x6f, 'left')).toBe(true);
+    expect(IsDirectionalStairWarpMetatileBehavior(0x6c, 'right')).toBe(true);
+    expect(IsDirectionalStairWarpMetatileBehavior(0x6e, 'right')).toBe(true);
+    expect(IsDirectionalStairWarpMetatileBehavior(0x6d, 'right')).toBe(false);
+    expect(IsDirectionalStairWarpMetatileBehavior(0x6c, 'up')).toBe(false);
+  });
+
+  test('classifies warp behaviors with the same effect branches as field_control_avatar', () => {
+    expect(getWarpEffectForBehavior(0x69, 'up')).toEqual({ effect: 'warp', behavior: 0x69 });
+    expect(getWarpEffectForBehavior(0x6a, 'up')).toEqual({ effect: 'escalator', behavior: 0x6a });
+    expect(getWarpEffectForBehavior(0x6b, 'up')).toEqual({ effect: 'escalator', behavior: 0x6b });
+    expect(getWarpEffectForBehavior(0x68, 'up')).toEqual({ effect: 'lavaridge1F', behavior: 0x68 });
+    expect(getWarpEffectForBehavior(0x67, 'up')).toEqual({ effect: 'teleport', behavior: 0x67 });
+    expect(getWarpEffectForBehavior(0x71, 'up')).toEqual({ effect: 'unionRoom', behavior: 0x71 });
+    expect(getWarpEffectForBehavior(0x66, 'up')).toEqual({
+      effect: 'fall',
+      behavior: 0x66,
+      resetInitialPlayerAvatarState: true
+    });
+    expect(getWarpEffectForBehavior(0x6c, 'right')).toEqual({
+      effect: 'stair',
+      behavior: 0x6c,
+      delayFrames: 0
+    });
+    expect(getWarpEffectForBehavior(0x6c, 'right', 'machBike')).toEqual({
+      effect: 'stair',
+      behavior: 0x6c,
+      delayFrames: 12
+    });
+  });
+
+  test('preserves decomp warp effect metadata for current-tile special warps', () => {
+    const destination = createTestMap({
+      id: 'MAP_DEST',
+      warps: [{ x: 2, y: 2, elevation: 0, destMap: 'MAP_TEST', destWarpId: 0 }]
+    });
+    const player = createPlayer();
+    player.position = vec2(1 * destination.tileSize, 1 * destination.tileSize);
+
+    for (const [behavior, expected] of [
+      [0x6a, { effect: 'escalator', behavior: 0x6a }],
+      [0x6b, { effect: 'escalator', behavior: 0x6b }],
+      [0x68, { effect: 'lavaridge1F', behavior: 0x68 }],
+      [0x67, { effect: 'teleport', behavior: 0x67 }],
+      [0x71, { effect: 'unionRoom', behavior: 0x71 }],
+      [0x66, { effect: 'fall', behavior: 0x66, resetInitialPlayerAvatarState: true }]
+    ] as const) {
+      const map = createTestMap({
+        tileBehaviors: [
+          0, 0, 0, 0,
+          0, behavior, 0, 0,
+          0, 0, 0, 0,
+          0, 0, 0, 0
+        ],
+        warps: [{ x: 1, y: 1, elevation: 0, destMap: destination.id, destWarpId: 0 }]
+      });
+
+      expect(resolveWarpTransition(map, player, (mapId) => mapId === destination.id ? destination : null))
+        .toEqual(expect.objectContaining({
+          status: 'resolved',
+          sourceWarp: map.warps[0],
+          destinationMap: destination,
+          destinationWarp: destination.warps[0],
+          playerPosition: { x: 2 * destination.tileSize, y: 2 * destination.tileSize },
+          ...expected
+        }));
+    }
+  });
+
+  test('applies resolved warp effects to runtime state like decomp warp tasks', () => {
+    const runtime = createScriptRuntimeState();
+    const player = createPlayer();
+
+    applyWarpTransitionEffect(runtime, player, { status: 'resolved', effect: 'door' });
+    applyWarpTransitionEffect(runtime, player, { status: 'resolved', effect: 'escalator' });
+    applyWarpTransitionEffect(runtime, player, { status: 'resolved', effect: 'teleport' });
+    applyWarpTransitionEffect(runtime, player, {
+      status: 'resolved',
+      effect: 'fall',
+      resetInitialPlayerAvatarState: true
+    });
+    applyWarpTransitionEffect(runtime, player, { status: 'resolved', effect: 'unionRoom' });
+
+    player.avatarMode = 'machBike';
+    applyWarpTransitionEffect(runtime, player, {
+      status: 'resolved',
+      effect: 'stair',
+      delayFrames: 12
+    });
+
+    expect(runtime.fieldEffects.triggeredSpecials.DoDoorWarp).toBe(1);
+    expect(runtime.fieldEffects.triggeredSpecials.DoEscalatorWarp).toBe(1);
+    expect(runtime.fieldEffects.triggeredSpecials.DoTeleportWarp).toBe(1);
+    expect(runtime.fieldEffects.triggeredSpecials.DoFallWarp).toBe(1);
+    expect(runtime.fieldEffects.triggeredSpecials.DoUnionRoomWarp).toBe(1);
+    expect(runtime.fieldEffects.triggeredSpecials.DoStairWarp).toBe(1);
+    expect(runtime.fieldEffects.fallWarpCount).toBe(1);
+    expect(runtime.startMenu.mode).toBe('unionRoom');
+    expect(player.avatarMode).toBe('normal');
+    expect(player.runningState).toBe('notMoving');
+    expect(player.bikeState).toBe('normal');
+    expect(player.bikeFrameCounter).toBe(0);
+  });
+
+  test('records directional stair bike dismount delay like TryArrowWarp', () => {
+    const map = createTestMap({
+      tileBehaviors: [
+        0, 0, 0, 0,
+        0, 0x6c, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+      ],
+      warps: [{ x: 1, y: 1, elevation: 0, destMap: 'MAP_DEST', destWarpId: 0 }]
+    });
+    const destination = createTestMap({
+      id: 'MAP_DEST',
+      warps: [{ x: 2, y: 2, elevation: 0, destMap: map.id, destWarpId: 0 }]
+    });
+    const player = createPlayer();
+    player.position = vec2(1 * map.tileSize, 1 * map.tileSize);
+    player.facing = 'right';
+
+    expect(resolveWarpTransition(map, player, (mapId) => mapId === destination.id ? destination : null))
+      .toEqual(expect.objectContaining({
+        status: 'resolved',
+        effect: 'stair',
+        behavior: 0x6c,
+        delayFrames: 0
+      }));
+
+    player.avatarMode = 'machBike';
+
+    expect(resolveWarpTransition(map, player, (mapId) => mapId === destination.id ? destination : null))
+      .toEqual(expect.objectContaining({
+        status: 'resolved',
+        effect: 'stair',
+        behavior: 0x6c,
+        delayFrames: 12
+      }));
+  });
+
+  test('resolves arrow warps only when held direction matches player facing', () => {
+    const map = createTestMap({
+      tileBehaviors: [
+        0, 0, 0, 0,
+        0, 0x64, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+      ],
+      warps: [{ x: 1, y: 1, elevation: 0, destMap: 'MAP_DEST', destWarpId: 0 }]
+    });
+    const destination = createTestMap({
+      id: 'MAP_DEST',
+      warps: [{ x: 2, y: 2, elevation: 0, destMap: 'MAP_TEST', destWarpId: 0 }]
+    });
+    const player = createPlayer();
+    player.position = vec2(1 * map.tileSize, 1 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveArrowWarpTransition(map, player, null, () => destination)).toEqual({ status: 'none' });
+    expect(resolveArrowWarpTransition(map, player, 'down', () => destination)).toEqual({ status: 'none' });
+    expect(resolveWarpTransition(map, player, () => destination, null, { allowArrowWarp: false })).toEqual({
+      status: 'not_activatable',
+      sourceWarp: map.warps[0]
+    });
+    expect(resolveArrowWarpTransition(map, player, 'up', () => destination)).toEqual({
+      status: 'resolved',
+      sourceWarp: map.warps[0],
+      destinationMap: destination,
+      destinationWarp: destination.warps[0],
+      playerPosition: { x: 2 * destination.tileSize, y: 2 * destination.tileSize }
+    });
+  });
+
+  test('does not let arrow-warp resolver activate regular warp metatiles', () => {
+    const map = createTestMap({
+      tileBehaviors: [
+        0, 0, 0, 0,
+        0, 0x67, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+      ],
+      warps: [{ x: 1, y: 1, elevation: 0, destMap: 'MAP_DEST', destWarpId: 0 }]
+    });
+    const player = createPlayer();
+    player.position = vec2(1 * map.tileSize, 1 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveArrowWarpTransition(map, player, 'up', () => null)).toEqual({
+      status: 'not_activatable',
+      sourceWarp: map.warps[0]
+    });
   });
 
   test('matches GetWarpEventAtPosition elevation wildcard semantics', () => {
     const map = createTestMap({
-      warps: [{ x: 1, y: 2, elevation: 0, destMap: 'MAP_DEST', destWarpId: 0 }]
+      warps: [
+        { x: 1, y: 2, elevation: 0, destMap: 'MAP_DEST', destWarpId: 0 },
+        { x: 2, y: 2, elevation: 3, destMap: 'MAP_DEST', destWarpId: 0 }
+      ]
     });
 
     expect(findWarpAtTile(map, 1, 2, 3)).toEqual(map.warps[0]);
     expect(findWarpAtTile(map, 1, 2, 0)).toEqual(map.warps[0]);
+    expect(findWarpAtTile(map, 2, 2, 3)).toEqual(map.warps[1]);
+    expect(findWarpAtTile(map, 2, 2, 0)).toBeNull();
     expect(findWarpAtTile(map, 0, 2, 3)).toBeNull();
+  });
+
+  test('reads player current behavior and front elevation through MapGrid helpers', () => {
+    const map = createTestMap({
+      tileBehaviors: [
+        0, 0, 0, 0,
+        0, 0x69, 0, 0,
+        0, 0x67, 0, 0,
+        0, 0, 0, 0
+      ],
+      elevations: [
+        0, 0, 0, 0,
+        0, 3, 0, 0,
+        0, 3, 0, 0,
+        0, 0, 0, 0
+      ]
+    });
+    const player = createPlayer();
+    player.position = vec2(1 * map.tileSize, 2 * map.tileSize);
+    player.facing = 'up';
+
+    expect(GetPlayerCurMetatileBehavior(map, player)).toBe(0x67);
+    expect(GetInFrontOfPlayerPosition(map, player)).toEqual({ x: 1, y: 1, elevation: 3 });
+
+    player.position = vec2(0, 0);
+    expect(GetInFrontOfPlayerPosition(map, player)).toEqual({ x: 0, y: -1, elevation: 0 });
+  });
+
+  test('resolves WARP_ID_DYNAMIC destinations from script runtime dynamic warp state', () => {
+    const map = createTestMap({
+      tileBehaviors: [
+        0, 0, 0, 0,
+        0, 0x67, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+      ],
+      warps: [{ x: 1, y: 1, elevation: 0, destMap: 'MAP_DYNAMIC_PLACEHOLDER', destWarpId: 255 }]
+    });
+    const destination = createTestMap({
+      id: 'MAP_DYNAMIC_DEST',
+      width: 8,
+      height: 8,
+      walkable: new Array(64).fill(true),
+      tileBehaviors: new Array(64).fill(0)
+    });
+    const player = createPlayer();
+    player.position = vec2(1 * map.tileSize, 1 * map.tileSize);
+
+    expect(resolveWarpTransition(
+      map,
+      player,
+      (mapId) => mapId === destination.id ? destination : null,
+      { mapId: destination.id, warpId: 255, x: 5, y: 6 }
+    )).toEqual({
+      status: 'resolved',
+      effect: 'teleport',
+      behavior: 0x67,
+      sourceWarp: map.warps[0],
+      destinationMap: destination,
+      destinationWarp: {
+        x: 5,
+        y: 6,
+        elevation: 0,
+        destMap: map.id,
+        destWarpId: 255
+      },
+      playerPosition: { x: 5 * destination.tileSize, y: 6 * destination.tileSize }
+    });
   });
 
   test('resolves Indigo Plateau exterior door warp into the loaded Pokemon Center', () => {
@@ -165,7 +477,7 @@ describe('warp runtime', () => {
     });
   });
 
-  test('preserves doorway side when exiting the Viridian City Pokemon Center', () => {
+  test('requires an activatable metatile behavior for side Pokemon Center exit warps', () => {
     const map = loadViridianCityPokemonCenter1FMap();
 
     const leftPlayer = createPlayer();
@@ -173,11 +485,8 @@ describe('warp runtime', () => {
     leftPlayer.facing = 'down';
 
     expect(resolveWarpTransition(map, leftPlayer, loadMapById)).toEqual({
-      status: 'resolved',
-      sourceWarp: { x: 6, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 },
-      destinationMap: loadViridianCityMap(),
-      destinationWarp: { x: 26, y: 26, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F', destWarpId: 1 },
-      playerPosition: { x: 24 * 16, y: 27 * 16 }
+      status: 'not_activatable',
+      sourceWarp: { x: 6, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 }
     });
 
     const rightPlayer = createPlayer();
@@ -185,11 +494,8 @@ describe('warp runtime', () => {
     rightPlayer.facing = 'down';
 
     expect(resolveWarpTransition(map, rightPlayer, loadMapById)).toEqual({
-      status: 'resolved',
-      sourceWarp: { x: 8, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 },
-      destinationMap: loadViridianCityMap(),
-      destinationWarp: { x: 26, y: 26, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F', destWarpId: 1 },
-      playerPosition: { x: 26 * 16, y: 27 * 16 }
+      status: 'not_activatable',
+      sourceWarp: { x: 8, y: 8, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 0 }
     });
   });
 
@@ -256,11 +562,13 @@ describe('warp runtime', () => {
   test('resolves the Viridian City House door warp into the loaded house map', () => {
     const map = loadViridianCityMap();
     const player = createPlayer();
-    player.position = vec2(25 * map.tileSize, 11 * map.tileSize);
+    player.position = vec2(25 * map.tileSize, 12 * map.tileSize);
     player.facing = 'up';
 
-    expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
+    expect(resolveFacingDoorWarpTransition(map, player, 'up', loadMapById)).toEqual({
       status: 'resolved',
+      effect: 'door',
+      behavior: 0x69,
       sourceWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
       destinationMap: loadViridianCityHouseMap(),
       destinationWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
@@ -283,7 +591,7 @@ describe('warp runtime', () => {
     });
   });
 
-  test('preserves doorway side when exiting the Viridian City house', () => {
+  test('requires an activatable metatile behavior for side Viridian City house exit warps', () => {
     const map = loadViridianCityHouseMap();
 
     const leftPlayer = createPlayer();
@@ -291,11 +599,8 @@ describe('warp runtime', () => {
     leftPlayer.facing = 'down';
 
     expect(resolveWarpTransition(map, leftPlayer, loadMapById)).toEqual({
-      status: 'resolved',
-      sourceWarp: { x: 3, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
-      destinationMap: loadViridianCityMap(),
-      destinationWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
-      playerPosition: { x: 23 * 16, y: 12 * 16 }
+      status: 'not_activatable',
+      sourceWarp: { x: 3, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 }
     });
 
     const rightPlayer = createPlayer();
@@ -303,11 +608,8 @@ describe('warp runtime', () => {
     rightPlayer.facing = 'down';
 
     expect(resolveWarpTransition(map, rightPlayer, loadMapById)).toEqual({
-      status: 'resolved',
-      sourceWarp: { x: 5, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
-      destinationMap: loadViridianCityMap(),
-      destinationWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
-      playerPosition: { x: 25 * 16, y: 12 * 16 }
+      status: 'not_activatable',
+      sourceWarp: { x: 5, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 }
     });
   });
 
@@ -319,6 +621,8 @@ describe('warp runtime', () => {
 
     expect(resolveFacingDoorWarpTransition(map, player, 'up', loadMapById)).toEqual({
       status: 'resolved',
+      effect: 'door',
+      behavior: 0x69,
       sourceWarp: { x: 25, y: 11, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY_HOUSE', destWarpId: 1 },
       destinationMap: loadViridianCityHouseMap(),
       destinationWarp: { x: 4, y: 7, elevation: 0, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 1 },
@@ -334,6 +638,26 @@ describe('warp runtime', () => {
 
     expect(resolveFacingDoorWarpTransition(map, player, null, loadMapById)).toEqual({ status: 'none' });
     expect(resolveFacingDoorWarpTransition(map, player, 'left', loadMapById)).toEqual({ status: 'none' });
+  });
+
+  test('does not door-warp from a behavior-zero tile even when a warp event exists', () => {
+    const map = createTestMap({
+      walkable: [
+        true, false, true, true,
+        true, true, true, true,
+        true, true, true, true,
+        true, true, true, true
+      ],
+      tileBehaviors: new Array(16).fill(0),
+      warps: [{ x: 1, y: 0, elevation: 0, destMap: 'MAP_DEST', destWarpId: 0 }]
+    });
+    const destination = createTestMap({ id: 'MAP_DEST' });
+    const player = createPlayer();
+    player.position = vec2(1 * map.tileSize, 1 * map.tileSize);
+    player.facing = 'up';
+
+    expect(resolveFacingDoorWarpTransition(map, player, 'up', (mapId) => mapId === destination.id ? destination : null))
+      .toEqual({ status: 'not_activatable', sourceWarp: map.warps[0] });
   });
 
   test('resolves blocked Poke Center and mart entrances from the tile south of the door', () => {
@@ -461,6 +785,9 @@ describe('warp runtime', () => {
 
     expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
       status: 'resolved',
+      effect: 'stair',
+      behavior: 0x6c,
+      delayFrames: 0,
       sourceWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F', destWarpId: 0 },
       destinationMap: loadPalletTownPlayersHouse2FMap(),
       destinationWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 2 },
@@ -476,6 +803,9 @@ describe('warp runtime', () => {
 
     expect(resolveWarpTransition(map, player, loadMapById)).toEqual({
       status: 'resolved',
+      effect: 'stair',
+      behavior: 0x6f,
+      delayFrames: 0,
       sourceWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 2 },
       destinationMap: loadPalletTownPlayersHouse1FMap(),
       destinationWarp: { x: 10, y: 2, elevation: 3, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F', destWarpId: 0 },
@@ -498,7 +828,7 @@ describe('warp runtime', () => {
     });
   });
 
-  test('preserves doorway side when exiting the Players House 1F', () => {
+  test('requires an activatable metatile behavior for Players House 1F exit warps', () => {
     const map = loadPalletTownPlayersHouse1FMap();
 
     const leftPlayer = createPlayer();
@@ -518,11 +848,8 @@ describe('warp runtime', () => {
     rightPlayer.facing = 'down';
 
     expect(resolveWarpTransition(map, rightPlayer, loadMapById)).toEqual({
-      status: 'resolved',
-      sourceWarp: { x: 5, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 },
-      destinationMap: loadPalletTownMap(),
-      destinationWarp: { x: 6, y: 7, elevation: 0, destMap: 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F', destWarpId: 1 },
-      playerPosition: { x: 6 * 16, y: 8 * 16 }
+      status: 'not_activatable',
+      sourceWarp: { x: 5, y: 8, elevation: 3, destMap: 'MAP_PALLET_TOWN', destWarpId: 0 }
     });
   });
 
@@ -853,10 +1180,16 @@ describe('warp runtime', () => {
       if (!warp) continue;
 
       const player = createPlayer();
-      player.position = vec2(warp.x * cityMap.tileSize, warp.y * cityMap.tileSize);
-      player.facing = 'up';
+      const behavior = MapGridGetMetatileBehaviorAt(cityMap, warp.x, warp.y);
+      const isWarpDoor = behavior === 0x69;
+      player.position = isWarpDoor
+        ? vec2(warp.x * cityMap.tileSize, (warp.y + 1) * cityMap.tileSize)
+        : vec2(warp.x * cityMap.tileSize, warp.y * cityMap.tileSize);
+      player.facing = isWarpDoor ? 'up' : 'down';
 
-      const result = resolveWarpTransition(cityMap, player, loadMapById);
+      const result = isWarpDoor
+        ? resolveFacingDoorWarpTransition(cityMap, player, 'up', loadMapById)
+        : resolveWarpTransition(cityMap, player, loadMapById);
       expect(result.status).toBe('resolved');
       if (result.status !== 'resolved') continue;
       expect(result.sourceWarp).toEqual(warp);
@@ -907,10 +1240,16 @@ describe('warp runtime', () => {
       if (!warp) continue;
 
       const player = createPlayer();
-      player.position = vec2(warp.x * cityMap.tileSize, warp.y * cityMap.tileSize);
-      player.facing = 'up';
+      const behavior = MapGridGetMetatileBehaviorAt(cityMap, warp.x, warp.y);
+      const isWarpDoor = behavior === 0x69;
+      player.position = isWarpDoor
+        ? vec2(warp.x * cityMap.tileSize, (warp.y + 1) * cityMap.tileSize)
+        : vec2(warp.x * cityMap.tileSize, warp.y * cityMap.tileSize);
+      player.facing = isWarpDoor ? 'up' : 'down';
 
-      const result = resolveWarpTransition(cityMap, player, loadMapById);
+      const result = isWarpDoor
+        ? resolveFacingDoorWarpTransition(cityMap, player, 'up', loadMapById)
+        : resolveWarpTransition(cityMap, player, loadMapById);
       expect(result.status).toBe('resolved');
       if (result.status !== 'resolved') continue;
       expect(result.sourceWarp).toEqual(warp);
@@ -946,7 +1285,7 @@ describe('warp runtime', () => {
   test('resolves Vermilion Gym exit warps back to city', () => {
     const gym = loadVermilionCityGymMap();
     const player = createPlayer();
-    const exitWarp = gym.warps[0];
+    const exitWarp = gym.warps[1];
 
     player.position = vec2(exitWarp.x * gym.tileSize, exitWarp.y * gym.tileSize);
     player.facing = 'down';
@@ -960,7 +1299,7 @@ describe('warp runtime', () => {
   test('resolves Vermilion Fan Club exit warps back to city', () => {
     const fanClub = loadVermilionCityPokemonFanClubMap();
     const player = createPlayer();
-    const exitWarp = fanClub.warps[0];
+    const exitWarp = fanClub.warps[1];
 
     player.position = vec2(exitWarp.x * fanClub.tileSize, exitWarp.y * fanClub.tileSize);
     player.facing = 'down';
@@ -982,7 +1321,7 @@ describe('warp runtime', () => {
     for (const load of interiors) {
       const map = load();
       const player = createPlayer();
-      const exitWarp = map.warps[0];
+      const exitWarp = map.warps[1];
 
       player.position = vec2(exitWarp.x * map.tileSize, exitWarp.y * map.tileSize);
       player.facing = 'down';

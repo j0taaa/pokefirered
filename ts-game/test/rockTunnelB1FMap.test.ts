@@ -10,7 +10,7 @@ import {
 import rockTunnelB1FMapJson from '../src/world/maps/rockTunnelB1F.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -55,7 +55,7 @@ describe('Rock Tunnel B1F compact map source', () => {
     const map = mapFromCompactSource(compactSource);
 
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.triggers).toEqual([]);
+    expect(map.triggers).toMatchObject([]);
     expect(map.warps).toEqual([
       { x: 38, y: 28, elevation: 3, destMap: 'MAP_ROCK_TUNNEL_1F', destWarpId: 1 },
       { x: 33, y: 3, elevation: 3, destMap: 'MAP_ROCK_TUNNEL_1F', destWarpId: 2 },

@@ -2,9 +2,9 @@ import pokedexOrdersSource from '../../../src/data/pokemon/pokedex_orders.h?raw'
 import pokedexCategoriesSource from '../../../src/data/pokemon/pokedex_categories.h?raw';
 import pokedexAreaMarkersSource from '../../../src/pokedex_area_markers.c?raw';
 import wildPokemonAreaSource from '../../../src/wild_pokemon_area.c?raw';
-import wildEncountersSource from '../../../src/data/wild_encounters.json?raw';
 import { getDecompPokedexEntry, getNationalDexNumber, getNationalDexSpecies } from './decompPokedex';
 import { getDecompSpeciesInfo } from './decompSpecies';
+import { getRawWildEncounters } from './decompWildEncounters';
 
 export type PokedexCategoryId =
   | 'GRASSLAND'
@@ -66,10 +66,14 @@ export interface PokedexAreaMarker {
   y: number;
 }
 
-interface WildEncounterGroup {
-  wild_encounter_groups?: Array<{
-    encounters?: Array<Record<string, unknown>>;
-  }>;
+export interface PokedexCategoryPageDefinition {
+  symbol: string;
+  species: string[];
+}
+
+export interface PokedexCategoryGroupDefinition {
+  symbol: string;
+  pages: string[];
 }
 
 const CATEGORY_PREFIX_TO_ID: Record<string, PokedexCategoryId> = {
@@ -139,6 +143,22 @@ const parseOrderArray = (source: string, arrayName: string): string[] => {
   );
 };
 
+export const POKEDEX_ORDERS_SOURCE = pokedexOrdersSource;
+
+export const parsePokedexOrderRaw = (source: string, arrayName: string): string[] => {
+  const match = source.match(new RegExp(`const u16 ${arrayName}\\[\\]\\s*=\\s*\\{([\\s\\S]*?)\\n\\};`, 'u'));
+  if (!match) {
+    return [];
+  }
+
+  return [...match[1].matchAll(/\b((?:NATIONAL_DEX|SPECIES)_\w+)\b/gu)].map((value) => value[1]);
+};
+
+export const gPokedexOrder_Alphabetical = parsePokedexOrderRaw(pokedexOrdersSource, 'gPokedexOrder_Alphabetical');
+export const gPokedexOrder_Weight = parsePokedexOrderRaw(pokedexOrdersSource, 'gPokedexOrder_Weight');
+export const gPokedexOrder_Height = parsePokedexOrderRaw(pokedexOrdersSource, 'gPokedexOrder_Height');
+export const gPokedexOrder_Type = parsePokedexOrderRaw(pokedexOrdersSource, 'gPokedexOrder_Type');
+
 const alphabeticalOrder = parseOrderArray(pokedexOrdersSource, 'gPokedexOrder_Alphabetical');
 const typeOrder = parseOrderArray(pokedexOrdersSource, 'gPokedexOrder_Type');
 const weightOrder = parseOrderArray(pokedexOrdersSource, 'gPokedexOrder_Weight');
@@ -173,6 +193,31 @@ const parseCategoryPages = (source: string): Record<PokedexCategoryId, string[][
   ) as Record<PokedexCategoryId, string[][]>;
 };
 
+export const POKEDEX_CATEGORIES_SOURCE = pokedexCategoriesSource;
+
+export const parsePokedexCategoryPageDefinitions = (source: string): PokedexCategoryPageDefinition[] =>
+  [...source.matchAll(/static const u16 (sDexCategory_\w+_Page\d+)\[\]\s*=\s*\{([\s\S]*?)\n\};/gu)].map((match) => ({
+    symbol: match[1],
+    species: [...match[2].matchAll(/\b(SPECIES_\w+)\b/gu)].map((speciesMatch) => speciesMatch[1])
+  }));
+
+export const parsePokedexCategoryGroupDefinitions = (source: string): PokedexCategoryGroupDefinition[] =>
+  [...source.matchAll(/static const struct PokedexCategoryPage (sDexCategory_\w+)\[\]\s*=\s*\{([\s\S]*?)\n\};/gu)].map(
+    (match) => ({
+      symbol: match[1],
+      pages: [...match[2].matchAll(/DEX_CATEGORY\((\w+)\)/gu)].map((pageMatch) => `sDexCategory_${pageMatch[1]}`)
+    })
+  );
+
+export const parsePokedexTopCategories = (source: string): string[] => {
+  const block = source.match(/const gDexCategories\[\]\s*=\s*\{([\s\S]*?)\n\};/u)?.[1] ?? '';
+  return [...block.matchAll(/DEX_CATEGORY\((\w+)\)/gu)].map((match) => `sDexCategory_${match[1]}`);
+};
+
+export const sDexCategoryPages = parsePokedexCategoryPageDefinitions(pokedexCategoriesSource);
+export const sDexCategoryGroups = parsePokedexCategoryGroupDefinitions(pokedexCategoriesSource);
+export const gDexCategories = parsePokedexTopCategories(pokedexCategoriesSource);
+
 const categoryPages = parseCategoryPages(pokedexCategoriesSource);
 
 const areaMarkerDefinitions = new Map<string, PokedexAreaMarker>();
@@ -205,7 +250,7 @@ for (const definition of Object.values(mapModules)) {
   }
 }
 
-const wildEncounters = JSON.parse(wildEncountersSource) as WildEncounterGroup;
+const wildEncounters = getRawWildEncounters();
 
 const areaMarkersBySpecies = new Map<string, PokedexAreaMarker[]>();
 for (const group of wildEncounters.wild_encounter_groups ?? []) {

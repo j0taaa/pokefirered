@@ -25,7 +25,108 @@
       }
     ]
   },
-  "wildEncounters": {},
+  "wildEncounters": {
+    "water": {
+      "encounterRate": 1,
+      "mons": [
+        {
+          "minLevel": 5,
+          "maxLevel": 10,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 10,
+          "maxLevel": 20,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 20,
+          "maxLevel": 30,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 35,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 40,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 1
+        }
+      ]
+    },
+    "fishing": {
+      "encounterRate": 10,
+      "mons": [
+        {
+          "minLevel": 5,
+          "maxLevel": 10,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 70
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 10,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_KRABBY",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 40
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_SHELLDER",
+          "slotRate": 40
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_GYARADOS",
+          "slotRate": 15
+        },
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_SEADRA",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_PSYDUCK",
+          "slotRate": 1
+        }
+      ]
+    }
+  },
   "width": 24,
   "height": 20,
   "tileSize": 16,
@@ -998,26 +1099,26 @@
     ]
   },
   "collisionRows": [
-    "############..##########",
-    "############..##########",
-    "##....................##",
-    "##....................##",
-    "##...#####....#####...##",
-    "##...#####....#####...##",
-    "##...#####....#####...##",
-    "##..######...######...##",
-    "##....................##",
-    "##....................##",
-    "##...........#######..##",
-    "##...#####...#######..##",
-    "##...........#######..##",
-    "##...........#######..##",
-    "##...#................##",
-    "##....................##",
-    "##...........######...##",
-    "##....................##",
-    "##....................##",
-    "##....................##"
+    "111111111111001111111111",
+    "111111111111001111111111",
+    "110000000000000000000011",
+    "110000000000000000000011",
+    "110001111100001111100011",
+    "110001111100001111100011",
+    "110001111100001111100011",
+    "110011111100011111100011",
+    "110000000000000000000011",
+    "110000000000000000000011",
+    "110000000000011111110011",
+    "110001111100011111110011",
+    "110000000000011111110011",
+    "110000000000011111110011",
+    "110001000000000000000011",
+    "110000000000000000000011",
+    "110000000000011111100011",
+    "110000000000000000000011",
+    "110000000000000000000011",
+    "110000000000000000000011"
   ],
   "encounterRows": [
     "........................",
@@ -1085,11 +1186,34 @@
     "000000000000001515151500000000000000000000000000",
     "000000000000001515151500000000000000000000000000"
   ],
+  "terrainRows": [
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000000000000000000000",
+    "000000022220000000000000",
+    "000000022220000000000000",
+    "000000022220000000000000"
+  ],
   "triggers": [
     {
       "id": "PalletTown_EventScript_OakTriggerLeft",
       "x": 12,
       "y": 1,
+      "elevation": 3,
       "activation": "step",
       "scriptId": "PalletTown_EventScript_OakTriggerLeft",
       "facing": "any",
@@ -1101,6 +1225,7 @@
       "id": "PalletTown_EventScript_OakTriggerRight",
       "x": 13,
       "y": 1,
+      "elevation": 3,
       "activation": "step",
       "scriptId": "PalletTown_EventScript_OakTriggerRight",
       "facing": "any",
@@ -1112,6 +1237,7 @@
       "id": "PalletTown_EventScript_SignLadyTrigger",
       "x": 13,
       "y": 2,
+      "elevation": 3,
       "activation": "step",
       "scriptId": "PalletTown_EventScript_SignLadyTrigger",
       "facing": "any",
@@ -1123,6 +1249,7 @@
       "id": "PalletTown_EventScript_OaksLabSign",
       "x": 16,
       "y": 16,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_EventScript_OaksLabSign",
       "facing": "any",
@@ -1132,6 +1259,7 @@
       "id": "PalletTown_EventScript_PlayersHouseSign",
       "x": 4,
       "y": 7,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_EventScript_PlayersHouseSign",
       "facing": "any",
@@ -1141,6 +1269,7 @@
       "id": "PalletTown_EventScript_RivalsHouseSign",
       "x": 13,
       "y": 7,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_EventScript_RivalsHouseSign",
       "facing": "any",
@@ -1150,6 +1279,7 @@
       "id": "PalletTown_EventScript_TownSign",
       "x": 9,
       "y": 11,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_EventScript_TownSign",
       "facing": "any",
@@ -1159,6 +1289,7 @@
       "id": "PalletTown_EventScript_TrainerTips",
       "x": 5,
       "y": 14,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "PalletTown_EventScript_TrainerTips",
       "facing": "any",

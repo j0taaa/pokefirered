@@ -11,6 +11,8 @@ const NUM_METATILES_IN_PRIMARY = 640;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_MASK = 0x07000000;
 const METATILE_ATTRIBUTE_ENCOUNTER_TYPE_SHIFT = 24;
 const METATILE_ATTRIBUTE_BEHAVIOR_MASK = 0x000001ff;
+const METATILE_ATTRIBUTE_TERRAIN_MASK = 0x00003e00;
+const METATILE_ATTRIBUTE_TERRAIN_SHIFT = 9;
 const METATILE_ATTRIBUTE_LAYER_TYPE_MASK = 0x60000000;
 const METATILE_ATTRIBUTE_LAYER_TYPE_SHIFT = 29;
 
@@ -133,6 +135,7 @@ const bgEventToTrigger = (event) => {
       id: `${event.flag}.hiddenItem`,
       x: event.x,
       y: event.y,
+      elevation: event.elevation,
       activation: event.underfoot ? 'step' : 'interact',
       scriptId: `${event.flag}.hiddenItem`,
       facing: 'any',
@@ -145,6 +148,7 @@ const bgEventToTrigger = (event) => {
     id: event.script,
     x: event.x,
     y: event.y,
+    elevation: event.elevation,
     activation: 'interact',
     scriptId: event.script,
     facing: bgEventFacingToRuntime(event.player_facing_dir),
@@ -156,6 +160,7 @@ const coordEventToTrigger = (event) => ({
   id: event.script,
   x: event.x,
   y: event.y,
+  elevation: event.elevation,
   activation: 'step',
   scriptId: event.script,
   facing: 'any',
@@ -195,7 +200,10 @@ const findWildEncounters = (mapId, gameName) => {
   }
 
   return {
-    land: toWildGroup(mapEncounters.land_mons, 'land_mons')
+    land: toWildGroup(mapEncounters.land_mons, 'land_mons'),
+    water: toWildGroup(mapEncounters.water_mons, 'water_mons'),
+    fishing: toWildGroup(mapEncounters.fishing_mons, 'fishing_mons'),
+    rockSmash: toWildGroup(mapEncounters.rock_smash_mons, 'rock_smash_mons')
   };
 };
 
@@ -260,6 +268,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
   const encounterRows = [];
   const elevationRows = [];
   const behaviorRows = [];
+  const terrainRows = [];
   const metatileIds = [];
   const layerTypes = [];
 
@@ -268,6 +277,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
     let encounterRow = '';
     let elevationRow = '';
     let behaviorRow = '';
+    let terrainRow = '';
 
     for (let x = 0; x < layout.width; x += 1) {
       const block = blockData.readUInt16LE((y * layout.width + x) * 2);
@@ -276,10 +286,13 @@ const exportMap = (mapName, gameName = 'FireRed') => {
       const metatileId = block & MAPGRID_METATILE_ID_MASK;
       const attributes = readMetatileAttributes(primaryAttributes, secondaryAttributes, metatileId);
 
-      collisionRow += collision === 0 ? '.' : '#';
+      collisionRow += collision.toString(16);
       encounterRow += toEncounterMarker(attributes);
       elevationRow += elevation.toString(16);
       behaviorRow += (attributes & METATILE_ATTRIBUTE_BEHAVIOR_MASK).toString(16).padStart(2, '0');
+      terrainRow += (
+        (attributes & METATILE_ATTRIBUTE_TERRAIN_MASK) >>> METATILE_ATTRIBUTE_TERRAIN_SHIFT
+      ).toString(16);
       metatileIds.push(metatileId);
       layerTypes.push(
         (attributes & METATILE_ATTRIBUTE_LAYER_TYPE_MASK) >>> METATILE_ATTRIBUTE_LAYER_TYPE_SHIFT
@@ -290,6 +303,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
     encounterRows.push(encounterRow);
     elevationRows.push(elevationRow);
     behaviorRows.push(behaviorRow);
+    terrainRows.push(terrainRow);
   }
 
   return {
@@ -322,6 +336,7 @@ const exportMap = (mapName, gameName = 'FireRed') => {
     encounterRows,
     elevationRows,
     behaviorRows,
+    terrainRows,
     triggers: [
       ...map.coord_events.map(coordEventToTrigger),
       ...map.bg_events.map(bgEventToTrigger)

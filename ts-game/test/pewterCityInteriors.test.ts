@@ -24,7 +24,7 @@ import pewterCityPokemonCenter1FJson from '../src/world/maps/pewterCityPokemonCe
 import pewterCityPokemonCenter2FJson from '../src/world/maps/pewterCityPokemonCenter2F.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 

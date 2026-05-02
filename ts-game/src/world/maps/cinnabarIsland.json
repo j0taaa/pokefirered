@@ -25,7 +25,108 @@
       }
     ]
   },
-  "wildEncounters": {},
+  "wildEncounters": {
+    "water": {
+      "encounterRate": 1,
+      "mons": [
+        {
+          "minLevel": 5,
+          "maxLevel": 10,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 10,
+          "maxLevel": 20,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 20,
+          "maxLevel": 30,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 35,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 40,
+          "species": "SPECIES_TENTACOOL",
+          "slotRate": 1
+        }
+      ]
+    },
+    "fishing": {
+      "encounterRate": 10,
+      "mons": [
+        {
+          "minLevel": 5,
+          "maxLevel": 5,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 70
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 5,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_MAGIKARP",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 5,
+          "maxLevel": 15,
+          "species": "SPECIES_KRABBY",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_HORSEA",
+          "slotRate": 40
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_SHELLDER",
+          "slotRate": 40
+        },
+        {
+          "minLevel": 15,
+          "maxLevel": 25,
+          "species": "SPECIES_GYARADOS",
+          "slotRate": 15
+        },
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_SEADRA",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_PSYDUCK",
+          "slotRate": 1
+        }
+      ]
+    }
+  },
   "width": 24,
   "height": 20,
   "tileSize": 16,
@@ -998,26 +1099,26 @@
     ]
   },
   "collisionRows": [
-    "##...#######.....##.....",
-    "##...#######.....######.",
-    "##...#######.....######.",
-    "##...###.####....######.",
-    ".##................####.",
-    ".##...................##",
-    ".##....................#",
-    ".##..#######............",
-    "##...############.......",
-    "##...################...",
-    "##..........#########...",
-    "##..........#########...",
-    ".##.....................",
-    ".##.....................",
-    ".##.....................",
-    ".##.....................",
-    "..##....................",
-    "..######......######....",
-    "....####################",
-    "........######......####"
+    "110001111111000001100000",
+    "110001111111000001111110",
+    "110001111111000001111110",
+    "110001110111100001111110",
+    "011000000000000000011110",
+    "011000000000000000000011",
+    "011000000000000000000001",
+    "011001111111000000000000",
+    "110001111111111110000000",
+    "110001111111111111111000",
+    "110000000000111111111000",
+    "110000000000111111111000",
+    "011000000000000000000000",
+    "011000000000000000000000",
+    "011000000000000000000000",
+    "011000000000000000000000",
+    "001100000000000000000000",
+    "001111110000001111110000",
+    "000011111111111111111111",
+    "000000001111110000001111"
   ],
   "encounterRows": [
     "WWWWW...........W..WWWWW",
@@ -1085,11 +1186,34 @@
     "151515151515151515151515151515151515151515151515",
     "151515151515151515151515151515151515151515151515"
   ],
+  "terrainRows": [
+    "222220000000000020022222",
+    "222220000000000000000002",
+    "002220000000000000000002",
+    "002220000000000000000002",
+    "222220000000000000000002",
+    "222220000000000000000002",
+    "200220000000000000000002",
+    "200220000000000000000002",
+    "222220000000000000000002",
+    "222220000000000000000002",
+    "002220000000000000000002",
+    "002220000000000000000002",
+    "200222220000000000000002",
+    "200222220000000000000002",
+    "222222220000000000000002",
+    "222222222222222222222222",
+    "220022222222222222222222",
+    "220022002222220000222222",
+    "222222002222000000220022",
+    "222222222222002222220022"
+  ],
   "triggers": [
     {
       "id": "CinnabarIsland_EventScript_GymDoorLocked",
       "x": 20,
       "y": 5,
+      "elevation": 3,
       "activation": "step",
       "scriptId": "CinnabarIsland_EventScript_GymDoorLocked",
       "facing": "any",
@@ -1101,6 +1225,7 @@
       "id": "CinnabarIsland_EventScript_IslandSign",
       "x": 12,
       "y": 3,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "CinnabarIsland_EventScript_IslandSign",
       "facing": "any",
@@ -1110,6 +1235,7 @@
       "id": "CinnabarIsland_EventScript_PokemonLabSign",
       "x": 9,
       "y": 9,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "CinnabarIsland_EventScript_PokemonLabSign",
       "facing": "any",
@@ -1119,6 +1245,7 @@
       "id": "CinnabarIsland_EventScript_GymSign",
       "x": 22,
       "y": 5,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "CinnabarIsland_EventScript_GymSign",
       "facing": "any",
@@ -1128,6 +1255,7 @@
       "id": "CinnabarIsland_EventScript_PokemonLabSign",
       "x": 10,
       "y": 9,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "CinnabarIsland_EventScript_PokemonLabSign",
       "facing": "any",

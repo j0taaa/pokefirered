@@ -206,15 +206,15 @@
     ]
   },
   "collisionRows": [
-    "##########",
-    "##########",
-    "........##",
-    "..........",
-    "....##....",
-    "..........",
-    "..........",
-    "#........#",
-    "##########"
+    "1111111111",
+    "1111111111",
+    "0000000011",
+    "0000000000",
+    "0000110000",
+    "0000000000",
+    "0000000000",
+    "1000000001",
+    "1111111111"
   ],
   "encounterRows": [
     "..........",
@@ -249,11 +249,23 @@
     "00000000650000000000",
     "00000000000000000000"
   ],
+  "terrainRows": [
+    "0000000000",
+    "0000000000",
+    "0000000000",
+    "0000000000",
+    "0000000000",
+    "0000000000",
+    "0000000000",
+    "0000000000",
+    "0000000000"
+  ],
   "triggers": [
     {
       "id": "ViridianCity_School_EventScript_Notebook",
       "x": 4,
       "y": 4,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_Notebook",
       "facing": "any",
@@ -263,6 +275,7 @@
       "id": "ViridianCity_School_EventScript_Blackboard",
       "x": 5,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_Blackboard",
       "facing": "any",
@@ -272,6 +285,7 @@
       "id": "ViridianCity_School_EventScript_Blackboard",
       "x": 4,
       "y": 1,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_Blackboard",
       "facing": "any",
@@ -281,6 +295,7 @@
       "id": "ViridianCity_School_EventScript_PokemonJournal",
       "x": 9,
       "y": 2,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_PokemonJournal",
       "facing": "up",
@@ -290,6 +305,7 @@
       "id": "ViridianCity_School_EventScript_PokemonJournal",
       "x": 8,
       "y": 2,
+      "elevation": 0,
       "activation": "interact",
       "scriptId": "ViridianCity_School_EventScript_PokemonJournal",
       "facing": "up",

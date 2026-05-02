@@ -12,6 +12,7 @@
 #include "play_time.h"
 #include "intro.h"
 #include "battle_controllers.h"
+#include "battle_trace_harness.h"
 #include "scanline_effect.h"
 #include "save_failed_screen.h"
 #include "quest_log.h"
@@ -174,6 +175,7 @@ void AgbMain()
 #endif
 
     gLinkTransferringData = FALSE;
+    BattleTraceHarness_TryBoot();
 
     for (;;)
     {
@@ -212,6 +214,8 @@ void AgbMain()
         }
 
         PlayTimeCounter_Update();
+        BattleTraceHarness_TryBoot();
+        BattleTraceHarness_Update();
         MapMusicMain();
         WaitForVBlank();
     }

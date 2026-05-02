@@ -26,9 +26,28 @@ const parseBattleScripts = (): Map<string, DecompBattleScript> => {
 };
 
 const battleScriptMap = parseBattleScripts();
+const battleScriptOrder = sourceEntries.flatMap(([sourceFile, source]) =>
+  [...parseAsmBlocks(source, sourceFile).values()]
+    .map((block) => ({
+      label: block.label,
+      sourceFile: block.sourceFile,
+      startLine: block.startLine
+    }))
+);
 
 export const getDecompBattleScript = (label: string): DecompBattleScript | null =>
   battleScriptMap.get(label) ?? null;
+
+export const getNextDecompBattleScriptLabel = (label: string): string | null => {
+  const index = battleScriptOrder.findIndex((entry) => entry.label === label);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = battleScriptOrder[index]!;
+  const next = battleScriptOrder[index + 1];
+  return next && next.sourceFile === current.sourceFile ? next.label : null;
+};
 
 export const hasDecompBattleScript = (label: string): boolean =>
   battleScriptMap.has(label);

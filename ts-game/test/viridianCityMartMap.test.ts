@@ -10,7 +10,7 @@ import {
 import viridianCityMartMapJson from '../src/world/maps/viridianCityMart.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -31,7 +31,7 @@ describe('Viridian City Mart compact map source', () => {
     expect(map.connections).toEqual([]);
     expect(map.encounterTiles).toEqual(toEncounterTiles(exported.encounterRows));
     expect(map.wildEncounters).toEqual(undefined);
-    expect(map.triggers).toEqual([]);
+    expect(map.triggers).toMatchObject([]);
     expect(map.visual).toEqual(exported.visual);
     expect(map.npcs).toEqual(exported.npcs);
     expect(map.hiddenItems).toEqual([]);
@@ -55,7 +55,7 @@ describe('Viridian City Mart compact map source', () => {
     const map = mapFromCompactSource(compactSource);
 
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.triggers).toEqual([]);
+    expect(map.triggers).toMatchObject([]);
     expect(map.hiddenItems).toEqual([]);
     expect(map.warps).toEqual([
       { x: 3, y: 7, elevation: 3, destMap: 'MAP_VIRIDIAN_CITY', destWarpId: 4 },

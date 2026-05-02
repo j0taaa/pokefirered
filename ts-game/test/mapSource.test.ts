@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   loadRoute2Map,
+  loadRoute21SouthMap,
   loadRoute2ViridianForestNorthEntranceMap,
   loadViridianCityPokemonCenter1FMap,
   loadViridianForestMap,
@@ -17,8 +18,10 @@ describe('map source loading', () => {
     expect(map.height).toBe(80);
     expect(map.tileSize).toBe(16);
     expect(map.walkable.length).toBe(1920);
+    expect(map.collisionValues?.length).toBe(1920);
     expect(map.encounterTiles?.length).toBe(1920);
     expect(map.elevations?.length).toBe(1920);
+    expect(map.terrainTypes?.length).toBe(1920);
     expect(map.wildEncounters?.land?.encounterRate).toBe(21);
     expect(map.triggers.length).toBeGreaterThan(0);
     expect(map.visual?.metatileIds).toHaveLength(1920);
@@ -28,14 +31,31 @@ describe('map source loading', () => {
     expect(map.coordEventWeather).toBe('WEATHER_SUNNY');
   });
 
+  test('loads water and fishing encounter tables from decomp wild data', () => {
+    const map = loadRoute21SouthMap();
+
+    expect(map.wildEncounters?.water?.encounterRate).toBe(2);
+    expect(map.wildEncounters?.water?.mons).toHaveLength(5);
+    expect(map.wildEncounters?.fishing?.encounterRate).toBe(20);
+    expect(map.wildEncounters?.fishing?.mons).toHaveLength(10);
+  });
+
   test('preserves metadata weather on compact maps', () => {
     expect(loadViridianForestMap().coordEventWeather).toBe('WEATHER_SHADE');
+  });
+
+  test('preserves decomp running metadata on compact maps', () => {
+    expect(loadRoute2Map().allowRunning).toBe(true);
+    expect(loadRoute2Map().mapType).toBe('MAP_TYPE_ROUTE');
+    expect(loadViridianCityPokemonCenter1FMap().allowRunning).toBe(false);
+    expect(loadViridianCityPokemonCenter1FMap().mapType).toBe('MAP_TYPE_INDOOR');
   });
 
   test('keeps Route 2 north entrance mats on the covered layer from the decomp export', () => {
     const map = loadRoute2ViridianForestNorthEntranceMap();
     const tileIndex = 10 * map.width + 7;
 
+    expect(map.collisionValues?.[tileIndex]).toBe(0);
     expect(map.visual?.metatileIds[tileIndex]).toBe(710);
     expect(map.visual?.layerTypes[tileIndex]).toBe(1);
   });
@@ -47,15 +67,16 @@ describe('map source loading', () => {
       return {
         metatileId: map.visual?.metatileIds[tileIndex],
         layerType: map.visual?.layerTypes[tileIndex],
+        collisionValue: map.collisionValues?.[tileIndex],
         behavior: map.tileBehaviors?.[tileIndex],
         elevation: map.elevations?.[tileIndex]
       };
     };
 
-    expect(tileAt(7, 8)).toEqual({ metatileId: 707, layerType: 1, behavior: 0x65, elevation: 3 });
-    expect(tileAt(1, 6)).toEqual({ metatileId: 729, layerType: 1, behavior: 0x6a, elevation: 4 });
-    expect(tileAt(5, 3)).toEqual({ metatileId: 700, layerType: 1, behavior: 0x80, elevation: 0 });
-    expect(tileAt(11, 1)).toEqual({ metatileId: 98, layerType: 1, behavior: 0x83, elevation: 0 });
+    expect(tileAt(7, 8)).toEqual({ metatileId: 707, layerType: 1, collisionValue: 0, behavior: 0x65, elevation: 3 });
+    expect(tileAt(1, 6)).toEqual({ metatileId: 729, layerType: 1, collisionValue: 0, behavior: 0x6a, elevation: 4 });
+    expect(tileAt(5, 3)).toEqual({ metatileId: 700, layerType: 1, collisionValue: 1, behavior: 0x80, elevation: 0 });
+    expect(tileAt(11, 1)).toEqual({ metatileId: 98, layerType: 1, collisionValue: 1, behavior: 0x83, elevation: 0 });
   });
 
   test('throws when walkable length does not match map size', () => {
@@ -68,6 +89,19 @@ describe('map source loading', () => {
         walkable: [true, false, true]
       })
     ).toThrow(/walkable length/i);
+  });
+
+  test('throws when collision value length does not match map size', () => {
+    expect(() =>
+      mapFromSource({
+        id: 'broken-collision-values',
+        width: 2,
+        height: 2,
+        tileSize: 16,
+        walkable: [true, false, true, false],
+        collisionValues: [0, 1, 0]
+      })
+    ).toThrow(/collisionValues length/i);
   });
 
   test('throws when encounter tile length does not match map size', () => {
@@ -94,6 +128,19 @@ describe('map source loading', () => {
         elevations: [3, 3, 3]
       })
     ).toThrow(/elevations length/i);
+  });
+
+  test('throws when terrain type length does not match map size', () => {
+    expect(() =>
+      mapFromSource({
+        id: 'broken-terrain-types',
+        width: 2,
+        height: 2,
+        tileSize: 16,
+        walkable: [true, false, true, false],
+        terrainTypes: [0, 1, 2]
+      })
+    ).toThrow(/terrainTypes length/i);
   });
 
   test('validates raw map source payloads', () => {
@@ -171,11 +218,12 @@ describe('map source loading', () => {
       height: 1,
       tileSize: 16,
       walkable: [true],
-      triggers: [{ id: 't', x: 0, y: 0, activation: 'step', scriptId: 'script.1' }]
+      triggers: [{ id: 't', x: 0, y: 0, elevation: 3, activation: 'step', scriptId: 'script.1' }]
     });
 
     expect(source.triggers?.[0].facing).toBe('any');
     expect(source.triggers?.[0].once).toBe(false);
+    expect(source.triggers?.[0].elevation).toBe(3);
     expect(source.triggers?.[0].conditions).toBeUndefined();
 
     const sourceWithConditions = parseMapSource({
@@ -219,5 +267,14 @@ describe('map source loading', () => {
         conditions: [{ var: 'progress', op: 'wat' }]
       }]
     })).toThrow(/invalid op/i);
+
+    expect(() => parseMapSource({
+      id: 'bad-trigger-elevation',
+      width: 1,
+      height: 1,
+      tileSize: 16,
+      walkable: [true],
+      triggers: [{ id: 't5', x: 0, y: 0, elevation: '3', activation: 'step', scriptId: 's' }]
+    })).toThrow(/invalid elevation/i);
   });
 });

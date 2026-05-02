@@ -28,7 +28,7 @@ import twoIslandCapeBrinkMapJson from '../src/world/maps/twoIslandCapeBrink.json
 import twoIslandMapJson from '../src/world/maps/twoIsland.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] =>
   encounterRows.flatMap((row) => [...row]);

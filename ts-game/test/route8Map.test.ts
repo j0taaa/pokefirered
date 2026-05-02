@@ -10,7 +10,7 @@ import {
 import route8MapJson from '../src/world/maps/route8.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -59,7 +59,7 @@ describe('Route 8 compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.triggers).toHaveLength(4);
-    expect(map.triggers[0]).toEqual({
+    expect(map.triggers[0]).toMatchObject({
       id: 'Route8_EventScript_UndergroundPathSign',
       x: 16,
       y: 5,

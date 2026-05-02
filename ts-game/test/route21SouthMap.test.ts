@@ -10,7 +10,7 @@ import {
 import route21SouthMapJson from '../src/world/maps/route21South.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -58,7 +58,7 @@ describe('Route 21 South compact map source', () => {
     expect(map.encounterTiles?.length).toBe(compactSource.width * compactSource.height);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
     expect(map.encounterTiles?.filter((tile) => tile === 'W').length).toBeGreaterThan(0);
-    expect(map.triggers).toEqual([]);
+    expect(map.triggers).toMatchObject([]);
     expect(map.npcs).toHaveLength(5);
     expect(map.npcs[0]).toEqual({
       id: 'Route21_South_ObjectEvent_Claude',

@@ -10,7 +10,7 @@ import {
 import indigoPlateauPokemonCenter1FMapJson from '../src/world/maps/indigoPlateauPokemonCenter1F.json';
 
 const toWalkable = (collisionRows: string[]): boolean[] =>
-  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.'));
+  collisionRows.flatMap((row) => [...row].map((tile) => tile === '.' || tile === '0'));
 
 const toEncounterTiles = (encounterRows: string[]): string[] => encounterRows.flatMap((row) => [...row]);
 
@@ -56,7 +56,7 @@ describe('Indigo Plateau Pokemon Center 1F compact map source', () => {
 
     expect(map.connections).toEqual([]);
     expect(map.encounterTiles).toEqual(toEncounterTiles(compactSource.encounterRows ?? []));
-    expect(map.triggers).toEqual([]);
+    expect(map.triggers).toMatchObject([]);
     expect(map.hiddenItems).toEqual([]);
     expect(map.npcs).toHaveLength(8);
     expect(map.npcs.find((npc) => npc.id === 'LOCALID_LEAGUE_NURSE')).toEqual({

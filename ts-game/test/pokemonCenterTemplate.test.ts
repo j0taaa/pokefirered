@@ -17,6 +17,25 @@ import {
 import { createDialogueState } from '../src/game/interaction';
 import { createPlayer } from '../src/game/player';
 import { createScriptRuntimeState, prototypeScriptRegistry, runScriptById } from '../src/game/scripts';
+import { stepDecompFieldDialogue } from '../src/game/decompFieldDialogue';
+
+const neutralInput = {
+  up: false,
+  down: false,
+  left: false,
+  right: false,
+  upPressed: false,
+  downPressed: false,
+  leftPressed: false,
+  rightPressed: false,
+  run: false,
+  interact: false,
+  interactPressed: false,
+  start: false,
+  startPressed: false,
+  cancel: false,
+  cancelPressed: false
+};
 
 const DECOMP_HEAL_LOCATION_IDS = [
   'HEAL_LOCATION_PALLET_TOWN',
@@ -388,10 +407,40 @@ describe('integration with prototypeScriptRegistry', () => {
       dialogue,
       runtime
     });
-    const joined = dialogue.queue.join(' ');
-    expect(joined).toContain('May I help you?');
-    expect(joined).toContain('ULTRA BALL');
-    expect(joined).toContain('Please come again');
+
+    expect(dialogue.queue.join(' ')).toContain('May I help you?');
+
+    stepDecompFieldDialogue(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      runtime,
+      player
+    );
+
+    expect(dialogue.shop?.mode).toBe('mainMenu');
+    expect(dialogue.shop?.items).toContain('ITEM_ULTRA_BALL');
+
+    stepDecompFieldDialogue(
+      dialogue,
+      { ...neutralInput, down: true, downPressed: true },
+      runtime,
+      player
+    );
+    stepDecompFieldDialogue(
+      dialogue,
+      { ...neutralInput, down: true, downPressed: true },
+      runtime,
+      player
+    );
+    stepDecompFieldDialogue(
+      dialogue,
+      { ...neutralInput, interact: true, interactPressed: true },
+      runtime,
+      player
+    );
+
+    expect(dialogue.shop).toBeNull();
+    expect(dialogue.queue.join(' ')).toContain('Please come again');
   });
 
   test('Pewter center Jigglypuff dialogue works', () => {
