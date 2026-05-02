@@ -28,6 +28,8 @@ export interface NpcState {
   idleTimeRemaining: number;
   graphicsId?: string;
   movementType?: string;
+  trainerType?: string;
+  trainerSightOrBerryTreeId?: number;
   interactScriptId?: string;
   flag?: string;
   itemId?: string;
@@ -382,6 +384,8 @@ export const createMapNpcs = (map: TileMap): NpcState[] =>
       idleTimeRemaining: 0,
       graphicsId: npc.graphicsId,
       movementType: npc.movementType,
+      trainerType: npc.trainerType,
+      trainerSightOrBerryTreeId: npc.trainerSightOrBerryTreeId,
       interactScriptId: npc.scriptId,
       flag: npc.flag,
       itemId: inferItemIdFromScript(npc.scriptId, npc.graphicsId),

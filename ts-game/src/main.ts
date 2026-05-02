@@ -110,6 +110,12 @@ import {
 } from './game/fieldActions';
 import { applyWarpTransitionEffect } from './game/warpEffects';
 import { resolveArrowWarpTransition, resolveFacingDoorWarpTransition, resolveWarpTransition } from './game/warps';
+import {
+  checkForTrainersWantingBattle,
+  startFieldTrainerSee,
+  stepFieldTrainerSee,
+  type FieldTrainerSeeState
+} from './game/fieldTrainerSee';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -430,6 +436,7 @@ let fps = 0;
 let fpsAccumulator = 0;
 let pendingSafariBattleResult: { safariBalls: number; caught: boolean } | null = null;
 let activeFieldAction: FieldActionState | null = null;
+let activeTrainerSee: FieldTrainerSeeState | null = null;
 
 const loop = new GameLoop({
   update(dt) {
@@ -445,7 +452,7 @@ const loop = new GameLoop({
       setUnlockedPokedexFlags(scriptRuntime);
     }
 
-    const fieldControlsLocked = activeFieldAction !== null;
+    const fieldControlsLocked = activeFieldAction !== null || activeTrainerSee !== null;
     const pendingForcedMovement = hasPendingForcedMovement(player, map);
     const inputGateContext = {
       fieldControlsLocked,
@@ -502,6 +509,39 @@ const loop = new GameLoop({
         scriptRuntime.lastScriptId = 'safari.out_of_balls';
       }
       syncBattleStateFromRuntime();
+    }
+
+    if (activeTrainerSee) {
+      const trainerSeeCompleted = stepFieldTrainerSee(activeTrainerSee, npcs, map, dt);
+      if (!trainerSeeCompleted) {
+        return;
+      }
+
+      const trainerNpc = npcs.find((npc) => npc.id === activeTrainerSee?.trainerId);
+      activeTrainerSee = null;
+      if (trainerNpc?.interactScriptId) {
+        runDecompFieldScript(trainerNpc.interactScriptId, {
+          runtime: scriptRuntime,
+          player,
+          dialogue,
+          speakerId: trainerNpc.id,
+          npcs
+        });
+        return;
+      }
+    }
+
+    if (
+      !dialogue.active
+      && !dialogue.scriptSession
+      && !isStartMenuBlockingWorld(startMenu)
+      && !isBattleBlockingWorld(battle)
+    ) {
+      const trainerSight = checkForTrainersWantingBattle(map, player, npcs, scriptRuntime, visibleNpcs);
+      if (trainerSight) {
+        activeTrainerSee = startFieldTrainerSee(trainerSight);
+        return;
+      }
     }
 
     if (

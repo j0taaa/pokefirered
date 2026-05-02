@@ -484,6 +484,12 @@ interface ParsedTrainerBattleCommand {
   format: 'singles' | 'doubles';
 }
 
+export interface DecompTrainerBattleInfo {
+  trainerId: string;
+  defeatFlag: string;
+  format: 'singles' | 'doubles';
+}
+
 const SCRIPT_VALUE_CONSTANTS: Record<string, ScriptValue> = {
   TRUE: 1,
   FALSE: 0,
@@ -1300,6 +1306,26 @@ const parseTrainerBattleCommand = (line: string): ParsedTrainerBattleCommand | n
     default:
       return null;
   }
+};
+
+export const getDecompTrainerBattleInfoForScript = (scriptId: string): DecompTrainerBattleInfo | null => {
+  const lines = scriptBlocks.get(scriptId);
+  if (!lines) {
+    return null;
+  }
+
+  for (const rawLine of lines) {
+    const trainerBattle = parseTrainerBattleCommand(rawLine.trim());
+    if (trainerBattle) {
+      return {
+        trainerId: trainerBattle.trainerId,
+        defeatFlag: getDecompTrainerFlag(trainerBattle.trainerId),
+        format: trainerBattle.format
+      };
+    }
+  }
+
+  return null;
 };
 
 const getScriptVarValue = (
