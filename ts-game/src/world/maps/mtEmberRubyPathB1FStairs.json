@@ -1,0 +1,306 @@
+{
+  "id": "MAP_MT_EMBER_RUBY_PATH_B1F_STAIRS",
+  "metadata": {
+    "name": "MtEmber_RubyPath_B1F_Stairs",
+    "layout": "LAYOUT_MT_EMBER_RUBY_PATH_B1F_STAIRS",
+    "music": "MUS_SEVII_CAVE",
+    "regionMapSection": "MAPSEC_MT_EMBER",
+    "weather": "WEATHER_NONE",
+    "mapType": "MAP_TYPE_UNDERGROUND",
+    "allowCycling": true,
+    "allowEscaping": true,
+    "allowRunning": true,
+    "showMapName": true,
+    "battleScene": "MAP_BATTLE_SCENE_NORMAL",
+    "connections": null
+  },
+  "wildEncounters": {
+    "land": {
+      "encounterRate": 7,
+      "mons": [
+        {
+          "minLevel": 40,
+          "maxLevel": 40,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 26,
+          "maxLevel": 26,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 42,
+          "maxLevel": 42,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 24,
+          "maxLevel": 24,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 28,
+          "maxLevel": 28,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 30,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 44,
+          "maxLevel": 44,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 32,
+          "maxLevel": 32,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 44,
+          "maxLevel": 44,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 22,
+          "maxLevel": 22,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 44,
+          "maxLevel": 44,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 1
+        },
+        {
+          "minLevel": 22,
+          "maxLevel": 22,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 1
+        }
+      ]
+    },
+    "rockSmash": {
+      "encounterRate": 50,
+      "mons": [
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 45,
+          "species": "SPECIES_GRAVELER",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 50,
+          "species": "SPECIES_GRAVELER",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 40,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 40,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 1
+        }
+      ]
+    }
+  },
+  "width": 6,
+  "height": 7,
+  "tileSize": 16,
+  "visual": {
+    "primaryTileset": "general",
+    "secondaryTileset": "mt_ember",
+    "metatileIds": [
+      657,
+      809,
+      667,
+      665,
+      665,
+      668,
+      657,
+      719,
+      658,
+      641,
+      687,
+      656,
+      657,
+      657,
+      658,
+      641,
+      641,
+      656,
+      811,
+      657,
+      658,
+      641,
+      648,
+      649,
+      667,
+      655,
+      666,
+      641,
+      656,
+      811,
+      658,
+      662,
+      641,
+      641,
+      656,
+      719,
+      649,
+      649,
+      808,
+      649,
+      649,
+      657
+    ],
+    "layerTypes": [
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1
+    ]
+  },
+  "collisionRows": [
+    "111111",
+    "111001",
+    "111001",
+    "111011",
+    "111011",
+    "100011",
+    "111111"
+  ],
+  "encounterRows": [
+    "L.....",
+    "LL.L..",
+    "LL.LL.",
+    ".L.L.L",
+    ".L.L..",
+    "..LL.L",
+    "LL.LLL"
+  ],
+  "elevationRows": [
+    "000000",
+    "000330",
+    "000330",
+    "000300",
+    "000300",
+    "033300",
+    "000000"
+  ],
+  "behaviorRows": [
+    "080000000000",
+    "080000086100",
+    "080800080800",
+    "000800080032",
+    "000000080000",
+    "006108080000",
+    "323200323208"
+  ],
+  "terrainRows": [
+    "000000",
+    "000000",
+    "000000",
+    "000000",
+    "000000",
+    "000000",
+    "000000"
+  ],
+  "triggers": [],
+  "warps": [
+    {
+      "x": 4,
+      "y": 1,
+      "elevation": 0,
+      "destMap": "MAP_MT_EMBER_RUBY_PATH_B3F",
+      "destWarpId": 1
+    },
+    {
+      "x": 1,
+      "y": 5,
+      "elevation": 0,
+      "destMap": "MAP_MT_EMBER_RUBY_PATH_B2F_STAIRS",
+      "destWarpId": 0
+    }
+  ],
+  "hiddenItems": [],
+  "berryTrees": [],
+  "cloneObjects": [],
+  "npcs": [
+    {
+      "id": "MtEmber_RubyPath_B1F_Stairs_ObjectEvent_1",
+      "x": 4,
+      "y": 2,
+      "graphicsId": "OBJ_EVENT_GFX_ROCK_SMASH_ROCK",
+      "movementType": "MOVEMENT_TYPE_LOOK_AROUND",
+      "movementRangeX": 1,
+      "movementRangeY": 1,
+      "trainerType": "TRAINER_TYPE_NONE",
+      "trainerSightOrBerryTreeId": 0,
+      "scriptId": "EventScript_RockSmash",
+      "flag": "FLAG_TEMP_12"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ const METATILE_ATTRIBUTE_LAYER_TYPE_SHIFT = 29;
 
 const TILE_ENCOUNTER_LAND = 1;
 const TILE_ENCOUNTER_WATER = 2;
+const WARP_ID_DYNAMIC = 0xff;
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../..');
@@ -28,10 +29,18 @@ const readJson = (relativePath) =>
 const readBinary = (relativePath) =>
   fs.readFileSync(path.join(repoRoot, relativePath));
 
-const readWildEncounters = () =>
-  readJson('src/data/wild_encounters.json');
-
 let mapFolderIndex;
+let wildEncountersCache;
+const encounterRateCache = new Map();
+
+const readWildEncounters = () =>
+  wildEncountersCache ??= readJson('src/data/wild_encounters.json');
+
+const toRuntimeFileBaseName = (decompName) => decompName
+  .split('_')
+  .filter((part) => part.length > 0)
+  .map((part, index) => index === 0 ? `${part[0].toLowerCase()}${part.slice(1)}` : part)
+  .join('');
 
 const tilesetFolderName = (tilesetName) =>
   tilesetName
@@ -88,7 +97,9 @@ const warpEventToWarp = (event) => ({
   y: event.y,
   elevation: event.elevation,
   destMap: event.dest_map,
-  destWarpId: Number(event.dest_warp_id)
+  destWarpId: event.dest_warp_id === 'WARP_ID_DYNAMIC'
+    ? WARP_ID_DYNAMIC
+    : Number(event.dest_warp_id)
 });
 
 const objectEventToCloneObject = (event) => ({
@@ -169,13 +180,21 @@ const coordEventToTrigger = (event) => ({
   conditionEquals: Number(event.var_value)
 });
 
-const findEncounterRates = (type) =>
-  readWildEncounters()
+const findEncounterRates = (type) => {
+  if (encounterRateCache.has(type)) {
+    return encounterRateCache.get(type);
+  }
+
+  const rates = readWildEncounters()
     .wild_encounter_groups
     .find((entry) => entry.label === 'gWildMonHeaders')
     ?.fields
     .find((field) => field.type === type)
     ?.encounter_rates ?? [];
+
+  encounterRateCache.set(type, rates);
+  return rates;
+};
 
 const toWildGroup = (group, type) => group
   ? {
@@ -250,6 +269,30 @@ const resolveMapFolderName = (mapLabel) => {
   }
 
   return folderName;
+};
+
+const listDecompMapFolders = () => {
+  const mapsDir = path.join(repoRoot, 'data/maps');
+  return fs.readdirSync(mapsDir)
+    .filter((folderName) => fs.existsSync(path.join(mapsDir, folderName, 'map.json')))
+    .sort();
+};
+
+const exportAllMaps = (gameName = 'FireRed') => listDecompMapFolders()
+  .map((folderName) => exportMap(folderName, gameName));
+
+const writeAllMaps = (outDir, gameName = 'FireRed') => {
+  fs.mkdirSync(outDir, { recursive: true });
+
+  const writtenFiles = [];
+  for (const map of exportAllMaps(gameName)) {
+    const fileName = `${toRuntimeFileBaseName(map.metadata.name)}.json`;
+    const filePath = path.join(outDir, fileName);
+    fs.writeFileSync(filePath, `${JSON.stringify(map, null, 2)}\n`);
+    writtenFiles.push(filePath);
+  }
+
+  return writtenFiles;
 };
 
 const exportMap = (mapName, gameName = 'FireRed') => {
@@ -369,13 +412,21 @@ const exportMap = (mapName, gameName = 'FireRed') => {
   };
 };
 
-export { exportMap, tilesetAttributePath };
+export { exportAllMaps, exportMap, listDecompMapFolders, tilesetAttributePath, writeAllMaps };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const mapName = process.argv[2];
   if (!mapName) {
     console.error('Usage: npm run export:map -- <MapName> [FireRed|LeafGreen]');
+    console.error('       node scripts/export-decomp-map.mjs --all [outDir] [FireRed|LeafGreen]');
     process.exitCode = 1;
+  } else if (mapName === '--all') {
+    const outDir = process.argv[3]
+      ? path.resolve(process.argv[3])
+      : path.join(scriptDir, '../src/world/maps');
+    const gameName = process.argv[4] ?? 'FireRed';
+    const writtenFiles = writeAllMaps(outDir, gameName);
+    console.log(`Exported ${writtenFiles.length} maps to ${outDir}`);
   } else {
     const gameName = process.argv[3] ?? 'FireRed';
     console.log(JSON.stringify(exportMap(mapName, gameName), null, 2));

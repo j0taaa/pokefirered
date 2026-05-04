@@ -1,0 +1,326 @@
+{
+  "id": "MAP_MT_EMBER_RUBY_PATH_B2F_STAIRS",
+  "metadata": {
+    "name": "MtEmber_RubyPath_B2F_Stairs",
+    "layout": "LAYOUT_MT_EMBER_RUBY_PATH_B2F_STAIRS",
+    "music": "MUS_SEVII_CAVE",
+    "regionMapSection": "MAPSEC_MT_EMBER",
+    "weather": "WEATHER_NONE",
+    "mapType": "MAP_TYPE_UNDERGROUND",
+    "allowCycling": true,
+    "allowEscaping": true,
+    "allowRunning": true,
+    "showMapName": true,
+    "battleScene": "MAP_BATTLE_SCENE_NORMAL",
+    "connections": null
+  },
+  "wildEncounters": {
+    "land": {
+      "encounterRate": 7,
+      "mons": [
+        {
+          "minLevel": 38,
+          "maxLevel": 38,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 36,
+          "maxLevel": 36,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 20
+        },
+        {
+          "minLevel": 34,
+          "maxLevel": 34,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 40,
+          "maxLevel": 40,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 24,
+          "maxLevel": 24,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 26,
+          "maxLevel": 26,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 10
+        },
+        {
+          "minLevel": 42,
+          "maxLevel": 42,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 28,
+          "maxLevel": 28,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 42,
+          "maxLevel": 42,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 30,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 42,
+          "maxLevel": 42,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 1
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 30,
+          "species": "SPECIES_SLUGMA",
+          "slotRate": 1
+        }
+      ]
+    },
+    "rockSmash": {
+      "encounterRate": 50,
+      "mons": [
+        {
+          "minLevel": 25,
+          "maxLevel": 35,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 60
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 45,
+          "species": "SPECIES_GRAVELER",
+          "slotRate": 30
+        },
+        {
+          "minLevel": 35,
+          "maxLevel": 50,
+          "species": "SPECIES_GRAVELER",
+          "slotRate": 5
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 40,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 4
+        },
+        {
+          "minLevel": 30,
+          "maxLevel": 40,
+          "species": "SPECIES_GEODUDE",
+          "slotRate": 1
+        }
+      ]
+    }
+  },
+  "width": 8,
+  "height": 6,
+  "tileSize": 16,
+  "visual": {
+    "primaryTileset": "general",
+    "secondaryTileset": "mt_ember",
+    "metatileIds": [
+      657,
+      657,
+      657,
+      809,
+      667,
+      665,
+      665,
+      668,
+      657,
+      811,
+      657,
+      657,
+      658,
+      641,
+      687,
+      656,
+      719,
+      657,
+      657,
+      667,
+      666,
+      641,
+      641,
+      656,
+      667,
+      655,
+      665,
+      666,
+      641,
+      641,
+      648,
+      649,
+      658,
+      662,
+      641,
+      641,
+      641,
+      641,
+      656,
+      719,
+      649,
+      649,
+      808,
+      649,
+      649,
+      810,
+      727,
+      657
+    ],
+    "layerTypes": [
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      1
+    ]
+  },
+  "collisionRows": [
+    "11111111",
+    "11111001",
+    "11111001",
+    "11110011",
+    "10000011",
+    "11111111"
+  ],
+  "encounterRows": [
+    "LLL.....",
+    "L.LL.L..",
+    "LLL..LL.",
+    ".L..LL.L",
+    "..LLLL.L",
+    "LL.LL.LL"
+  ],
+  "elevationRows": [
+    "00000000",
+    "00000330",
+    "00000330",
+    "00003300",
+    "03333300",
+    "00000000"
+  ],
+  "behaviorRows": [
+    "0808080000000000",
+    "0800080800086100",
+    "0008080000080800",
+    "0000000008080032",
+    "0061080808080000",
+    "3232003232000008"
+  ],
+  "terrainRows": [
+    "00000000",
+    "00000000",
+    "00000000",
+    "00000000",
+    "00000000",
+    "00000000"
+  ],
+  "triggers": [],
+  "warps": [
+    {
+      "x": 6,
+      "y": 1,
+      "elevation": 0,
+      "destMap": "MAP_MT_EMBER_RUBY_PATH_B1F_STAIRS",
+      "destWarpId": 1
+    },
+    {
+      "x": 1,
+      "y": 4,
+      "elevation": 0,
+      "destMap": "MAP_MT_EMBER_RUBY_PATH_1F",
+      "destWarpId": 2
+    }
+  ],
+  "hiddenItems": [],
+  "berryTrees": [],
+  "cloneObjects": [],
+  "npcs": [
+    {
+      "id": "MtEmber_RubyPath_B2F_Stairs_ObjectEvent_1",
+      "x": 4,
+      "y": 3,
+      "graphicsId": "OBJ_EVENT_GFX_ROCK_SMASH_ROCK",
+      "movementType": "MOVEMENT_TYPE_LOOK_AROUND",
+      "movementRangeX": 1,
+      "movementRangeY": 1,
+      "trainerType": "TRAINER_TYPE_NONE",
+      "trainerSightOrBerryTreeId": 0,
+      "scriptId": "EventScript_RockSmash",
+      "flag": "FLAG_TEMP_12"
+    },
+    {
+      "id": "MtEmber_RubyPath_B2F_Stairs_ObjectEvent_2",
+      "x": 6,
+      "y": 2,
+      "graphicsId": "OBJ_EVENT_GFX_ROCK_SMASH_ROCK",
+      "movementType": "MOVEMENT_TYPE_LOOK_AROUND",
+      "movementRangeX": 1,
+      "movementRangeY": 1,
+      "trainerType": "TRAINER_TYPE_NONE",
+      "trainerSightOrBerryTreeId": 0,
+      "scriptId": "EventScript_RockSmash",
+      "flag": "FLAG_TEMP_13"
+    }
+  ]
+}

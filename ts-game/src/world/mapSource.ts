@@ -1,80 +1,4 @@
-import cinnabarIslandMapJson from './maps/cinnabarIsland.json';
-import fuchsiaCityMapJson from './maps/fuchsiaCity.json';
-import celadonCityMapJson from './maps/celadonCity.json';
-import ceruleanCityBikeShopMapJson from './maps/ceruleanCityBikeShop.json';
-import ceruleanCityMapJson from './maps/ceruleanCity.json';
-import ceruleanCityGymMapJson from './maps/ceruleanCityGym.json';
-import ceruleanCityHouse1MapJson from './maps/ceruleanCityHouse1.json';
-import ceruleanCityHouse2MapJson from './maps/ceruleanCityHouse2.json';
-import ceruleanCityHouse3MapJson from './maps/ceruleanCityHouse3.json';
-import ceruleanCityHouse4MapJson from './maps/ceruleanCityHouse4.json';
-import ceruleanCityHouse5MapJson from './maps/ceruleanCityHouse5.json';
-import ceruleanCityMartMapJson from './maps/ceruleanCityMart.json';
-import ceruleanCityPokemonCenter1FMapJson from './maps/ceruleanCityPokemonCenter1F.json';
-import ceruleanCityPokemonCenter2FMapJson from './maps/ceruleanCityPokemonCenter2F.json';
-import indigoPlateauExteriorMapJson from './maps/indigoPlateauExterior.json';
-import indigoPlateauPokemonCenter1FMapJson from './maps/indigoPlateauPokemonCenter1F.json';
-import lavenderTownMapJson from './maps/lavenderTown.json';
-import mtEmberExteriorMapJson from './maps/mtEmberExterior.json';
-import oneIslandMapJson from './maps/oneIsland.json';
-import oneIslandKindleRoadMapJson from './maps/oneIslandKindleRoad.json';
-import oneIslandTreasureBeachMapJson from './maps/oneIslandTreasureBeach.json';
-import palletTownMapJson from './maps/palletTown.json';
-import palletTownProfessorOaksLabMapJson from './maps/palletTownProfessorOaksLab.json';
-import palletTownPlayersHouse1FMapJson from './maps/palletTownPlayersHouse1F.json';
-import palletTownPlayersHouse2FMapJson from './maps/palletTownPlayersHouse2F.json';
-import palletTownRivalsHouseMapJson from './maps/palletTownRivalsHouse.json';
-import pewterCityGymMapJson from './maps/pewterCityGym.json';
-import pewterCityHouse1MapJson from './maps/pewterCityHouse1.json';
-import pewterCityHouse2MapJson from './maps/pewterCityHouse2.json';
-import pewterCityMapJson from './maps/pewterCity.json';
-import pewterCityMartMapJson from './maps/pewterCityMart.json';
-import pewterCityMuseum1FMapJson from './maps/pewterCityMuseum1F.json';
-import pewterCityMuseum2FMapJson from './maps/pewterCityMuseum2F.json';
-import pewterCityPokemonCenter1FMapJson from './maps/pewterCityPokemonCenter1F.json';
-import pewterCityPokemonCenter2FMapJson from './maps/pewterCityPokemonCenter2F.json';
-import route1MapJson from './maps/route1.json';
-import route2MapJson from './maps/route2.json';
-import route21NorthMapJson from './maps/route21North.json';
-import route21SouthMapJson from './maps/route21South.json';
-import route22MapJson from './maps/route22.json';
-import route24MapJson from './maps/route24.json';
-import route25MapJson from './maps/route25.json';
-import route2ViridianForestNorthEntranceMapJson from './maps/route2ViridianForestNorthEntrance.json';
-import route2ViridianForestSouthEntranceMapJson from './maps/route2ViridianForestSouthEntrance.json';
-import route3MapJson from './maps/route3.json';
-import route4MapJson from './maps/route4.json';
-import route5MapJson from './maps/route5.json';
-import route6MapJson from './maps/route6.json';
-import route7MapJson from './maps/route7.json';
-import route8MapJson from './maps/route8.json';
-import route9MapJson from './maps/route9.json';
-import saffronCityMapJson from './maps/saffronCity.json';
-import route10MapJson from './maps/route10.json';
-import rockTunnel1FMapJson from './maps/rockTunnel1F.json';
-import rockTunnelB1FMapJson from './maps/rockTunnelB1F.json';
-import threeIslandMapJson from './maps/threeIsland.json';
-import threeIslandBerryForestMapJson from './maps/threeIslandBerryForest.json';
-import threeIslandBondBridgeMapJson from './maps/threeIslandBondBridge.json';
-import threeIslandPortMapJson from './maps/threeIslandPort.json';
-import twoIslandMapJson from './maps/twoIsland.json';
-import twoIslandCapeBrinkMapJson from './maps/twoIslandCapeBrink.json';
-import vermilionCityMapJson from './maps/vermilionCity.json';
-import vermilionCityGymMapJson from './maps/vermilionCityGym.json';
-import vermilionCityHouse1MapJson from './maps/vermilionCityHouse1.json';
-import vermilionCityHouse2MapJson from './maps/vermilionCityHouse2.json';
-import vermilionCityHouse3MapJson from './maps/vermilionCityHouse3.json';
-import vermilionCityMartMapJson from './maps/vermilionCityMart.json';
-import vermilionCityPokemonCenter1FMapJson from './maps/vermilionCityPokemonCenter1F.json';
-import vermilionCityPokemonCenter2FMapJson from './maps/vermilionCityPokemonCenter2F.json';
-import vermilionCityPokemonFanClubMapJson from './maps/vermilionCityPokemonFanClub.json';
-import viridianCityMapJson from './maps/viridianCity.json';
-import viridianForestMapJson from './maps/viridianForest.json';
-import viridianCityMartMapJson from './maps/viridianCityMart.json';
-import viridianCityPokemonCenter1FMapJson from './maps/viridianCityPokemonCenter1F.json';
-import viridianCityGymMapJson from './maps/viridianCityGym.json';
-import viridianCityHouseMapJson from './maps/viridianCityHouse.json';
-import viridianCitySchoolMapJson from './maps/viridianCitySchool.json';
+import { mapRegistry } from './mapRegistry';
 import type { TileMap } from './tileMap';
 import {
   normalizeCoordEventWeatherId,
@@ -938,397 +862,256 @@ export const parseCompactMapSource = (raw: unknown): CompactMapSource => {
   };
 };
 
-export const loadPalletTownMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(palletTownMapJson));
-
-export const loadPalletTownProfessorOaksLabMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(palletTownProfessorOaksLabMapJson));
-
-export const loadPalletTownPlayersHouse1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(palletTownPlayersHouse1FMapJson));
-
-export const loadPalletTownPlayersHouse2FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(palletTownPlayersHouse2FMapJson));
-
-export const loadPalletTownRivalsHouseMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(palletTownRivalsHouseMapJson));
-
-export const loadCeladonCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(celadonCityMapJson));
-
-export const loadCinnabarIslandMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(cinnabarIslandMapJson));
-
-export const loadCeruleanCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityMapJson));
-
-export const loadCeruleanCityBikeShopMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityBikeShopMapJson));
-
-export const loadCeruleanCityGymMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityGymMapJson));
-
-export const loadCeruleanCityHouse1Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse1MapJson));
-
-export const loadCeruleanCityHouse2Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse2MapJson));
-
-export const loadCeruleanCityHouse3Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse3MapJson));
-
-export const loadCeruleanCityHouse4Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse4MapJson));
-
-export const loadCeruleanCityHouse5Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityHouse5MapJson));
-
-export const loadCeruleanCityMartMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityMartMapJson));
-
-export const loadCeruleanCityPokemonCenter1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityPokemonCenter1FMapJson));
-
-export const loadCeruleanCityPokemonCenter2FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(ceruleanCityPokemonCenter2FMapJson));
-
-export const loadFuchsiaCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(fuchsiaCityMapJson));
-
-export const loadIndigoPlateauExteriorMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(indigoPlateauExteriorMapJson));
-
-export const loadIndigoPlateauPokemonCenter1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(indigoPlateauPokemonCenter1FMapJson));
-
-export const loadLavenderTownMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(lavenderTownMapJson));
-
-export const loadMtEmberExteriorMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(mtEmberExteriorMapJson));
-
-export const loadOneIslandMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(oneIslandMapJson));
-
-export const loadOneIslandKindleRoadMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(oneIslandKindleRoadMapJson));
-
-export const loadOneIslandTreasureBeachMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(oneIslandTreasureBeachMapJson));
-
-export const loadPewterCityGymMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityGymMapJson));
-
-export const loadPewterCityHouse1Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityHouse1MapJson));
-
-export const loadPewterCityHouse2Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityHouse2MapJson));
-
-export const loadPewterCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityMapJson));
-
-export const loadPewterCityMartMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityMartMapJson));
-
-export const loadPewterCityMuseum1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityMuseum1FMapJson));
-
-export const loadPewterCityMuseum2FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityMuseum2FMapJson));
-
-export const loadPewterCityPokemonCenter1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityPokemonCenter1FMapJson));
-
-export const loadPewterCityPokemonCenter2FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(pewterCityPokemonCenter2FMapJson));
-
-export const loadRoute1Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route1MapJson));
-
-export const loadRoute2Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route2MapJson));
-
-export const loadRoute24Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route24MapJson));
-
-export const loadRoute25Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route25MapJson));
-
-export const loadRoute3Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route3MapJson));
-
-export const loadRoute4Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route4MapJson));
-
-export const loadRoute5Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route5MapJson));
-
-export const loadRoute6Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route6MapJson));
-
-export const loadRoute7Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route7MapJson));
-
-export const loadRoute8Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route8MapJson));
-
-export const loadRoute9Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route9MapJson));
-
-export const loadRoute10Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route10MapJson));
-
-export const loadSaffronCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(saffronCityMapJson));
-
-export const loadRockTunnel1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(rockTunnel1FMapJson));
-
-export const loadRockTunnelB1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(rockTunnelB1FMapJson));
-
-export const loadThreeIslandMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(threeIslandMapJson));
-
-export const loadThreeIslandBerryForestMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(threeIslandBerryForestMapJson));
-
-export const loadThreeIslandBondBridgeMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(threeIslandBondBridgeMapJson));
-
-export const loadThreeIslandPortMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(threeIslandPortMapJson));
-
-export const loadTwoIslandMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(twoIslandMapJson));
-
-export const loadTwoIslandCapeBrinkMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(twoIslandCapeBrinkMapJson));
-
-export const loadVermilionCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityMapJson));
-
-export const loadVermilionCityGymMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityGymMapJson));
-
-export const loadVermilionCityHouse1Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityHouse1MapJson));
-
-export const loadVermilionCityHouse2Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityHouse2MapJson));
-
-export const loadVermilionCityHouse3Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityHouse3MapJson));
-
-export const loadVermilionCityMartMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityMartMapJson));
-
-export const loadVermilionCityPokemonCenter1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityPokemonCenter1FMapJson));
-
-export const loadVermilionCityPokemonCenter2FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityPokemonCenter2FMapJson));
-
-export const loadVermilionCityPokemonFanClubMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(vermilionCityPokemonFanClubMapJson));
-
-export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route2ViridianForestNorthEntranceMapJson));
-
-export const loadRoute2ViridianForestSouthEntranceMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route2ViridianForestSouthEntranceMapJson));
-
-export const loadRoute21NorthMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route21NorthMapJson));
-
-export const loadRoute21SouthMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route21SouthMapJson));
-
-export const loadRoute22Map = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(route22MapJson));
-
-export const loadViridianCityMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianCityMapJson));
-
-export const loadViridianForestMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianForestMapJson));
-
-export const loadViridianCityMartMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianCityMartMapJson));
-
-export const loadViridianCityPokemonCenter1FMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianCityPokemonCenter1FMapJson));
-
-export const loadViridianCityHouseMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianCityHouseMapJson));
-
-export const loadViridianCityGymMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianCityGymMapJson));
-
-export const loadViridianCitySchoolMap = (): TileMap =>
-  mapFromCompactSource(parseCompactMapSource(viridianCitySchoolMapJson));
-
-export const loadMapById = (mapId: string): TileMap | null => {
-  switch (mapId) {
-    case 'MAP_CELADON_CITY':
-      return loadCeladonCityMap();
-    case 'MAP_CINNABAR_ISLAND':
-      return loadCinnabarIslandMap();
-    case 'MAP_CERULEAN_CITY':
-      return loadCeruleanCityMap();
-    case 'MAP_CERULEAN_CITY_BIKE_SHOP':
-      return loadCeruleanCityBikeShopMap();
-    case 'MAP_CERULEAN_CITY_GYM':
-      return loadCeruleanCityGymMap();
-    case 'MAP_CERULEAN_CITY_HOUSE1':
-      return loadCeruleanCityHouse1Map();
-    case 'MAP_CERULEAN_CITY_HOUSE2':
-      return loadCeruleanCityHouse2Map();
-    case 'MAP_CERULEAN_CITY_HOUSE3':
-      return loadCeruleanCityHouse3Map();
-    case 'MAP_CERULEAN_CITY_HOUSE4':
-      return loadCeruleanCityHouse4Map();
-    case 'MAP_CERULEAN_CITY_HOUSE5':
-      return loadCeruleanCityHouse5Map();
-    case 'MAP_CERULEAN_CITY_MART':
-      return loadCeruleanCityMartMap();
-    case 'MAP_CERULEAN_CITY_POKEMON_CENTER_1F':
-      return loadCeruleanCityPokemonCenter1FMap();
-    case 'MAP_CERULEAN_CITY_POKEMON_CENTER_2F':
-      return loadCeruleanCityPokemonCenter2FMap();
-    case 'MAP_FUCHSIA_CITY':
-      return loadFuchsiaCityMap();
-    case 'MAP_INDIGO_PLATEAU_EXTERIOR':
-      return loadIndigoPlateauExteriorMap();
-    case 'MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F':
-      return loadIndigoPlateauPokemonCenter1FMap();
-    case 'MAP_LAVENDER_TOWN':
-      return loadLavenderTownMap();
-    case 'MAP_MT_EMBER_EXTERIOR':
-      return loadMtEmberExteriorMap();
-    case 'MAP_ONE_ISLAND':
-      return loadOneIslandMap();
-    case 'MAP_ONE_ISLAND_KINDLE_ROAD':
-      return loadOneIslandKindleRoadMap();
-    case 'MAP_ONE_ISLAND_TREASURE_BEACH':
-      return loadOneIslandTreasureBeachMap();
-    case 'MAP_PALLET_TOWN':
-      return loadPalletTownMap();
-    case 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB':
-      return loadPalletTownProfessorOaksLabMap();
-    case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_1F':
-      return loadPalletTownPlayersHouse1FMap();
-    case 'MAP_PALLET_TOWN_PLAYERS_HOUSE_2F':
-      return loadPalletTownPlayersHouse2FMap();
-    case 'MAP_PALLET_TOWN_RIVALS_HOUSE':
-      return loadPalletTownRivalsHouseMap();
-    case 'MAP_PEWTER_CITY':
-      return loadPewterCityMap();
-    case 'MAP_PEWTER_CITY_GYM':
-      return loadPewterCityGymMap();
-    case 'MAP_PEWTER_CITY_HOUSE1':
-      return loadPewterCityHouse1Map();
-    case 'MAP_PEWTER_CITY_HOUSE2':
-      return loadPewterCityHouse2Map();
-    case 'MAP_PEWTER_CITY_MART':
-      return loadPewterCityMartMap();
-    case 'MAP_PEWTER_CITY_MUSEUM_1F':
-      return loadPewterCityMuseum1FMap();
-    case 'MAP_PEWTER_CITY_MUSEUM_2F':
-      return loadPewterCityMuseum2FMap();
-    case 'MAP_PEWTER_CITY_POKEMON_CENTER_1F':
-      return loadPewterCityPokemonCenter1FMap();
-    case 'MAP_PEWTER_CITY_POKEMON_CENTER_2F':
-      return loadPewterCityPokemonCenter2FMap();
-    case 'MAP_ROUTE1':
-      return loadRoute1Map();
-    case 'MAP_ROUTE2':
-      return loadRoute2Map();
-    case 'MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE':
-      return loadRoute2ViridianForestNorthEntranceMap();
-    case 'MAP_ROUTE2_VIRIDIAN_FOREST_SOUTH_ENTRANCE':
-      return loadRoute2ViridianForestSouthEntranceMap();
-    case 'MAP_ROUTE21_NORTH':
-      return loadRoute21NorthMap();
-    case 'MAP_ROUTE21_SOUTH':
-      return loadRoute21SouthMap();
-    case 'MAP_ROUTE22':
-      return loadRoute22Map();
-    case 'MAP_VIRIDIAN_FOREST':
-      return loadViridianForestMap();
-    case 'MAP_ROUTE24':
-      return loadRoute24Map();
-    case 'MAP_ROUTE25':
-      return loadRoute25Map();
-    case 'MAP_ROUTE3':
-      return loadRoute3Map();
-    case 'MAP_ROUTE4':
-      return loadRoute4Map();
-    case 'MAP_ROUTE5':
-      return loadRoute5Map();
-    case 'MAP_ROUTE6':
-      return loadRoute6Map();
-    case 'MAP_ROUTE7':
-      return loadRoute7Map();
-    case 'MAP_ROUTE8':
-      return loadRoute8Map();
-    case 'MAP_ROUTE9':
-      return loadRoute9Map();
-    case 'MAP_ROUTE10':
-      return loadRoute10Map();
-    case 'MAP_SAFFRON_CITY':
-      return loadSaffronCityMap();
-    case 'MAP_ROCK_TUNNEL_1F':
-      return loadRockTunnel1FMap();
-    case 'MAP_ROCK_TUNNEL_B1F':
-      return loadRockTunnelB1FMap();
-    case 'MAP_THREE_ISLAND':
-      return loadThreeIslandMap();
-    case 'MAP_THREE_ISLAND_BERRY_FOREST':
-      return loadThreeIslandBerryForestMap();
-    case 'MAP_THREE_ISLAND_BOND_BRIDGE':
-      return loadThreeIslandBondBridgeMap();
-    case 'MAP_THREE_ISLAND_PORT':
-      return loadThreeIslandPortMap();
-    case 'MAP_TWO_ISLAND':
-      return loadTwoIslandMap();
-    case 'MAP_TWO_ISLAND_CAPE_BRINK':
-      return loadTwoIslandCapeBrinkMap();
-    case 'MAP_VERMILION_CITY':
-      return loadVermilionCityMap();
-    case 'MAP_VERMILION_CITY_GYM':
-      return loadVermilionCityGymMap();
-    case 'MAP_VERMILION_CITY_HOUSE1':
-      return loadVermilionCityHouse1Map();
-    case 'MAP_VERMILION_CITY_HOUSE2':
-      return loadVermilionCityHouse2Map();
-    case 'MAP_VERMILION_CITY_HOUSE3':
-      return loadVermilionCityHouse3Map();
-    case 'MAP_VERMILION_CITY_MART':
-      return loadVermilionCityMartMap();
-    case 'MAP_VERMILION_CITY_POKEMON_CENTER_1F':
-      return loadVermilionCityPokemonCenter1FMap();
-    case 'MAP_VERMILION_CITY_POKEMON_CENTER_2F':
-      return loadVermilionCityPokemonCenter2FMap();
-    case 'MAP_VERMILION_CITY_POKEMON_FAN_CLUB':
-      return loadVermilionCityPokemonFanClubMap();
-    case 'MAP_VIRIDIAN_CITY':
-      return loadViridianCityMap();
-    case 'MAP_VIRIDIAN_CITY_GYM':
-      return loadViridianCityGymMap();
-    case 'MAP_VIRIDIAN_CITY_HOUSE':
-      return loadViridianCityHouseMap();
-    case 'MAP_VIRIDIAN_CITY_MART':
-      return loadViridianCityMartMap();
-    case 'MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F':
-      return loadViridianCityPokemonCenter1FMap();
-    case 'MAP_VIRIDIAN_CITY_SCHOOL':
-      return loadViridianCitySchoolMap();
-    default:
-      return null;
+const loadRegisteredMap = (mapId: string): TileMap | null => {
+  const entry = mapRegistry[mapId];
+  if (!entry?.source) {
+    return null;
   }
+
+  return mapFromCompactSource(parseCompactMapSource(entry.source));
 };
 
+const loadRequiredMap = (mapId: string): TileMap => {
+  const map = loadRegisteredMap(mapId);
+  if (!map) {
+    throw new Error(`Map registry entry ${mapId} does not have an exported compact map source.`);
+  }
+
+  return map;
+};
+
+export const loadPalletTownMap = (): TileMap =>
+  loadRequiredMap('MAP_PALLET_TOWN');
+
+export const loadPalletTownProfessorOaksLabMap = (): TileMap =>
+  loadRequiredMap('MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB');
+
+export const loadPalletTownPlayersHouse1FMap = (): TileMap =>
+  loadRequiredMap('MAP_PALLET_TOWN_PLAYERS_HOUSE_1F');
+
+export const loadPalletTownPlayersHouse2FMap = (): TileMap =>
+  loadRequiredMap('MAP_PALLET_TOWN_PLAYERS_HOUSE_2F');
+
+export const loadPalletTownRivalsHouseMap = (): TileMap =>
+  loadRequiredMap('MAP_PALLET_TOWN_RIVALS_HOUSE');
+
+export const loadCeladonCityMap = (): TileMap =>
+  loadRequiredMap('MAP_CELADON_CITY');
+
+export const loadCinnabarIslandMap = (): TileMap =>
+  loadRequiredMap('MAP_CINNABAR_ISLAND');
+
+export const loadCeruleanCityMap = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY');
+
+export const loadCeruleanCityBikeShopMap = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_BIKE_SHOP');
+
+export const loadCeruleanCityGymMap = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_GYM');
+
+export const loadCeruleanCityHouse1Map = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_HOUSE1');
+
+export const loadCeruleanCityHouse2Map = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_HOUSE2');
+
+export const loadCeruleanCityHouse3Map = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_HOUSE3');
+
+export const loadCeruleanCityHouse4Map = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_HOUSE4');
+
+export const loadCeruleanCityHouse5Map = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_HOUSE5');
+
+export const loadCeruleanCityMartMap = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_MART');
+
+export const loadCeruleanCityPokemonCenter1FMap = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_POKEMON_CENTER_1F');
+
+export const loadCeruleanCityPokemonCenter2FMap = (): TileMap =>
+  loadRequiredMap('MAP_CERULEAN_CITY_POKEMON_CENTER_2F');
+
+export const loadFuchsiaCityMap = (): TileMap =>
+  loadRequiredMap('MAP_FUCHSIA_CITY');
+
+export const loadIndigoPlateauExteriorMap = (): TileMap =>
+  loadRequiredMap('MAP_INDIGO_PLATEAU_EXTERIOR');
+
+export const loadIndigoPlateauPokemonCenter1FMap = (): TileMap =>
+  loadRequiredMap('MAP_INDIGO_PLATEAU_POKEMON_CENTER_1F');
+
+export const loadLavenderTownMap = (): TileMap =>
+  loadRequiredMap('MAP_LAVENDER_TOWN');
+
+export const loadMtEmberExteriorMap = (): TileMap =>
+  loadRequiredMap('MAP_MT_EMBER_EXTERIOR');
+
+export const loadOneIslandMap = (): TileMap =>
+  loadRequiredMap('MAP_ONE_ISLAND');
+
+export const loadOneIslandKindleRoadMap = (): TileMap =>
+  loadRequiredMap('MAP_ONE_ISLAND_KINDLE_ROAD');
+
+export const loadOneIslandTreasureBeachMap = (): TileMap =>
+  loadRequiredMap('MAP_ONE_ISLAND_TREASURE_BEACH');
+
+export const loadPewterCityGymMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_GYM');
+
+export const loadPewterCityHouse1Map = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_HOUSE1');
+
+export const loadPewterCityHouse2Map = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_HOUSE2');
+
+export const loadPewterCityMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY');
+
+export const loadPewterCityMartMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_MART');
+
+export const loadPewterCityMuseum1FMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_MUSEUM_1F');
+
+export const loadPewterCityMuseum2FMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_MUSEUM_2F');
+
+export const loadPewterCityPokemonCenter1FMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_POKEMON_CENTER_1F');
+
+export const loadPewterCityPokemonCenter2FMap = (): TileMap =>
+  loadRequiredMap('MAP_PEWTER_CITY_POKEMON_CENTER_2F');
+
+export const loadRoute1Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE1');
+
+export const loadRoute2Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE2');
+
+export const loadRoute24Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE24');
+
+export const loadRoute25Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE25');
+
+export const loadRoute3Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE3');
+
+export const loadRoute4Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE4');
+
+export const loadRoute5Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE5');
+
+export const loadRoute6Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE6');
+
+export const loadRoute7Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE7');
+
+export const loadRoute8Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE8');
+
+export const loadRoute9Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE9');
+
+export const loadRoute10Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE10');
+
+export const loadSaffronCityMap = (): TileMap =>
+  loadRequiredMap('MAP_SAFFRON_CITY');
+
+export const loadRockTunnel1FMap = (): TileMap =>
+  loadRequiredMap('MAP_ROCK_TUNNEL_1F');
+
+export const loadRockTunnelB1FMap = (): TileMap =>
+  loadRequiredMap('MAP_ROCK_TUNNEL_B1F');
+
+export const loadThreeIslandMap = (): TileMap =>
+  loadRequiredMap('MAP_THREE_ISLAND');
+
+export const loadThreeIslandBerryForestMap = (): TileMap =>
+  loadRequiredMap('MAP_THREE_ISLAND_BERRY_FOREST');
+
+export const loadThreeIslandBondBridgeMap = (): TileMap =>
+  loadRequiredMap('MAP_THREE_ISLAND_BOND_BRIDGE');
+
+export const loadThreeIslandPortMap = (): TileMap =>
+  loadRequiredMap('MAP_THREE_ISLAND_PORT');
+
+export const loadTwoIslandMap = (): TileMap =>
+  loadRequiredMap('MAP_TWO_ISLAND');
+
+export const loadTwoIslandCapeBrinkMap = (): TileMap =>
+  loadRequiredMap('MAP_TWO_ISLAND_CAPE_BRINK');
+
+export const loadVermilionCityMap = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY');
+
+export const loadVermilionCityGymMap = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_GYM');
+
+export const loadVermilionCityHouse1Map = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_HOUSE1');
+
+export const loadVermilionCityHouse2Map = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_HOUSE2');
+
+export const loadVermilionCityHouse3Map = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_HOUSE3');
+
+export const loadVermilionCityMartMap = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_MART');
+
+export const loadVermilionCityPokemonCenter1FMap = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_POKEMON_CENTER_1F');
+
+export const loadVermilionCityPokemonCenter2FMap = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_POKEMON_CENTER_2F');
+
+export const loadVermilionCityPokemonFanClubMap = (): TileMap =>
+  loadRequiredMap('MAP_VERMILION_CITY_POKEMON_FAN_CLUB');
+
+export const loadRoute2ViridianForestNorthEntranceMap = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE2_VIRIDIAN_FOREST_NORTH_ENTRANCE');
+
+export const loadRoute2ViridianForestSouthEntranceMap = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE2_VIRIDIAN_FOREST_SOUTH_ENTRANCE');
+
+export const loadRoute21NorthMap = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE21_NORTH');
+
+export const loadRoute21SouthMap = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE21_SOUTH');
+
+export const loadRoute22Map = (): TileMap =>
+  loadRequiredMap('MAP_ROUTE22');
+
+export const loadViridianCityMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_CITY');
+
+export const loadViridianForestMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_FOREST');
+
+export const loadViridianCityMartMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_CITY_MART');
+
+export const loadViridianCityPokemonCenter1FMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_CITY_POKEMON_CENTER_1F');
+
+export const loadViridianCityHouseMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_CITY_HOUSE');
+
+export const loadViridianCityGymMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_CITY_GYM');
+
+export const loadViridianCitySchoolMap = (): TileMap =>
+  loadRequiredMap('MAP_VIRIDIAN_CITY_SCHOOL');
+
+export const loadMapById = (mapId: string): TileMap | null =>
+  loadRegisteredMap(mapId);
 export const loadPrototypeRouteMap = (): TileMap =>
   loadRoute2Map();
