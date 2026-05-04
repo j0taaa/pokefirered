@@ -10,25 +10,102 @@ const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '
 const gbaPath = path.join(repoRoot, 'pokefirered_modern.gba');
 const elfPath = path.join(repoRoot, 'pokefirered_modern.elf');
 const harnessResultSize = 496;
-const fixtureIds = [
-  'wild-opening-exchange',
-  'trainer-shift-prompt',
-  'wild-catch',
-  'battle-whiteout',
-  'wild-status-exchange',
-  'wild-player-switch',
-  'wild-run-escape'
+const fixtureCatalog = [
+  {
+    id: 'wild-opening-exchange',
+    categories: ['battle-mode:wild', 'end-turn-timing', 'move-exchange', 'status-end-turn-timing', 'wild-battle'],
+    hostComparable: true,
+    fixtureNumber: 1
+  },
+  {
+    id: 'trainer-shift-prompt',
+    categories: ['battle-mode:trainer', 'faint-replacement', 'forced-faint-replacement', 'post-battle-script', 'trainer-battle', 'trainer-class'],
+    hostComparable: true,
+    fixtureNumber: 2
+  },
+  {
+    id: 'wild-catch',
+    categories: ['capture', 'capture-edge-case', 'post-battle-script', 'wild-battle'],
+    hostComparable: true,
+    fixtureNumber: 3
+  },
+  {
+    id: 'battle-whiteout',
+    categories: ['battle-mode:trainer', 'post-battle-script', 'trainer-battle', 'whiteout'],
+    hostComparable: true,
+    fixtureNumber: 4
+  },
+  {
+    id: 'wild-status-exchange',
+    categories: ['end-turn-timing', 'status-end-turn-timing', 'status-move', 'wild-battle'],
+    hostComparable: true,
+    fixtureNumber: 5
+  },
+  {
+    id: 'wild-player-switch',
+    categories: ['player-switch', 'switching', 'wild-battle'],
+    hostComparable: true,
+    fixtureNumber: 6
+  },
+  {
+    id: 'wild-run-escape',
+    categories: ['battle-mode:wild', 'flee', 'wild-battle'],
+    hostComparable: true,
+    fixtureNumber: 7
+  },
+  {
+    id: 'trainer-ai-item-heal',
+    categories: ['ai-item', 'battle-mode:trainer', 'held-item', 'item-timing', 'trainer-ai', 'trainer-battle', 'trainer-class'],
+    hostComparable: false
+  },
+  {
+    id: 'trainer-ai-switch-perish-song',
+    categories: ['ai-switch', 'battle-mode:trainer', 'switching', 'trainer-ai', 'trainer-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'safari-bait-flow',
+    categories: ['battle-mode:safari', 'capture', 'capture-edge-case', 'flee', 'safari', 'safari-bait', 'safari-run'],
+    hostComparable: false
+  },
+  {
+    id: 'safari-rock-capture-edge',
+    categories: ['battle-mode:safari', 'capture', 'capture-edge-case', 'flee', 'safari', 'safari-rock'],
+    hostComparable: false
+  },
+  {
+    id: 'priority-quick-attack',
+    categories: ['move-priority', 'priority', 'wild-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'multi-hit-fury-attack',
+    categories: ['multi-hit', 'multi-hit-move', 'wild-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'ability-wonder-guard-block',
+    categories: ['ability', 'move-effect', 'wild-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'post-battle-reward-level-up',
+    categories: ['evolution', 'experience', 'level-up', 'post-battle-script', 'trainer-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'doubles-partner-follow-me',
+    categories: ['battle-mode:trainer', 'double-battle', 'multi-battle', 'partner', 'targeting'],
+    hostComparable: false
+  }
 ];
 
-const fixtureIdToNumber = new Map([
-  ['wild-opening-exchange', 1],
-  ['trainer-shift-prompt', 2],
-  ['wild-catch', 3],
-  ['battle-whiteout', 4],
-  ['wild-status-exchange', 5],
-  ['wild-player-switch', 6],
-  ['wild-run-escape', 7]
-]);
+const fixtureIds = fixtureCatalog.map((fixture) => fixture.id);
+const fixtureIdToNumber = new Map(
+  fixtureCatalog
+    .filter((fixture) => fixture.hostComparable)
+    .map((fixture) => [fixture.id, fixture.fixtureNumber])
+);
 
 const eventKindByNumber = {
   1: 'chooseAction',
@@ -214,7 +291,11 @@ const main = async () => {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.list) {
-    process.stdout.write(`${JSON.stringify(fixtureIds, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(fixtureCatalog.map(({ id, categories, hostComparable }) => ({
+      id,
+      categories,
+      hostComparable
+    })), null, 2)}\n`);
     return;
   }
 
@@ -225,7 +306,11 @@ const main = async () => {
 
   const fixtureNumber = fixtureIdToNumber.get(args.fixtureId);
   if (!fixtureNumber) {
-    process.stderr.write(`Unknown fixture: ${args.fixtureId}\n`);
+    if (fixtureIds.includes(args.fixtureId)) {
+      process.stderr.write(`Fixture is listed for native coverage metadata but has no host-comparable trace yet: ${args.fixtureId}\n`);
+    } else {
+      process.stderr.write(`Unknown fixture: ${args.fixtureId}\n`);
+    }
     process.exit(1);
   }
 
