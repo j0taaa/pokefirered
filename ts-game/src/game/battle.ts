@@ -1,5 +1,5 @@
 import type { InputSnapshot } from '../input/inputState';
-import { getBagQuantity, getItemDefinition, removeBagItem, type BagState } from './bag';
+import { getBagQuantity, getBattleUsableBagEntries, getItemDefinition, removeBagItem, type BagState } from './bag';
 import type { DecompTypeId } from './decompSpecies';
 import { getDecompSpeciesInfo } from './decompSpecies';
 import { getExperienceForLevel, getLevelForExperience } from './decompExperience';
@@ -358,6 +358,7 @@ export interface BattleState {
   commands: BattleCommand[];
   selectedPartyIndex: number;
   selectedBagIndex: number;
+  lastBattleItemId: string | null;
   turnSummary: string;
   damagePreview: {
     min: number;
@@ -393,7 +394,7 @@ export interface CaptureResult {
 }
 
 export interface BattleBagChoice {
-  itemId: BattleBallItemId | null;
+  itemId: string | null;
   label: string;
   quantity: number | null;
   isExit: boolean;
@@ -6433,6 +6434,7 @@ const createBattleStateFromConfig = (config: BattleStartConfig = {}): BattleStat
     commands: [...NORMAL_BATTLE_COMMANDS],
     selectedPartyIndex: 0,
     selectedBagIndex: 0,
+    lastBattleItemId: null,
     turnSummary: '',
     damagePreview: null,
     runAttempts: 0,
@@ -6923,7 +6925,12 @@ const calculateShakeThreshold = (captureOdds: number): number => {
 };
 
 const getFirstBattleBallChoice = (battle: BattleState, bag?: BagState): BattleBagChoice | null =>
-  getBattleBagChoices(battle, bag).find((choice) => !choice.isExit && choice.itemId && (choice.quantity ?? 0) > 0) ?? null;
+  getBattleBagChoices(battle, bag).find((choice) =>
+    !choice.isExit
+    && choice.itemId
+    && isBattleBallItemId(choice.itemId)
+    && (choice.quantity ?? 0) > 0
+  ) ?? null;
 
 const hasBattleTypeFlag = (battle: BattleState, flag: BattleTypeFlag): boolean =>
   battle.battleTypeFlags.includes(flag);
@@ -6966,7 +6973,8 @@ export const performCaptureAttempt = (
   bag?: BagState,
   preferredItemId?: BattleBallItemId
 ): CaptureResult => {
-  const selectedItemId = preferredItemId ?? getFirstBattleBallChoice(battle, bag)?.itemId ?? null;
+  const fallbackItemId = getFirstBattleBallChoice(battle, bag)?.itemId ?? null;
+  const selectedItemId = preferredItemId ?? (fallbackItemId && isBattleBallItemId(fallbackItemId) ? fallbackItemId : null);
   if (!selectedItemId || getBattleBallQuantity(battle, selectedItemId, bag) <= 0) {
     return {
       caught: false,
@@ -7073,18 +7081,21 @@ const syncBattleBagSnapshot = (battle: BattleState, bag?: BagState): void => {
 };
 
 export const getBattleBagChoices = (battle: BattleState, bag?: BagState): BattleBagChoice[] => {
-  const ballItemIds = bag
-    ? bag.pockets.pokeBalls.map((slot) => slot.itemId).filter(isBattleBallItemId)
-    : (['ITEM_POKE_BALL', 'ITEM_GREAT_BALL'] as BattleBallItemId[])
-      .filter((itemId) => getFallbackBattleBallQuantity(battle, itemId) > 0);
-  const choices = ballItemIds
-    .map((itemId): BattleBagChoice => ({
-      itemId,
-      label: getBattleBallLabel(itemId),
-      quantity: getBattleBallQuantity(battle, itemId, bag),
+  const choices = bag
+    ? getBattleUsableBagEntries(bag).map((slot): BattleBagChoice => ({
+      itemId: slot.itemId,
+      label: getItemDefinition(slot.itemId).name,
+      quantity: slot.quantity,
       isExit: false
     }))
-    .filter((choice) => (choice.quantity ?? 0) > 0);
+    : (['ITEM_POKE_BALL', 'ITEM_GREAT_BALL'] as BattleBallItemId[])
+      .filter((itemId) => getFallbackBattleBallQuantity(battle, itemId) > 0)
+      .map((itemId): BattleBagChoice => ({
+        itemId,
+        label: getBattleBallLabel(itemId),
+        quantity: getBattleBallQuantity(battle, itemId),
+        isExit: false
+      }));
 
   choices.push({ itemId: null, label: 'CANCEL', quantity: null, isExit: true });
   return choices;
@@ -7268,6 +7279,15 @@ export const stepBattle = (
     if (!selectedChoice || selectedChoice.isExit || !selectedChoice.itemId) {
       battle.phase = 'command';
       battle.turnSummary = getPromptSummary(battle);
+      return;
+    }
+
+    if (!isBattleBallItemId(selectedChoice.itemId)) {
+      battle.lastBattleItemId = selectedChoice.itemId;
+      battle.currentScriptLabel = 'BattleScript_ItemUseHandoff';
+      battle.phase = 'script';
+      battle.turnSummary = `${selectedChoice.label} was selected.`;
+      queueMessages(battle, [`${selectedChoice.label} was selected.`], 'command', getPromptSummary(battle));
       return;
     }
 

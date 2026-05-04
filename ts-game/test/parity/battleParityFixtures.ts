@@ -6,6 +6,95 @@ import {
 import { getDecompBattleMove } from '../../src/game/decompBattleData';
 import type { BattleParityFixture } from '../../src/game/battleParity';
 
+export interface NativeBattleOracleFixtureMetadata {
+  id: string;
+  categories: string[];
+  hostComparable: boolean;
+}
+
+export const nativeBattleOracleFixtures: NativeBattleOracleFixtureMetadata[] = [
+  {
+    id: 'wild-opening-exchange',
+    categories: ['battle-mode:wild', 'end-turn-timing', 'move-exchange', 'status-end-turn-timing', 'wild-battle'],
+    hostComparable: true
+  },
+  {
+    id: 'trainer-shift-prompt',
+    categories: ['battle-mode:trainer', 'faint-replacement', 'forced-faint-replacement', 'post-battle-script', 'trainer-battle', 'trainer-class'],
+    hostComparable: true
+  },
+  {
+    id: 'wild-catch',
+    categories: ['capture', 'capture-edge-case', 'post-battle-script', 'wild-battle'],
+    hostComparable: true
+  },
+  {
+    id: 'battle-whiteout',
+    categories: ['battle-mode:trainer', 'post-battle-script', 'trainer-battle', 'whiteout'],
+    hostComparable: true
+  },
+  {
+    id: 'wild-status-exchange',
+    categories: ['end-turn-timing', 'status-end-turn-timing', 'status-move', 'wild-battle'],
+    hostComparable: true
+  },
+  {
+    id: 'wild-player-switch',
+    categories: ['player-switch', 'switching', 'wild-battle'],
+    hostComparable: true
+  },
+  {
+    id: 'wild-run-escape',
+    categories: ['battle-mode:wild', 'flee', 'wild-battle'],
+    hostComparable: true
+  },
+  {
+    id: 'trainer-ai-item-heal',
+    categories: ['ai-item', 'battle-mode:trainer', 'held-item', 'item-timing', 'trainer-ai', 'trainer-battle', 'trainer-class'],
+    hostComparable: false
+  },
+  {
+    id: 'trainer-ai-switch-perish-song',
+    categories: ['ai-switch', 'battle-mode:trainer', 'switching', 'trainer-ai', 'trainer-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'safari-bait-flow',
+    categories: ['battle-mode:safari', 'capture', 'capture-edge-case', 'flee', 'safari', 'safari-bait', 'safari-run'],
+    hostComparable: false
+  },
+  {
+    id: 'safari-rock-capture-edge',
+    categories: ['battle-mode:safari', 'capture', 'capture-edge-case', 'flee', 'safari', 'safari-rock'],
+    hostComparable: false
+  },
+  {
+    id: 'priority-quick-attack',
+    categories: ['move-priority', 'priority', 'wild-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'multi-hit-fury-attack',
+    categories: ['multi-hit', 'multi-hit-move', 'wild-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'ability-wonder-guard-block',
+    categories: ['ability', 'move-effect', 'wild-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'post-battle-reward-level-up',
+    categories: ['evolution', 'experience', 'level-up', 'post-battle-script', 'trainer-battle'],
+    hostComparable: false
+  },
+  {
+    id: 'doubles-partner-follow-me',
+    categories: ['battle-mode:trainer', 'double-battle', 'multi-battle', 'partner', 'targeting'],
+    hostComparable: false
+  }
+];
+
 const makeMove = (moveId: string): BattleMove => {
   const move = getDecompBattleMove(moveId);
   if (!move) {
@@ -55,7 +144,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'trainer-shift-prompt',
     description: 'trainer KO flow queues the shift prompt before the next send-out',
-    tags: ['native-oracle', 'trainer', 'singles', 'faint-replacement', 'post-battle-flow', 'long-native-trace'],
+    tags: ['native-oracle', 'trainer', 'trainer-class', 'singles', 'faint-replacement', 'post-battle-flow', 'long-native-trace'],
     startConfig: {
       mode: 'trainer',
       battleStyle: 'shift',
@@ -113,7 +202,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'wild-status-exchange',
     description: 'wild singles status move exchange preserves non-damaging move memory',
-    tags: ['native-oracle', 'wild', 'singles', 'status-move', 'long-native-trace'],
+    tags: ['native-oracle', 'wild', 'singles', 'status-move', 'end-turn-timing', 'status-end-turn-timing', 'long-native-trace'],
     startConfig: {
       mode: 'wild',
       playerParty: [createBattlePokemonFromSpecies('BULBASAUR', 5)],
@@ -136,7 +225,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'wild-player-switch',
     description: 'wild singles player switch consumes the player action and lets the foe act',
-    tags: ['native-oracle', 'wild', 'switch-flow', 'long-native-trace'],
+    tags: ['native-oracle', 'wild', 'switch-flow', 'switching', 'long-native-trace'],
     startConfig: {
       mode: 'wild',
       playerParty: [
@@ -364,7 +453,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'trainer-ai-item-heal',
     description: 'trainer item action happens before move choice and records AI item locals',
-    tags: ['trainer', 'trainer-ai', 'item-timing', 'fixture-corpus'],
+    tags: ['trainer', 'trainer-class', 'trainer-ai', 'ai-item', 'held-item', 'item-timing', 'fixture-corpus'],
     nativeOracle: false,
     startConfig: {
       mode: 'trainer',
@@ -396,7 +485,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'trainer-ai-switch-perish-song',
     description: 'trainer switch helper moves out a Perish Song target before item or move selection',
-    tags: ['trainer', 'trainer-ai', 'ai-switch', 'switch-flow', 'fixture-corpus'],
+    tags: ['trainer', 'trainer-ai', 'ai-switch', 'switch-flow', 'switching', 'fixture-corpus'],
     nativeOracle: false,
     encounterSeed: 3,
     startConfig: {
@@ -429,7 +518,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'doubles-partner-follow-me',
     description: 'doubles/partner runtime emits four-battler action traces with ally-aware targeting',
-    tags: ['doubles', 'partner', 'targeting', 'fixture-corpus'],
+    tags: ['doubles', 'double-battle', 'multi-battle', 'partner', 'targeting', 'fixture-corpus'],
     nativeOracle: false,
     startConfig: {
       mode: 'trainer',
@@ -462,7 +551,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'safari-bait-flow',
     description: 'Safari bait command updates catch/flee factors and returns through Safari opponent flow',
-    tags: ['safari', 'battle-mode', 'capture', 'flee', 'fixture-corpus'],
+    tags: ['safari', 'battle-mode', 'capture', 'capture-edge-case', 'flee', 'safari-bait', 'safari-run', 'fixture-corpus'],
     nativeOracle: false,
     encounterSeed: 7,
     startConfig: {
@@ -479,6 +568,77 @@ export const battleParityFixtures: BattleParityFixture[] = [
     steps: [
       { input: 'confirm' },
       { input: 'confirm', untilPhase: 'command', maxSteps: 8 }
+    ]
+  },
+  {
+    id: 'safari-rock-capture-edge',
+    description: 'Safari rock command raises catch pressure while preserving Safari flee timing',
+    tags: ['safari', 'battle-mode', 'capture', 'capture-edge-case', 'flee', 'safari-rock', 'fixture-corpus'],
+    nativeOracle: false,
+    encounterSeed: 9,
+    startConfig: {
+      mode: 'safari',
+      battleTypeFlags: ['safari'],
+      safariBalls: 12,
+      playerParty: [createBattlePokemonFromSpecies('BULBASAUR', 16)],
+      opponentParty: [createBattlePokemonFromSpecies('NIDORAN_M', 18)]
+    },
+    setup: (battle) => {
+      battle.phase = 'command';
+      battle.selectedCommandIndex = 2;
+    },
+    steps: [
+      { input: 'confirm' },
+      { input: 'confirm', untilPhase: 'command', maxSteps: 8 }
+    ]
+  },
+  {
+    id: 'priority-quick-attack',
+    description: 'positive-priority move ordering beats a faster opposing normal-priority action',
+    tags: ['move-effect', 'priority', 'fixture-corpus'],
+    nativeOracle: false,
+    startConfig: {
+      mode: 'wild',
+      playerParty: [createBattlePokemonFromSpecies('RATTATA', 18)],
+      opponentParty: [createBattlePokemonFromSpecies('PIDGEY', 18)]
+    },
+    setup: (battle) => {
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 1;
+      battle.wildMon.speed = 99;
+      battle.moves = [makeMove('QUICK_ATTACK')];
+      battle.playerMon.moves = battle.moves;
+      battle.wildMoves = [makeMove('TACKLE')];
+      battle.wildMon.moves = battle.wildMoves;
+    },
+    steps: [
+      { input: 'confirm' },
+      { input: 'confirm', untilPhase: 'command', maxSteps: 8 }
+    ]
+  },
+  {
+    id: 'multi-hit-fury-attack',
+    description: 'multi-hit move path records repeated hit accounting before returning to command',
+    tags: ['move-effect', 'multi-hit', 'fixture-corpus'],
+    nativeOracle: false,
+    encounterSeed: 2,
+    startConfig: {
+      mode: 'wild',
+      playerParty: [createBattlePokemonFromSpecies('SPEAROW', 18)],
+      opponentParty: [createBattlePokemonFromSpecies('RATTATA', 18)]
+    },
+    setup: (battle) => {
+      battle.phase = 'moveSelect';
+      battle.playerMon.speed = 99;
+      battle.wildMon.speed = 1;
+      battle.moves = [makeMove('FURY_ATTACK')];
+      battle.playerMon.moves = battle.moves;
+      battle.wildMoves = [makeMove('SPLASH')];
+      battle.wildMon.moves = battle.wildMoves;
+    },
+    steps: [
+      { input: 'confirm' },
+      { input: 'confirm', untilPhase: 'command', maxSteps: 10 }
     ]
   },
   {
@@ -526,7 +686,7 @@ export const battleParityFixtures: BattleParityFixture[] = [
   {
     id: 'post-battle-reward-level-up',
     description: 'trainer win emits structured reward and pending level-up handoff data',
-    tags: ['post-battle-flow', 'reward', 'fixture-corpus'],
+    tags: ['post-battle-flow', 'post-battle-script', 'experience', 'evolution', 'reward', 'fixture-corpus'],
     nativeOracle: false,
     startConfig: {
       mode: 'trainer',
