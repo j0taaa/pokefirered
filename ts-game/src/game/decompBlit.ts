@@ -4,70 +4,15 @@ import {
   blitBitmapRect4BitTo8Bit,
   blitBitmapRect4BitWithoutColorKey,
   fillBitmapRect4Bit,
-  fillBitmapRect8Bit,
-  type DecompBitmap
+  fillBitmapRect8Bit
 } from '../rendering/decompBlit';
 
-export function BlitBitmapRect4BitWithoutColorKey(
-  src: DecompBitmap,
-  dst: DecompBitmap,
-  srcX: number,
-  srcY: number,
-  dstX: number,
-  dstY: number,
-  width: number,
-  height: number
-): void {
-  blitBitmapRect4BitWithoutColorKey(src, dst, srcX, srcY, dstX, dstY, width, height);
-}
+export const BlitBitmapRect4BitWithoutColorKey = blitBitmapRect4BitWithoutColorKey;
 
-export function BlitBitmapRect4Bit(
-  src: DecompBitmap,
-  dst: DecompBitmap,
-  srcX: number,
-  srcY: number,
-  dstX: number,
-  dstY: number,
-  width: number,
-  height: number,
-  colorKey: number
-): void {
-  blitBitmapRect4Bit(src, dst, srcX, srcY, dstX, dstY, width, height, colorKey);
-}
+export const BlitBitmapRect4Bit = blitBitmapRect4Bit;
 
-export function FillBitmapRect4Bit(
-  surface: DecompBitmap,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  fillValue: number
-): void {
-  fillBitmapRect4Bit(surface, x, y, width, height, fillValue);
-}
+export const FillBitmapRect4Bit = fillBitmapRect4Bit;
 
-export function BlitBitmapRect4BitTo8Bit(
-  src: DecompBitmap,
-  dst: DecompBitmap,
-  srcX: number,
-  srcY: number,
-  dstX: number,
-  dstY: number,
-  width: number,
-  height: number,
-  colorKey: number,
-  paletteOffset: number
-): void {
-  blitBitmapRect4BitTo8Bit(src, dst, srcX, srcY, dstX, dstY, width, height, colorKey, paletteOffset);
-}
+export const BlitBitmapRect4BitTo8Bit = blitBitmapRect4BitTo8Bit;
 
-export function FillBitmapRect8Bit(
-  surface: DecompBitmap,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  fillValue: number
-): void {
-  fillBitmapRect8Bit(surface, x, y, width, height, fillValue);
-}
+export const FillBitmapRect8Bit = fillBitmapRect8Bit;

@@ -10,68 +10,27 @@ import {
   setGpuReg,
   setGpuRegBits,
   syncRegIE,
-  updateRegDispstatIntrBits,
-  type GpuRegManagerState
+  updateRegDispstatIntrBits
 } from '../rendering/decompGpuRegs';
 
-export function InitGpuRegManager(state?: GpuRegManagerState): GpuRegManagerState {
-  return initGpuRegManager(state);
-}
+export const InitGpuRegManager = initGpuRegManager;
 
-export function CopyBufferedValueToGpuReg(
-  state: GpuRegManagerState,
-  regOffset: number
-): void {
-  copyBufferedValueToGpuReg(state, regOffset);
-}
+export const CopyBufferedValueToGpuReg = copyBufferedValueToGpuReg;
 
-export function CopyBufferedValuesToGpuRegs(state: GpuRegManagerState): void {
-  copyBufferedValuesToGpuRegs(state);
-}
+export const CopyBufferedValuesToGpuRegs = copyBufferedValuesToGpuRegs;
 
-export function SetGpuReg(
-  state: GpuRegManagerState,
-  regOffset: number,
-  value: number
-): void {
-  setGpuReg(state, regOffset, value);
-}
+export const SetGpuReg = setGpuReg;
 
-export function GetGpuReg(state: GpuRegManagerState, regOffset: number): number {
-  return getGpuReg(state, regOffset);
-}
+export const GetGpuReg = getGpuReg;
 
-export function SetGpuRegBits(
-  state: GpuRegManagerState,
-  regOffset: number,
-  mask: number
-): void {
-  setGpuRegBits(state, regOffset, mask);
-}
+export const SetGpuRegBits = setGpuRegBits;
 
-export function ClearGpuRegBits(
-  state: GpuRegManagerState,
-  regOffset: number,
-  mask: number
-): void {
-  clearGpuRegBits(state, regOffset, mask);
-}
+export const ClearGpuRegBits = clearGpuRegBits;
 
-export function SyncRegIE(state: GpuRegManagerState): void {
-  syncRegIE(state);
-}
+export const SyncRegIE = syncRegIE;
 
-export function EnableInterrupts(state: GpuRegManagerState, mask: number): void {
-  enableInterrupts(state, mask);
-}
+export const EnableInterrupts = enableInterrupts;
 
-export function DisableInterrupts(state: GpuRegManagerState, mask: number): void {
-  disableInterrupts(state, mask);
-}
+export const DisableInterrupts = disableInterrupts;
 
-export function UpdateRegDispstatIntrBits(
-  state: GpuRegManagerState,
-  regIE: number
-): void {
-  updateRegDispstatIntrBits(state, regIE);
-}
+export const UpdateRegDispstatIntrBits = updateRegDispstatIntrBits;
