@@ -20,6 +20,8 @@ import {
   type FieldPokemon,
   type PokedexState
 } from './pokemonStorage';
+import { createSaveEnvelope, hasValidSaveChecksum, isSaveEnvelope } from './saveValidation';
+import { migrateSavePayload } from './saveMigration';
 
 export const SAVE_SCHEMA_VERSION = 6;
 export const DEFAULT_SAVE_SLOT_KEY = 'pokefirered.ts.save.v6';
@@ -60,6 +62,10 @@ export interface SaveSnapshot {
     bag: ScriptRuntimeState['bag'];
     pcStorage?: ScriptRuntimeState['pcStorage'];
     newGame?: ScriptRuntimeState['newGame'];
+    roamer?: ScriptRuntimeState['roamer'];
+    dynamicWarp?: ScriptRuntimeState['dynamicWarp'];
+    fameChecker?: ScriptRuntimeState['fameChecker'];
+    fieldAudio?: Pick<ScriptRuntimeState['fieldAudio'], 'currentMapMusic' | 'nextMapMusic' | 'savedMusic' | 'defaultMapMusic' | 'mapMusicState'>;
   };
 }
 
@@ -141,6 +147,12 @@ const isFieldPokemon = (value: unknown): value is FieldPokemon => {
 const isFieldPokemonArray = (value: unknown): value is FieldPokemon[] =>
   Array.isArray(value) && value.every((entry) => isFieldPokemon(entry));
 
+const isNumberArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === 'number');
+
+const isNumberMatrix = (value: unknown): value is number[][] =>
+  Array.isArray(value) && value.every((entry) => isNumberArray(entry));
+
 const isPcStorageState = (value: unknown): value is ScriptRuntimeState['pcStorage'] => {
   if (!value || typeof value !== 'object') {
     return false;
@@ -206,6 +218,129 @@ const isDecompNewGameState = (value: unknown): value is DecompNewGameState => {
     && typeof candidate.fameCheckerCleared === 'boolean'
     && typeof candidate.enigmaBerriesCleared === 'boolean'
     && typeof candidate.roamerCleared === 'boolean';
+};
+
+const isRoamerData = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.species)
+    && Number.isInteger(candidate.level)
+    && Number.isInteger(candidate.status)
+    && typeof candidate.active === 'boolean'
+    && Number.isInteger(candidate.ivs)
+    && Number.isInteger(candidate.personality)
+    && Number.isInteger(candidate.hp)
+    && Number.isInteger(candidate.cool)
+    && Number.isInteger(candidate.beauty)
+    && Number.isInteger(candidate.cute)
+    && Number.isInteger(candidate.smart)
+    && Number.isInteger(candidate.tough);
+};
+
+const isRoamerPokemon = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.species)
+    && Number.isInteger(candidate.level)
+    && Number.isInteger(candidate.ivs)
+    && Number.isInteger(candidate.personality)
+    && Number.isInteger(candidate.status)
+    && Number.isInteger(candidate.hp)
+    && Number.isInteger(candidate.maxHp)
+    && Number.isInteger(candidate.cool)
+    && Number.isInteger(candidate.beauty)
+    && Number.isInteger(candidate.cute)
+    && Number.isInteger(candidate.smart)
+    && Number.isInteger(candidate.tough);
+};
+
+const isRoamerRuntime = (value: unknown): value is ScriptRuntimeState['roamer'] => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const rng = candidate.rng as Record<string, unknown> | undefined;
+  return isRoamerData(candidate.roamer)
+    && isNumberMatrix(candidate.locationHistory)
+    && isNumberArray(candidate.roamerLocation)
+    && Array.isArray(candidate.enemyParty)
+    && candidate.enemyParty.every((entry) => isRoamerPokemon(entry))
+    && !!rng
+    && Number.isInteger(rng.value)
+    && Number.isInteger(candidate.starterSpecies)
+    && (candidate.mapSectionByLocation === undefined || isObjectWithNumberValues(candidate.mapSectionByLocation));
+};
+
+const cloneRoamerRuntime = (state: ScriptRuntimeState['roamer']): ScriptRuntimeState['roamer'] => ({
+  roamer: { ...state.roamer },
+  locationHistory: state.locationHistory.map((entry) => [...entry]),
+  roamerLocation: [...state.roamerLocation],
+  enemyParty: state.enemyParty.map((entry) => ({ ...entry })),
+  rng: { ...state.rng },
+  starterSpecies: state.starterSpecies,
+  mapSectionByLocation: { ...state.mapSectionByLocation }
+});
+
+const isDynamicWarp = (value: unknown): value is ScriptRuntimeState['dynamicWarp'] => {
+  if (value === null) {
+    return true;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.mapId === 'string'
+    && Number.isInteger(candidate.warpId)
+    && typeof candidate.x === 'number'
+    && typeof candidate.y === 'number';
+};
+
+const isFameChecker = (value: unknown): value is ScriptRuntimeState['fameChecker'] => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return isObjectWithNumberValues(candidate.pickStates)
+    && isObjectWithNumberValues(candidate.flavorTextFlags)
+    && Array.isArray(candidate.updates)
+    && candidate.updates.every((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return false;
+      }
+      const update = entry as Record<string, unknown>;
+      return Number.isInteger(update.person)
+        && Number.isInteger(update.value)
+        && (update.special === null || typeof update.special === 'string');
+    });
+};
+
+const cloneFameChecker = (state: ScriptRuntimeState['fameChecker']): ScriptRuntimeState['fameChecker'] => ({
+  pickStates: { ...state.pickStates },
+  flavorTextFlags: { ...state.flavorTextFlags },
+  updates: state.updates.map((entry) => ({ ...entry }))
+});
+
+const isPersistentFieldAudio = (value: unknown): value is NonNullable<SaveSnapshot['runtime']['fieldAudio']> => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return Number.isInteger(candidate.currentMapMusic)
+    && Number.isInteger(candidate.nextMapMusic)
+    && Number.isInteger(candidate.savedMusic)
+    && Number.isInteger(candidate.defaultMapMusic)
+    && Number.isInteger(candidate.mapMusicState);
 };
 
 const isPokedexState = (value: unknown): value is PokedexState => {
@@ -277,7 +412,17 @@ export const createSaveSnapshot = (
         boxNames: [...runtime.pcStorage.boxNames],
         boxes: runtime.pcStorage.boxes.map((box) => cloneParty(box))
       },
-      newGame: cloneDecompNewGameState(runtime.newGame)
+      newGame: cloneDecompNewGameState(runtime.newGame),
+      roamer: cloneRoamerRuntime(runtime.roamer),
+      dynamicWarp: runtime.dynamicWarp ? { ...runtime.dynamicWarp } : null,
+      fameChecker: cloneFameChecker(runtime.fameChecker),
+      fieldAudio: {
+        currentMapMusic: runtime.fieldAudio.currentMapMusic,
+        nextMapMusic: runtime.fieldAudio.nextMapMusic,
+        savedMusic: runtime.fieldAudio.savedMusic,
+        defaultMapMusic: runtime.fieldAudio.defaultMapMusic,
+        mapMusicState: runtime.fieldAudio.mapMusicState
+      }
     }
   };
 };
@@ -390,6 +535,22 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
     return null;
   }
 
+  if (runtime.roamer !== undefined && !isRoamerRuntime(runtime.roamer)) {
+    return null;
+  }
+
+  if (runtime.dynamicWarp !== undefined && !isDynamicWarp(runtime.dynamicWarp)) {
+    return null;
+  }
+
+  if (runtime.fameChecker !== undefined && !isFameChecker(runtime.fameChecker)) {
+    return null;
+  }
+
+  if (runtime.fieldAudio !== undefined && !isPersistentFieldAudio(runtime.fieldAudio)) {
+    return null;
+  }
+
   return {
     schemaVersion: SAVE_SCHEMA_VERSION,
     mapId: candidate.mapId,
@@ -442,7 +603,17 @@ const parseSaveSnapshot = (raw: unknown): SaveSnapshot | null => {
         : createDefaultPcStorageState(),
       newGame: isDecompNewGameState(runtime.newGame)
         ? cloneDecompNewGameState(runtime.newGame)
-        : createDefaultNewGameState()
+        : createDefaultNewGameState(),
+      roamer: isRoamerRuntime(runtime.roamer)
+        ? cloneRoamerRuntime(runtime.roamer)
+        : undefined,
+      dynamicWarp: isDynamicWarp(runtime.dynamicWarp) ? runtime.dynamicWarp ? { ...runtime.dynamicWarp } : null : undefined,
+      fameChecker: isFameChecker(runtime.fameChecker)
+        ? cloneFameChecker(runtime.fameChecker)
+        : undefined,
+      fieldAudio: isPersistentFieldAudio(runtime.fieldAudio)
+        ? { ...runtime.fieldAudio }
+        : undefined
     }
   };
 };
@@ -455,7 +626,16 @@ export const saveGameToStorage = (
   key = DEFAULT_SAVE_SLOT_KEY
 ): SaveOperationResult => {
   const snapshot = createSaveSnapshot(mapId, player, runtime);
-  storage.setItem(key, JSON.stringify(snapshot));
+  try {
+    storage.setItem(key, JSON.stringify(createSaveEnvelope(snapshot)));
+  } catch (error) {
+    const isQuotaError = error instanceof DOMException && error.name === 'QuotaExceededError';
+    return {
+      ok: false,
+      summary: isQuotaError ? 'Save failed: browser storage quota exceeded.' : 'Save failed: browser storage is unavailable.',
+      saveIndex: runtime.saveCounter
+    };
+  }
   runtime.saveCounter = snapshot.saveIndex;
   return {
     ok: true,
@@ -475,7 +655,14 @@ export const loadGameFromStorage = (
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parseSaveSnapshot(parsed);
+    if (isSaveEnvelope(parsed)) {
+      if (!hasValidSaveChecksum(parsed)) {
+        return null;
+      }
+      return parseSaveSnapshot(migrateSavePayload(parsed.payload));
+    }
+
+    return parseSaveSnapshot(migrateSavePayload(parsed));
   } catch {
     return null;
   }
@@ -540,6 +727,22 @@ export const applySaveSnapshot = (
   runtime.newGame = snapshot.runtime.newGame
     ? cloneDecompNewGameState(snapshot.runtime.newGame)
     : createDefaultNewGameState();
+  if (snapshot.runtime.roamer) {
+    runtime.roamer = cloneRoamerRuntime(snapshot.runtime.roamer);
+  }
+  if (snapshot.runtime.dynamicWarp !== undefined) {
+    runtime.dynamicWarp = snapshot.runtime.dynamicWarp ? { ...snapshot.runtime.dynamicWarp } : null;
+  }
+  if (snapshot.runtime.fameChecker) {
+    runtime.fameChecker = cloneFameChecker(snapshot.runtime.fameChecker);
+  }
+  if (snapshot.runtime.fieldAudio) {
+    runtime.fieldAudio.currentMapMusic = snapshot.runtime.fieldAudio.currentMapMusic;
+    runtime.fieldAudio.nextMapMusic = snapshot.runtime.fieldAudio.nextMapMusic;
+    runtime.fieldAudio.savedMusic = snapshot.runtime.fieldAudio.savedMusic;
+    runtime.fieldAudio.defaultMapMusic = snapshot.runtime.fieldAudio.defaultMapMusic;
+    runtime.fieldAudio.mapMusicState = snapshot.runtime.fieldAudio.mapMusicState;
+  }
   runtime.vars.playTimeSeconds = (runtime.playTime.hours * 3600) + (runtime.playTime.minutes * 60) + runtime.playTime.seconds;
   runtime.vars.playTimeMinutes = (runtime.playTime.hours * 60) + runtime.playTime.minutes;
   runtime.saveCounter = snapshot.saveIndex;
