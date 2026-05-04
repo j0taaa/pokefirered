@@ -102,3 +102,28 @@ jobs:
           cwd: "./symbols"
           add: "*.sym"
           message: ${{ env.SYMBOLS_COMMIT_MSG }}
+
+  ts-game:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ts-game/package-lock.json
+
+      - name: Install TypeScript port dependencies
+        run: npm ci
+        working-directory: ./ts-game
+
+      - name: Test TypeScript port
+        run: npm run test -- --run
+        working-directory: ./ts-game
+
+      - name: Build TypeScript port
+        run: npm run build
+        working-directory: ./ts-game
