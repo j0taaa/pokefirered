@@ -1246,6 +1246,49 @@ describe('script runtime helpers', () => {
     expect(pages?.join(' ')).toContain('Do you know what AMBER is?');
   });
 
+  test('Pewter Museum admission takes the ticket fee and marks admission paid', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    setRuntimeMoney(runtime, 3000);
+    runScriptById('PewterCity_Museum_1F_EventScript_Scientist1', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(getRuntimeMoney(runtime)).toBe(2950);
+    expect(getScriptVar(runtime, 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F')).toBe(1);
+    expect(dialogue.queue.join(' ')).toContain('Thank you');
+  });
+
+  test('Pewter Museum OLD AMBER scientist gives the fossil once', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('PewterCity_Museum_1F_EventScript_OldAmberScientist', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(isScriptFlagSet(runtime, 'FLAG_GOT_OLD_AMBER')).toBe(true);
+    expect(getBagQuantity(runtime.bag, 'ITEM_OLD_AMBER')).toBe(1);
+    expect(dialogue.queue.join(' ')).toContain('received the OLD AMBER');
+
+    closeDialogue(dialogue);
+    runScriptById('PewterCity_Museum_1F_EventScript_OldAmberScientist', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(getBagQuantity(runtime.bag, 'ITEM_OLD_AMBER')).toBe(1);
+    expect(dialogue.queue.join(' ')).toContain('Take good care');
+  });
+
+  test('Pewter Museum Seismic Toss tutor teaches the lead Pokemon once', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+    runtime.party[0] = { ...runtime.party[0]!, nickname: 'BLAZE', moves: ['SCRATCH'] };
+
+    runScriptById('PewterCity_Museum_1F_EventScript_SeismicTossTutor', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(isScriptFlagSet(runtime, 'FLAG_TUTOR_SEISMIC_TOSS')).toBe(true);
+    expect(runtime.party[0]?.moves).toContain('SEISMIC TOSS');
+    expect(dialogue.queue.join(' ')).toContain('learned SEISMIC TOSS');
+  });
+
   test('decomp fallback can follow conditional call branches from the original scripts', () => {
     const runtime = createScriptRuntimeState();
     const player = createPlayer();
@@ -1428,6 +1471,55 @@ describe('script runtime helpers', () => {
     expect(getBagQuantity(runtime.bag, 'ITEM_BIKE_VOUCHER')).toBe(0);
     expect(getBagQuantity(runtime.bag, 'ITEM_BICYCLE')).toBe(1);
     expect(dialogue.queue.join(' ')).toContain('Thank you');
+  });
+
+  test('Berry Powder man gives the Powder Jar after the Berry Pouch gate', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('CeruleanCity_House5_EventScript_BerryPowderMan', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(isScriptFlagSet(runtime, 'FLAG_GOT_POWDER_JAR')).toBe(false);
+    expect(dialogue.queue.join(' ')).toContain('Not a one');
+
+    closeDialogue(dialogue);
+    setScriptFlag(runtime, 'FLAG_SYS_GOT_BERRY_POUCH');
+    runScriptById('CeruleanCity_House5_EventScript_BerryPowderMan', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(isScriptFlagSet(runtime, 'FLAG_GOT_POWDER_JAR')).toBe(true);
+    expect(getBagQuantity(runtime.bag, 'ITEM_POWDER_JAR')).toBe(1);
+    expect(dialogue.queue.join(' ')).toContain('received the POWDER JAR');
+  });
+
+  test('Route 4 Magikarp salesman sells one Magikarp and charges money once', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+    runtime.party = [runtime.party[0]!];
+    setRuntimeMoney(runtime, 3000);
+
+    runScriptById('Route4_PokemonCenter_1F_EventScript_MagikarpSalesman', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(isScriptFlagSet(runtime, 'FLAG_BOUGHT_MAGIKARP')).toBe(true);
+    expect(getRuntimeMoney(runtime)).toBe(2500);
+    expect(runtime.party.some((pokemon) => pokemon.species === 'MAGIKARP')).toBe(true);
+    expect(dialogue.queue.join(' ')).toContain('bought MAGIKARP');
+  });
+
+  test('Route 2 Oaks aide gives HM05 after ten seen Pokemon', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+    runtime.pokedex.seenSpecies = [
+      'BULBASAUR', 'IVYSAUR', 'VENUSAUR', 'CHARMANDER', 'CHARMELEON',
+      'CHARIZARD', 'SQUIRTLE', 'WARTORTLE', 'BLASTOISE', 'CATERPIE'
+    ];
+
+    runScriptById('Route2_EastBuilding_EventScript_Aide', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(isScriptFlagSet(runtime, 'FLAG_GOT_HM05')).toBe(true);
+    expect(getBagQuantity(runtime.bag, 'ITEM_HM05')).toBe(1);
+    expect(dialogue.queue.join(' ')).toContain('received HM05');
   });
 
   test('Cerulean in-game trade now runs through the original decomp trade flow', () => {
@@ -1641,6 +1733,42 @@ describe('script runtime helpers', () => {
     expect(isScriptFlagSet(runtime, 'FLAG_GOT_VS_SEEKER')).toBe(true);
     expect(getBagQuantity(runtime.bag, 'ITEM_VS_SEEKER')).toBe(1);
     expect(dialogue.queue.join(' ')).toContain('looking for a rematch');
+  });
+
+  test('Vermilion Pokemon Center nurse heals the party through the local handler', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+    runtime.party[0] = { ...runtime.party[0]!, hp: 1, status: 'poison' };
+
+    runScriptById('VermilionCity_PokemonCenter_1F_EventScript_Nurse', { player, dialogue, runtime }, prototypeScriptRegistry);
+
+    expect(runtime.party[0]?.hp).toBe(runtime.party[0]?.maxHp);
+    expect(runtime.party[0]?.status).toBe('none');
+    expect(dialogue.queue.join(' ')).toContain('restored your POKéMON');
+  });
+
+  test('Vermilion Gym trash cans open adjacent locks and reset on the wrong second can', () => {
+    const runtime = createScriptRuntimeState();
+    const dialogue = createDialogueState();
+    const player = createPlayer();
+
+    runScriptById('VermilionCity_Gym_EventScript_TrashCan3', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(getScriptVar(runtime, 'VAR_VERMILION_GYM_TRASH_FIRST_LOCK')).toBe(3);
+    expect(dialogue.queue.join(' ')).toContain('first electric lock opened');
+
+    closeDialogue(dialogue);
+    runScriptById('VermilionCity_Gym_EventScript_TrashCan8', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(getScriptVar(runtime, 'VAR_VERMILION_GYM_TRASH_FIRST_LOCK')).toBe(0);
+    expect(getScriptVar(runtime, 'VAR_VERMILION_GYM_TRASH_SECOND_LOCK')).toBe(0);
+    expect(dialogue.queue.join(' ')).toContain('electric locks reset');
+
+    closeDialogue(dialogue);
+    runScriptById('VermilionCity_Gym_EventScript_TrashCan3', { player, dialogue, runtime }, prototypeScriptRegistry);
+    closeDialogue(dialogue);
+    runScriptById('VermilionCity_Gym_EventScript_TrashCan4', { player, dialogue, runtime }, prototypeScriptRegistry);
+    expect(getScriptVar(runtime, 'VAR_VERMILION_GYM_TRASH_SECOND_LOCK')).toBe(4);
+    expect(dialogue.queue.join(' ')).toContain('second electric lock opened');
   });
 
   test('Union Room attendant first follows the original Wireless Club adjustments gate', () => {
@@ -2045,6 +2173,121 @@ describe('script runtime helpers', () => {
     }
     pressA(dialogue, runtime, player);
     expect(dialogue.queue.join(' ')).toContain('put the TM39');
+  });
+
+  test('representative story chapter scripts remain reachable through the field script runner', () => {
+    type StoryChapterCase = {
+      chapter: string;
+      scriptId: string;
+      prepare?: (player: ReturnType<typeof createPlayer>) => void;
+      assert: (
+        runtime: ReturnType<typeof createScriptRuntimeState>,
+        dialogue: ReturnType<typeof createDialogueState>,
+        player: ReturnType<typeof createPlayer>
+      ) => void;
+    };
+
+    const cases: StoryChapterCase[] = [
+      {
+        chapter: 'Pallet/Viridian',
+        scriptId: 'ViridianCity_EventScript_GymDoor',
+        assert: (runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(runtime.lastScriptId).toBe('ViridianCity_EventScript_GymDoor');
+          expect(dialogue.queue.join(' ')).toContain('locked');
+        }
+      },
+      {
+        chapter: 'Pewter/Mt. Moon',
+        scriptId: 'PewterCity_Gym_EventScript_Brock',
+        assert: (runtime: ReturnType<typeof createScriptRuntimeState>) => {
+          expect(runtime.pendingTrainerBattle?.trainerId).toBe('TRAINER_LEADER_BROCK');
+        }
+      },
+      {
+        chapter: 'Cerulean/Bill',
+        scriptId: 'CeruleanCity_Gym_EventScript_Misty',
+        assert: (runtime: ReturnType<typeof createScriptRuntimeState>) => {
+          expect(runtime.pendingTrainerBattle?.trainerId).toBe('TRAINER_LEADER_MISTY');
+        }
+      },
+      {
+        chapter: 'Vermilion/S.S. Anne',
+        scriptId: 'SSAnne_Exterior_ExitSSAnne',
+        assert: (runtime: ReturnType<typeof createScriptRuntimeState>) => {
+          expect(runtime.fieldEffects.ssAnneDepartureScenePlayed).toBe(true);
+        }
+      },
+      {
+        chapter: 'Rock Tunnel/Lavender',
+        scriptId: 'PokemonTower_5F_EventScript_PurifiedZone',
+        assert: (_runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(dialogue.queue.join(' ')).toContain('purified');
+        }
+      },
+      {
+        chapter: 'Celadon/Rocket',
+        scriptId: 'RocketHideout_B1F_EventScript_Grunt5',
+        assert: (runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(runtime.pendingTrainerBattle?.trainerId).toBeTruthy();
+          expect(dialogue.queue.join(' ')).toContain('little mouse');
+        }
+      },
+      {
+        chapter: 'Safari/Fuchsia',
+        scriptId: 'SafariZone_SecretHouse_EventScript_Attendant',
+        assert: (_runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(dialogue.queue.join(' ')).toContain('prize');
+        }
+      },
+      {
+        chapter: 'Silph/Saffron',
+        scriptId: 'SilphCo_9F_EventScript_HealWoman',
+        assert: (_runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(dialogue.queue.join(' ')).toContain('nap');
+        }
+      },
+      {
+        chapter: 'Cinnabar',
+        scriptId: 'CinnabarIsland_Gym_EventScript_Quiz1Incorrect',
+        assert: (_runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(dialogue.queue.join(' ')).toContain('Bad call');
+        }
+      },
+      {
+        chapter: 'Victory Road/E4',
+        scriptId: 'PokemonLeague_EventScript_EnterRoom',
+        prepare: (player: ReturnType<typeof createPlayer>) => {
+          player.position = { x: 6 * 16, y: 8 * 16 };
+          player.currentTile = { x: 6, y: 8 };
+          player.previousTile = { x: 6, y: 8 };
+        },
+        assert: (runtime: ReturnType<typeof createScriptRuntimeState>, _dialogue: ReturnType<typeof createDialogueState>, player: ReturnType<typeof createPlayer>) => {
+          expect(player.currentTile).toEqual({ x: 6, y: 3 });
+          expect(isScriptFlagSet(runtime, 'FLAG_TEMP_2')).toBe(true);
+        }
+      },
+      {
+        chapter: 'Sevii/postgame',
+        scriptId: 'MtEmber_RubyPath_B4F_EventScript_BrailleABC',
+        assert: (_runtime: ReturnType<typeof createScriptRuntimeState>, dialogue: ReturnType<typeof createDialogueState>) => {
+          expect(dialogue.queue).toEqual(['ABC']);
+        }
+      }
+    ];
+
+    for (const storyCase of cases) {
+      const runtime = createScriptRuntimeState();
+      const dialogue = createDialogueState();
+      const player = createPlayer();
+      storyCase.prepare?.(player);
+
+      expect(
+        runScriptById(storyCase.scriptId, { player, dialogue, runtime }, prototypeScriptRegistry),
+        `${storyCase.chapter} should run ${storyCase.scriptId}`
+      ).toBe(true);
+      tickScriptTasks(dialogue, runtime, player);
+      storyCase.assert(runtime, dialogue, player);
+    }
   });
 
   test('gym leader scripts can queue trainer battles instead of dialogue stubs', () => {

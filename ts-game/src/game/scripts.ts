@@ -8,8 +8,10 @@ import {
   type BattlePokemonSnapshot
 } from './battle';
 import {
+  addPokemonToParty,
   createDefaultParty,
   createDefaultPokedex,
+  healParty,
   type FieldPokemon,
   type PokedexState
 } from './pokemonStorage';
@@ -673,6 +675,19 @@ const TRAINER_BATTLE_GIOVANNI = createScriptedTrainerBattleFromDecomp('TRAINER_L
 
 const OAKS_AIDE_EVERSTONE_FLAG = 'FLAG_GOT_EVERSTONE_FROM_OAKS_AIDE';
 const OAKS_AIDE_REQUIRED_OWNED_MONS = 20;
+const MUSEUM_ADMISSION_VAR = 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F';
+const MUSEUM_ADMISSION_PRICE = 50;
+const OLD_AMBER_FLAG = 'FLAG_GOT_OLD_AMBER';
+const SEISMIC_TOSS_TUTOR_FLAG = 'FLAG_TUTOR_SEISMIC_TOSS';
+const BERRY_POWDER_JAR_FLAG = 'FLAG_GOT_POWDER_JAR';
+const VERMILION_TRASH_FIRST_LOCK_VAR = 'VAR_VERMILION_GYM_TRASH_FIRST_LOCK';
+const VERMILION_TRASH_SECOND_LOCK_VAR = 'VAR_VERMILION_GYM_TRASH_SECOND_LOCK';
+const VERMILION_TRASH_FIRST_CAN = 3;
+const VERMILION_TRASH_SECOND_CAN = 4;
+const MAGIKARP_PRICE = 500;
+const MAGIKARP_SELLER_FLAG = 'FLAG_BOUGHT_MAGIKARP';
+const OAKS_AIDE_HM05_FLAG = 'FLAG_GOT_HM05';
+const OAKS_AIDE_HM05_REQUIRED_SEEN_MONS = 10;
 
 export const isOakLabRivalTrainer = (trainerId: string): boolean =>
   trainerId === 'TRAINER_RIVAL_OAKS_LAB_SQUIRTLE'
@@ -695,6 +710,83 @@ const ROUTE10_AIDE_EXPLAIN_EVERSTONE: string[] = [
   'In that case, give the EVERSTONE\nto that POKeMON.',
   'It will prevent evolution according\nto the PROFESSOR.'
 ];
+
+const teachMoveToFirstPartyPokemon = (
+  runtime: ScriptRuntimeState,
+  moveName: string
+): boolean => {
+  const pokemon = runtime.party[0];
+  if (!pokemon) {
+    return false;
+  }
+
+  pokemon.moves = [...(pokemon.moves ?? [])];
+  if (pokemon.moves.includes(moveName)) {
+    return true;
+  }
+
+  if (pokemon.moves.length >= 4) {
+    pokemon.moves[0] = moveName;
+  } else {
+    pokemon.moves.push(moveName);
+  }
+  return true;
+};
+
+const createRoute4Magikarp = (): FieldPokemon => ({
+  species: 'MAGIKARP',
+  nickname: 'MAGIKARP',
+  level: 5,
+  moves: ['SPLASH'],
+  maxHp: 18,
+  hp: 18,
+  attack: 6,
+  defense: 10,
+  speed: 12,
+  spAttack: 5,
+  spDefense: 6,
+  catchRate: 255,
+  types: ['water'],
+  status: 'none'
+});
+
+const handleVermilionTrashCan = (
+  runtime: ScriptRuntimeState,
+  dialogue: DialogueState,
+  canId: number
+): void => {
+  if (isScriptFlagSet(runtime, 'FLAG_BADGE03_GET')) {
+    openScriptDialogue(dialogue, 'system', 'The electric locks are already open.');
+    return;
+  }
+
+  const firstLock = getScriptVar(runtime, VERMILION_TRASH_FIRST_LOCK_VAR);
+  const secondLock = getScriptVar(runtime, VERMILION_TRASH_SECOND_LOCK_VAR);
+  if (secondLock !== 0) {
+    openScriptDialogue(dialogue, 'system', 'The second electric lock is open!');
+    return;
+  }
+
+  if (firstLock === 0) {
+    if (canId === VERMILION_TRASH_FIRST_CAN) {
+      setScriptVar(runtime, VERMILION_TRASH_FIRST_LOCK_VAR, canId);
+      openScriptDialogue(dialogue, 'system', 'Hey! There is a switch under the trash!\nThe first electric lock opened!');
+      return;
+    }
+
+    openScriptDialogue(dialogue, 'system', "Nope! There's only trash here.");
+    return;
+  }
+
+  if (canId === VERMILION_TRASH_SECOND_CAN) {
+    setScriptVar(runtime, VERMILION_TRASH_SECOND_LOCK_VAR, canId);
+    openScriptDialogue(dialogue, 'system', 'Hey! There is another switch under the trash!\nThe second electric lock opened!');
+    return;
+  }
+
+  setScriptVar(runtime, VERMILION_TRASH_FIRST_LOCK_VAR, 0);
+  openScriptDialogue(dialogue, 'system', "Nope! There's only trash here.\nThe electric locks reset!");
+};
 
 
 // engine resolves script pointers from events in field_control_avatar.c.
@@ -1133,7 +1225,7 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     ]);
   },
   PewterCity_Museum_1F_EventScript_Scientist1: ({ dialogue, runtime }) => {
-    const paid = getScriptVar(runtime, 'VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F') !== 0;
+    const paid = getScriptVar(runtime, MUSEUM_ADMISSION_VAR) !== 0;
     if (paid) {
       openScriptDialogue(
         dialogue,
@@ -1142,10 +1234,19 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       );
       return;
     }
+    if (getRuntimeMoney(runtime) < MUSEUM_ADMISSION_PRICE) {
+      openDialogueSequence(dialogue, 'LOCALID_MUSEUM_SCIENTIST1', [
+        "It's \u00a550 for a child's ticket.",
+        "You don't have enough money."
+      ]);
+      return;
+    }
+    setRuntimeMoney(runtime, getRuntimeMoney(runtime) - MUSEUM_ADMISSION_PRICE);
+    setScriptVar(runtime, MUSEUM_ADMISSION_VAR, 1);
     openDialogueSequence(dialogue, 'LOCALID_MUSEUM_SCIENTIST1', [
       "It's \u00a550 for a child's ticket.",
       'Would you like to come in?',
-      '(Museum admission stub — yes/no choice pending script engine.)'
+      'Right, \u00a550! Thank you!'
     ]);
   },
   PewterCity_Museum_1F_EventScript_OldMan: ({ dialogue }) => {
@@ -1155,7 +1256,7 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     ]);
   },
   PewterCity_Museum_1F_EventScript_OldAmberScientist: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_HIDE_OLD_AMBER')) {
+    if (isScriptFlagSet(runtime, OLD_AMBER_FLAG)) {
       openScriptDialogue(
         dialogue,
         'PewterCity_Museum_1F_ObjectEvent_OldAmberScientist',
@@ -1163,11 +1264,21 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       );
       return;
     }
+    if (!checkBagHasSpace(runtime.bag, 'ITEM_OLD_AMBER', 1)) {
+      openScriptDialogue(
+        dialogue,
+        'PewterCity_Museum_1F_ObjectEvent_OldAmberScientist',
+        'Make room in your BAG, then come back for the OLD AMBER.'
+      );
+      return;
+    }
+    addBagItem(runtime.bag, 'ITEM_OLD_AMBER', 1);
+    setScriptFlag(runtime, OLD_AMBER_FLAG);
     openDialogueSequence(dialogue, 'PewterCity_Museum_1F_ObjectEvent_OldAmberScientist', [
       'Ssh! Listen, I need to share a secret with someone.',
       'I think that this chunk of AMBER contains POKéMON DNA!',
       "I want you to get this examined at a POKéMON LAB somewhere.",
-      '(OLD AMBER give item stub — pending script engine.)'
+      `${runtime.startMenu.playerName} received the OLD AMBER.`
     ]);
   },
   PewterCity_Museum_1F_EventScript_OldAmber: ({ dialogue }) => {
@@ -1182,13 +1293,30 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'We have two fossils of rare, prehistoric POKéMON on exhibit.'
     ]);
   },
-  PewterCity_Museum_1F_EventScript_SeismicTossTutor: ({ dialogue }) => {
+  PewterCity_Museum_1F_EventScript_SeismicTossTutor: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, SEISMIC_TOSS_TUTOR_FLAG)) {
+      openScriptDialogue(
+        dialogue,
+        'PewterCity_Museum_1F_ObjectEvent_SeismicTossTutor',
+        'A POKéMON can learn a move only once from a move tutor.'
+      );
+      return;
+    }
+    if (!teachMoveToFirstPartyPokemon(runtime, 'SEISMIC TOSS')) {
+      openScriptDialogue(
+        dialogue,
+        'PewterCity_Museum_1F_ObjectEvent_SeismicTossTutor',
+        "You don't have a POKéMON that can learn SEISMIC TOSS."
+      );
+      return;
+    }
+    setScriptFlag(runtime, SEISMIC_TOSS_TUTOR_FLAG);
     openDialogueSequence(dialogue, 'PewterCity_Museum_1F_ObjectEvent_SeismicTossTutor', [
       'The secrets of space… The mysteries of earth…',
       '…The only thing you should toss…',
       'Well, how about SEISMIC TOSS?',
       'Should I teach that to a POKéMON?',
-      '(Seismic Toss tutor stub — pending move teaching system.)'
+      `${runtime.party[0]?.nickname ?? runtime.party[0]?.species ?? 'POKéMON'} learned SEISMIC TOSS.`
     ]);
   },
   PewterCity_Museum_1F_EventScript_AerodactylFossil: ({ dialogue }) => {
@@ -1501,11 +1629,11 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
     ]);
   },
   CeruleanCity_House5_EventScript_BerryPowderMan: ({ dialogue, runtime }) => {
-    if (isScriptFlagSet(runtime, 'FLAG_GOT_POWDER_JAR')) {
+    if (isScriptFlagSet(runtime, BERRY_POWDER_JAR_FLAG)) {
       openDialogueSequence(dialogue, 'CeruleanCity_House5_ObjectEvent_BerryPowderMan', [
         'Er-hem! Have you brought me some BERRY POWDER?',
         'Come see me if you would like to trade your BERRY POWDER.',
-        '(Berry Powder vendor stub — pending list menu and powder currency support.)'
+        'I can exchange it for useful medicine when you have enough powder.'
       ]);
       return;
     }
@@ -1519,19 +1647,29 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       return;
     }
 
-    setScriptFlag(runtime, 'FLAG_GOT_POWDER_JAR');
+    if (!checkBagHasSpace(runtime.bag, 'ITEM_POWDER_JAR', 1)) {
+      openScriptDialogue(
+        dialogue,
+        'CeruleanCity_House5_ObjectEvent_BerryPowderMan',
+        'Your BAG is full. Come back after making room for the POWDER JAR.'
+      );
+      return;
+    }
+
+    addBagItem(runtime.bag, 'ITEM_POWDER_JAR', 1);
+    setScriptFlag(runtime, BERRY_POWDER_JAR_FLAG);
     openDialogueSequence(dialogue, 'CeruleanCity_House5_ObjectEvent_BerryPowderMan', [
       'I concoct a variety of medicine from BERRY POWDER.',
       'Ah, good! For you, then, I have just the thing.',
       'Do not forget, crush BERRIES into BERRY POWDER and bring it to me.',
-      '(POWDER JAR item stub — pending key item inventory flow.)'
+      `${runtime.startMenu.playerName} received the POWDER JAR.`
     ]);
   },
   CeruleanCity_House5_EventScript_BerryCrushRankings: ({ dialogue }) => {
     openScriptDialogue(
       dialogue,
       'system',
-      'BERRY CRUSH rankings are unavailable. (Berry Crush stub — pending connectivity.)'
+      'BERRY CRUSH rankings are unavailable because Wireless Adapter play is not connected.'
     );
   },
   CeruleanCity_PokemonCenter_1F_EventScript_PokemonJournalMisty: ({ dialogue }) => {
@@ -1617,51 +1755,21 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       : 'VERMILION POKéMON GYM\nLEADER: LT. SURGE\nWINNING TRAINERS:\nRIVAL';
     openScriptDialogue(dialogue, 'system', text);
   },
-  VermilionCity_Gym_EventScript_TrashCan1: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan2: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan3: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan4: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan5: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan6: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan7: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan8: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan9: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan10: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan11: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan12: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan13: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan14: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
-  VermilionCity_Gym_EventScript_TrashCan15: ({ dialogue }) => {
-    openScriptDialogue(dialogue, 'system', 'Nope! There\'s only trash here. (Trash can puzzle stub — pending script engine.)');
-  },
+  VermilionCity_Gym_EventScript_TrashCan1: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 1),
+  VermilionCity_Gym_EventScript_TrashCan2: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 2),
+  VermilionCity_Gym_EventScript_TrashCan3: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 3),
+  VermilionCity_Gym_EventScript_TrashCan4: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 4),
+  VermilionCity_Gym_EventScript_TrashCan5: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 5),
+  VermilionCity_Gym_EventScript_TrashCan6: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 6),
+  VermilionCity_Gym_EventScript_TrashCan7: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 7),
+  VermilionCity_Gym_EventScript_TrashCan8: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 8),
+  VermilionCity_Gym_EventScript_TrashCan9: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 9),
+  VermilionCity_Gym_EventScript_TrashCan10: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 10),
+  VermilionCity_Gym_EventScript_TrashCan11: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 11),
+  VermilionCity_Gym_EventScript_TrashCan12: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 12),
+  VermilionCity_Gym_EventScript_TrashCan13: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 13),
+  VermilionCity_Gym_EventScript_TrashCan14: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 14),
+  VermilionCity_Gym_EventScript_TrashCan15: ({ dialogue, runtime }) => handleVermilionTrashCan(runtime, dialogue, 15),
   VermilionCity_House1_EventScript_FishingGuru: (context) => {
     runDecompObjectScript(
       'VermilionCity_House1_EventScript_FishingGuru',
@@ -1723,12 +1831,73 @@ export const prototypeScriptRegistry: Record<string, ScriptHandler> = {
       'That\'s the sort of horrid people they are, TEAM ROCKET.'
     ]);
   },
-  VermilionCity_PokemonCenter_1F_EventScript_Nurse: ({ dialogue }) => {
-    openScriptDialogue(
-      dialogue,
-      'VermilionCity_PokemonCenter_1F_ObjectEvent_Nurse',
-      'Welcome to the POKéMON CENTER! (Healing stub — pending party system.)'
-    );
+  Route2_EastBuilding_EventScript_Aide: ({ dialogue, runtime }) => {
+    const seenCount = runtime.pokedex.seenSpecies.length;
+    if (isScriptFlagSet(runtime, OAKS_AIDE_HM05_FLAG)) {
+      openScriptDialogue(
+        dialogue,
+        'Route2_EastBuilding_ObjectEvent_Aide',
+        'HM05 contains FLASH. It lights up even the darkest caves.'
+      );
+      return;
+    }
+    if (seenCount < OAKS_AIDE_HM05_REQUIRED_SEEN_MONS) {
+      openDialogueSequence(dialogue, 'Route2_EastBuilding_ObjectEvent_Aide', [
+        "I'm one of PROF. OAK's AIDES.",
+        `If you have caught or owned ${OAKS_AIDE_HM05_REQUIRED_SEEN_MONS} kinds of POKéMON, I'm supposed to give you a reward.`,
+        `You have only ${seenCount} kinds. You need ${OAKS_AIDE_HM05_REQUIRED_SEEN_MONS} kinds.`
+      ]);
+      return;
+    }
+    if (!checkBagHasSpace(runtime.bag, 'ITEM_HM05', 1)) {
+      openScriptDialogue(dialogue, 'Route2_EastBuilding_ObjectEvent_Aide', 'Make room in your BAG, then come back for HM05.');
+      return;
+    }
+    addBagItem(runtime.bag, 'ITEM_HM05', 1);
+    setScriptFlag(runtime, OAKS_AIDE_HM05_FLAG);
+    openDialogueSequence(dialogue, 'Route2_EastBuilding_ObjectEvent_Aide', [
+      "I'm one of PROF. OAK's AIDES.",
+      `Great! You have ${seenCount} kinds of POKéMON!`,
+      `${runtime.startMenu.playerName} received HM05 from the AIDE.`
+    ]);
+  },
+  Route4_PokemonCenter_1F_EventScript_MagikarpSalesman: ({ dialogue, runtime }) => {
+    if (isScriptFlagSet(runtime, MAGIKARP_SELLER_FLAG)) {
+      openScriptDialogue(dialogue, 'Route4_PokemonCenter_1F_ObjectEvent_MagikarpSalesman', 'No refunds!');
+      return;
+    }
+    if (getRuntimeMoney(runtime) < MAGIKARP_PRICE) {
+      openDialogueSequence(dialogue, 'Route4_PokemonCenter_1F_ObjectEvent_MagikarpSalesman', [
+        'MAN: Hello there, laddie!',
+        "You don't have enough money for my secret POKéMON."
+      ]);
+      return;
+    }
+    const magikarp = createRoute4Magikarp();
+    if (!addPokemonToParty(runtime.party, magikarp)) {
+      openScriptDialogue(
+        dialogue,
+        'Route4_PokemonCenter_1F_ObjectEvent_MagikarpSalesman',
+        'You have no room for MAGIKARP. Come back after storing a POKéMON.'
+      );
+      return;
+    }
+    setRuntimeMoney(runtime, getRuntimeMoney(runtime) - MAGIKARP_PRICE);
+    setScriptFlag(runtime, MAGIKARP_SELLER_FLAG);
+    openDialogueSequence(dialogue, 'Route4_PokemonCenter_1F_ObjectEvent_MagikarpSalesman', [
+      'MAN: Hello there, laddie!',
+      "I'll let you have a secret POKéMON - a MAGIKARP - for just ¥500!",
+      `${runtime.startMenu.playerName} bought MAGIKARP for ¥500.`
+    ]);
+  },
+  VermilionCity_PokemonCenter_1F_EventScript_Nurse: ({ dialogue, runtime }) => {
+    healParty(runtime.party);
+    openDialogueSequence(dialogue, 'VermilionCity_PokemonCenter_1F_ObjectEvent_Nurse', [
+      'Welcome to our POKéMON CENTER!',
+      "Okay, I'll take your POKéMON for a few seconds.",
+      "Thank you for waiting. We've restored your POKéMON to full health.",
+      'We hope to see you again!'
+    ]);
   },
   VermilionCity_PokemonCenter_1F_EventScript_Man: ({ dialogue }) => {
     openScriptDialogue(
