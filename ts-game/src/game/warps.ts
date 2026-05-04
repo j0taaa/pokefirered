@@ -65,6 +65,33 @@ export interface WarpEffectInfo {
   resetInitialPlayerAvatarState?: boolean;
 }
 
+export const getInvalidWarpDestinationMessage = (
+  transition: WarpTransition,
+  sourceMapId = 'unknown'
+): string => {
+  const sourceWarp = transition.sourceWarp;
+  const destinationMapId = sourceWarp?.destMap ?? 'unknown';
+
+  if (transition.status === 'unloaded_map') {
+    return `Invalid warp destination: ${sourceMapId} warp at (${sourceWarp?.x ?? 'unknown'},${sourceWarp?.y ?? 'unknown'}) references unloaded map ${destinationMapId}.`;
+  }
+
+  if (transition.status === 'invalid_warp_id') {
+    return `Invalid warp destination: ${sourceMapId} warp at (${sourceWarp?.x ?? 'unknown'},${sourceWarp?.y ?? 'unknown'}) references missing warp ${sourceWarp?.destWarpId ?? 'unknown'} on ${destinationMapId}.`;
+  }
+
+  return `Invalid warp destination: ${sourceMapId} produced unexpected status ${transition.status}.`;
+};
+
+export const assertWarpTransitionResolved = (
+  transition: WarpTransition,
+  sourceMapId = 'unknown'
+): void => {
+  if (transition.status === 'unloaded_map' || transition.status === 'invalid_warp_id') {
+    throw new Error(getInvalidWarpDestinationMessage(transition, sourceMapId));
+  }
+};
+
 const isContiguous = (values: number[]): boolean =>
   values.every((value, index) => index === 0 || value === values[index - 1] + 1);
 

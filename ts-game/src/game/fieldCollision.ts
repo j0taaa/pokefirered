@@ -331,7 +331,7 @@ const resolveConnectionTargetTile = (
 
   const destinationMap = loadMapById(connection.map);
   if (!destinationMap) {
-    return null;
+    throw new Error(`Invalid map connection: ${map.id} ${direction} connection references unloaded map ${connection.map}.`);
   }
 
   const destinationTile = vec2(currentTile.x, currentTile.y);

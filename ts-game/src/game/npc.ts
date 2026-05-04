@@ -180,6 +180,11 @@ const FACE_DIRECTION_CHOICES: Record<string, readonly NpcDirection[]> = {
   MOVEMENT_TYPE_FACE_DOWN_LEFT_AND_RIGHT: decompDirections('gDownLeftAndRightDirections')
 };
 
+const ROTATE_DIRECTION_SEQUENCES: Record<string, readonly NpcDirection[]> = {
+  MOVEMENT_TYPE_ROTATE_COUNTERCLOCKWISE: decompDirections('gCounterclockwiseDirections'),
+  MOVEMENT_TYPE_ROTATE_CLOCKWISE: decompDirections('gClockwiseDirections')
+};
+
 const WALK_SEQUENCE_DIRECTIONS: Record<string, readonly NpcDirection[]> = {
   MOVEMENT_TYPE_WALK_SEQUENCE_UP_RIGHT_LEFT_DOWN: decompDirections('gUpRightLeftDownDirections'),
   MOVEMENT_TYPE_WALK_SEQUENCE_RIGHT_LEFT_DOWN_UP: decompDirections('gRightLeftDownUpDirections'),
@@ -240,7 +245,8 @@ export const SUPPORTED_NPC_MOVEMENT_TYPES = new Set<string>([
   'MOVEMENT_TYPE_WALK_RIGHT_AND_LEFT',
   ...Object.keys(WALK_SEQUENCE_DIRECTIONS),
   'MOVEMENT_TYPE_INVISIBLE',
-  'MOVEMENT_TYPE_WANDER_AROUND_SLOWER'
+  'MOVEMENT_TYPE_WANDER_AROUND_SLOWER',
+  ...Object.keys(ROTATE_DIRECTION_SEQUENCES)
 ]);
 
 const facingFromMovementType = (movementType?: string): NpcDirection => {
@@ -666,6 +672,24 @@ const stepAutonomousNpc = (
 
     npc.facing = choose(STANDARD_DIRECTIONS, random);
     npc.idleTimeRemaining = choose(MEDIUM_MOVEMENT_DELAYS_SECONDS, random);
+    npc.moving = false;
+    npc.animationTime = 0;
+    return;
+  }
+
+  const rotateDirections = ROTATE_DIRECTION_SEQUENCES[movementType];
+  if (rotateDirections) {
+    if (npc.idleTimeRemaining > 0) {
+      npc.idleTimeRemaining = Math.max(0, npc.idleTimeRemaining - dtSeconds);
+      npc.moving = false;
+      npc.animationTime = 0;
+      return;
+    }
+
+    const index = npc.directionSequenceIndex ?? 0;
+    npc.facing = rotateDirections[index % rotateDirections.length];
+    npc.directionSequenceIndex = (index + 1) % rotateDirections.length;
+    npc.idleTimeRemaining = WALK_IN_PLACE_NORMAL_SECONDS;
     npc.moving = false;
     npc.animationTime = 0;
     return;

@@ -374,12 +374,12 @@ describe('field collision evaluation', () => {
       previousElevation: 1
     });
 
-    expect(evaluateFieldCollision({
+    expect(() => evaluateFieldCollision({
       map: source,
       object: edgeObject,
       direction: 'right',
       loadMapById: () => null
-    }).result).toBe('impassable');
+    })).toThrow('Invalid map connection: MAP_SOURCE right connection references unloaded map MAP_DEST.');
 
     const blockedDestination = createTestMap({
       id: 'MAP_DEST',

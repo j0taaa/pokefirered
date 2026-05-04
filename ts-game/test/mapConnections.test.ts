@@ -199,8 +199,11 @@ describe('map connections', () => {
     expect(resolveMapConnectionTransition(loadRoute22Map(), 47, 5, 'right', loadMapById)).toBeNull();
   });
 
-  test('returns null for unloaded destination maps', () => {
-    expect(resolveMapConnectionTransition(loadVermilionCityMap(), 47, 16, 'right', loadMapById)).toBeNull();
+  test('transitions from Vermilion City east edge into Route 11 now that every map is exported', () => {
+    const transition = resolveMapConnectionTransition(loadVermilionCityMap(), 47, 16, 'right', loadMapById);
+
+    expect(transition).not.toBeNull();
+    expect(transition?.map.id).toBe('MAP_ROUTE11');
   });
 
   test('rejects connected edge transitions when destination collision gates block them', () => {
@@ -628,8 +631,12 @@ describe('map connections', () => {
     ]);
   });
 
-  test('returns null for Fuchsia City edges because Route 15, Route 18, and Route 19 are still unloaded', () => {
-    expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 24, 39, 'down', loadMapById)).toBeNull();
+  test('transitions from Fuchsia City south edge now that Route 19 is exported', () => {
+    expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 24, 39, 'down', loadMapById)?.map.id)
+      .toBe('MAP_ROUTE19');
+  });
+
+  test('returns null for Fuchsia City side edges because Route 18 and Route 15 destination gates are blocked', () => {
     expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 0, 12, 'left', loadMapById)).toBeNull();
     expect(resolveMapConnectionTransition(loadFuchsiaCityMap(), 47, 12, 'right', loadMapById)).toBeNull();
   });
@@ -663,8 +670,9 @@ describe('map connections', () => {
     expect(transition?.playerPosition).toEqual({ x: 8 * 16, y: 49 * 16 });
   });
 
-  test('returns null for Cinnabar Island right edge because Route 20 is still unloaded', () => {
-    expect(resolveMapConnectionTransition(loadCinnabarIslandMap(), 23, 7, 'right', loadMapById)).toBeNull();
+  test('transitions from Cinnabar Island right edge now that Route 20 is exported', () => {
+    expect(resolveMapConnectionTransition(loadCinnabarIslandMap(), 23, 7, 'right', loadMapById)?.map.id)
+      .toBe('MAP_ROUTE20');
   });
 
   test('loads Cinnabar Island through the shared map loader', () => {
@@ -679,8 +687,9 @@ describe('map connections', () => {
     ]);
   });
 
-  test('returns null for Indigo Plateau exterior south edge because Route 23 is still unloaded', () => {
-    expect(resolveMapConnectionTransition(loadIndigoPlateauExteriorMap(), 11, 19, 'down', loadMapById)).toBeNull();
+  test('transitions from Indigo Plateau exterior south edge now that Route 23 is exported', () => {
+    expect(resolveMapConnectionTransition(loadIndigoPlateauExteriorMap(), 11, 19, 'down', loadMapById)?.map.id)
+      .toBe('MAP_ROUTE23');
   });
 
   test('loads Indigo Plateau exterior and center through the shared map loader', () => {

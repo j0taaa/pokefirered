@@ -8,6 +8,7 @@ import {
 } from '../src/game/triggers';
 import { createDialogueState } from '../src/game/interaction';
 import { stepDecompFieldDialogue } from '../src/game/decompFieldDialogue';
+import { completeFieldTextPrinter } from '../src/game/decompFieldMessageBox';
 import { createScriptRuntimeState, setScriptFlag, type ScriptHandler } from '../src/game/scripts';
 import type { PlayerState } from '../src/game/player';
 
@@ -387,10 +388,15 @@ describe('trigger execution', () => {
     expect(runtime.flags.has('FLAG_HIDDEN_ITEM_TEST_PEARL')).toBe(false);
     expect(runtime.bag.pockets.items).toEqual([{ itemId: 'ITEM_PEARL', quantity: 1 }]);
 
+    completeFieldTextPrinter(dialogue.fieldMessageBox);
+    for (let i = 0; i < 256 && runtime.fieldAudio.fanfareTaskActive; i += 1) {
+      stepDecompFieldDialogue(dialogue, neutralInput, runtime, player);
+    }
     stepDecompFieldDialogue(dialogue, { ...neutralInput, interact: true, interactPressed: true }, runtime, player);
     expect(dialogue.text).toContain('put the PEARL');
     expect(runtime.flags.has('FLAG_HIDDEN_ITEM_TEST_PEARL')).toBe(false);
 
+    completeFieldTextPrinter(dialogue.fieldMessageBox);
     stepDecompFieldDialogue(dialogue, { ...neutralInput, interact: true, interactPressed: true }, runtime, player);
     expect(runtime.flags.has('FLAG_HIDDEN_ITEM_TEST_PEARL')).toBe(true);
   });

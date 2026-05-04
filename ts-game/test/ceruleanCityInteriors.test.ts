@@ -208,7 +208,7 @@ describe('Cerulean City interior compact map sources', () => {
     });
   });
 
-  test('Cerulean exterior warps now resolve to all loaded city interiors except Cerulean Cave', () => {
+  test('Cerulean exterior warps resolve to exported city interiors and Cerulean Cave', () => {
     const city = loadCeruleanCityMap();
     const loadedInteriorDestinations = city.warps
       .map((warp) => warp.destMap)
@@ -218,7 +218,7 @@ describe('Cerulean City interior compact map sources', () => {
       .filter((mapId) => mapId !== 'MAP_CERULEAN_CITY_POKEMON_CENTER_2F');
 
     expect(new Set(loadedInteriorDestinations)).toEqual(new Set(exteriorInteriorIds));
-    expect(loadMapById('MAP_CERULEAN_CAVE_1F')).toBeNull();
+    expect(loadMapById('MAP_CERULEAN_CAVE_1F')?.id).toBe('MAP_CERULEAN_CAVE_1F');
   });
 
   test('all Cerulean interior script ids have registered handlers', () => {

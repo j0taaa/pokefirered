@@ -1,8 +1,27 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { GetBagItemQuantity, createItemRuntime } from '../src/game/decompItem';
-import {
+
+const repoRoot = resolve(__dirname, '../..');
+const trainerTowerPath = resolve(repoRoot, 'src/trainer_tower.c');
+const trainerTowerHeaderPaths = [
+  'include/constants/layouts.h',
+  'include/constants/vars.h',
+  'include/constants/items.h',
+  'include/constants/songs.h',
+  'include/constants/trainers.h',
+  'include/constants/event_objects.h',
+  'include/constants/trainer_tower.h'
+].map((relativePath) => resolve(repoRoot, relativePath));
+const hasTrainerTowerSource = existsSync(trainerTowerPath) && trainerTowerHeaderPaths.every((path) => existsSync(path));
+const trainerTowerC = hasTrainerTowerSource ? readFileSync(trainerTowerPath, 'utf8') : '';
+const testTrainerTower = hasTrainerTowerSource ? test : test.skip;
+
+type TrainerTowerModule = typeof import('../src/game/decompTrainerTower');
+const trainerTowerModule: TrainerTowerModule | null = hasTrainerTowerSource ? await import('../src/game/decompTrainerTower') : null;
+
+const {
   BATTLE_TYPE_DOUBLE,
   BATTLE_TYPE_TRAINER,
   BATTLE_TYPE_TRAINER_TOWER,
@@ -53,13 +72,10 @@ import {
   sTrainerEncounterMusicLUT,
   sTrainerTowerFunctions,
   trainerTowerConstants
-} from '../src/game/decompTrainerTower';
-
-const repoRoot = resolve(__dirname, '../..');
-const trainerTowerC = readFileSync(resolve(repoRoot, 'src/trainer_tower.c'), 'utf8');
+} = (trainerTowerModule ?? {}) as TrainerTowerModule;
 
 describe('decomp trainer_tower', () => {
-  test('parses static lookup tables and function dispatch table from trainer_tower.c', () => {
+  testTrainerTower('parses static lookup tables and function dispatch table from trainer_tower.c', () => {
     const singleRows = [...trainerTowerC.matchAll(/\{OBJ_EVENT_GFX_[A-Z0-9_]+,\s*FACILITY_CLASS_[A-Z0-9_]+,\s*(?:MALE|FEMALE)\}/gu)].length;
     expect(sSingleBattleTrainerInfo).toHaveLength(singleRows);
     expect(sSingleBattleTrainerInfo[0]).toMatchObject({
@@ -83,7 +99,7 @@ describe('decomp trainer_tower', () => {
     expect(sTrainerTowerFunctions[trainerTowerConstants.TRAINER_TOWER_FUNC_GET_BEAT_CHALLENGE]).toBe('HasSpokenToOwner');
   });
 
-  test('sets up floor data, map layout, and NPC graphics for single/double/knockout floors', () => {
+  testTrainerTower('sets up floor data, map layout, and NPC graphics for single/double/knockout floors', () => {
     const runtime = createTrainerTowerRuntime(createItemRuntime());
     runtime.towerChallengeId = CHALLENGE_TYPE_SINGLE;
     runtime.mapLayoutId = LAYOUT_TRAINER_TOWER_1F;
@@ -108,7 +124,7 @@ describe('decomp trainer_tower', () => {
     expect(runtime.currentMapLayout).toBe(LAYOUT_TRAINER_TOWER_ROOF);
   });
 
-  test('initializes battle opponent data and converts win/lose easy-chat text with color tracking', () => {
+  testTrainerTower('initializes battle opponent data and converts win/lose easy-chat text with color tracking', () => {
     const runtime = createTrainerTowerRuntime(createItemRuntime());
     runtime.vars.VAR_TEMP_1 = 0;
     SetUpTrainerTowerDataStruct(runtime);
@@ -126,7 +142,7 @@ describe('decomp trainer_tower', () => {
     expect(lose).toContain(firstTrainer.speechLose[0]);
   });
 
-  test('builds battle flags and enemy party from the same floor-index mon tables', () => {
+  testTrainerTower('builds battle flags and enemy party from the same floor-index mon tables', () => {
     const runtime = createTrainerTowerRuntime(createItemRuntime());
     runtime.playerParty = [
       { species: 1, speciesOrEgg: 1, level: 20 },
@@ -165,7 +181,7 @@ describe('decomp trainer_tower', () => {
     expect(doubleRuntime.enemyParty).toHaveLength(2);
   });
 
-  test('ports challenge state, owner state, final-time, status, and timer behavior', () => {
+  testTrainerTower('ports challenge state, owner state, final-time, status, and timer behavior', () => {
     const runtime = createTrainerTowerRuntime(createItemRuntime());
     runtime.gSpecialVar_0x8005 = 99;
     StartTrainerTowerChallenge(runtime);
@@ -196,7 +212,7 @@ describe('decomp trainer_tower', () => {
     expect(runtime.trainerTower[0].timer).toBe(TRAINER_TOWER_MAX_TIME);
   });
 
-  test('ports floor-clear, prize, num-floors, doubles, current-time, and dispatcher behavior', () => {
+  testTrainerTower('ports floor-clear, prize, num-floors, doubles, current-time, and dispatcher behavior', () => {
     const runtime = createTrainerTowerRuntime(createItemRuntime());
     SetUpTrainerTowerDataStruct(runtime);
     runtime.trainerTower[0].floorsCleared = 0;
@@ -227,7 +243,7 @@ describe('decomp trainer_tower', () => {
     expect(runtime.gSpecialVar_Result).toBe(CHALLENGE_STATUS_NORMAL);
   });
 
-  test('prints and resets encrypted record times', () => {
+  testTrainerTower('prints and resets encrypted record times', () => {
     const runtime = createTrainerTowerRuntime(createItemRuntime());
     runtime.encryptionKey = 0x55aa;
     ResetTrainerTowerResults(runtime);
