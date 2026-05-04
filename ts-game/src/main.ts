@@ -2,23 +2,20 @@ import './style.css';
 import { GameLoop } from './core/gameLoop';
 import { createCamera, followTarget } from './core/camera';
 import { BrowserInputAdapter } from './input/inputState';
+import { WebAudioEventAdapter } from './audio/webAudioAdapter';
 import { CanvasRenderer } from './rendering/canvasRenderer';
 import { loadMapById, loadRoute2Map } from './world/mapSource';
 import {
-  canProcessFieldInteractionInput,
-  canProcessPlayerMovementInput,
-  canProcessStartMenuInput,
   clearPlayerMovement,
   createPlayer,
-  getPlayerRuntimeObject,
-  hasPendingForcedMovement,
   resolveInputDirection,
-  shouldRunNormalStepSideEffects,
-  stepPlayer
+  stepPlayer,
+  type StepPlayerResult
 } from './game/player';
-import { createMapNpcs, getNpcRuntimeObject, isNpcVisible, stepNpcs, trySpawnObjectEvents } from './game/npc';
+import { createMapNpcs, isNpcVisible, stepNpcs, trySpawnObjectEvents } from './game/npc';
 import { createDialogueState, openDialogueSequence, stepInteraction } from './game/interaction';
 import { stepFieldTextPrinter } from './game/decompFieldMessageBox';
+import { playMenuSoundEffect } from './game/decompFieldSound';
 import { createHud, updateHud } from './ui/hud';
 import {
   applyPendingTrainerBattleOutcome,
@@ -38,14 +35,12 @@ import {
   type DecompMapScriptType
 } from './game/decompFieldDialogue';
 import {
-  runStepTriggersAtPlayerTile,
   runStrengthButtonTriggersAtTile,
   tryRunWalkIntoSignpostScript
 } from './game/triggers';
 import { createStartMenuState, isStartMenuBlockingWorld, stepStartMenu } from './game/menu';
 import {
   addPokedexCaughtSpecies,
-  addPokedexSeenSpecies,
   addPokemonToParty,
   cloneFieldPokemon
 } from './game/pokemonStorage';
@@ -63,20 +58,15 @@ import {
   createBattleState,
   getBattlePostResult,
   isBattleBlockingWorld,
-  startTrainerBattle,
   stepBattle,
-  tryStartWildBattle,
   type BattleTypeFlag,
   type BattlePokemonSnapshot
 } from './game/battle';
 import {
   createFieldPoisonEffectState,
-  fldEffPoisonIsActive,
-  fldEffPoisonStart,
   stepFieldPoisonEffect
 } from './game/decompFieldPoison';
 import { stepPcScreenEffect } from './game/decompPcScreenEffect';
-import { doPoisonFieldEffect, tryFieldPoisonWhiteOut } from './game/decompFieldPoisonStatus';
 import { startNewGame } from './game/decompNewGame';
 import { getTotalPlayTimeMinutes, updatePlayTimeCounter } from './game/decompPlayTime';
 import { createDecompRng, nextDecompRandom } from './game/decompRandom';
@@ -93,14 +83,10 @@ import {
   exitSafariMode,
   finalizeSafariBattle,
   getSafariZoneBallCount,
-  getSafariZoneFlag,
-  safariZoneTakeStep,
-  SAFARI_ZONE_TEXT_TIMES_UP
+  getSafariZoneFlag
 } from './game/decompSafariZone';
 import { resolveWhiteoutRespawnWarp } from './game/decompHealLocation';
 import { healParty, type FieldPokemonStatus } from './game/pokemonStorage';
-import { hasLandEncounterAtPixel, hasWaterEncounterAtPixel } from './world/tileMap';
-import { evaluateFieldCollision } from './game/fieldCollision';
 import {
   applyFieldActionStartSideEffects,
   createFieldAction,
@@ -108,14 +94,34 @@ import {
   stepFieldAction,
   type FieldActionState
 } from './game/fieldActions';
-import { applyWarpTransitionEffect } from './game/warpEffects';
-import { resolveArrowWarpTransition, resolveFacingDoorWarpTransition, resolveWarpTransition } from './game/warps';
+import {
+  applyConnectionTransition,
+  applyPendingScriptWarp,
+  applyResolvedWarpTransition,
+  resolveStepWarpTransition,
+  tryApplyArrowWarpBeforeMovement,
+  type FieldWorldState
+} from './game/fieldWarpCoordinator';
+import { resolveFieldInputState } from './game/fieldInputCoordinator';
+import { evaluatePlayerFieldCollision } from './game/fieldCollisionCoordinator';
+import { runPostMovementFieldOrder } from './game/fieldOrderCoordinator';
+import { startPendingTrainerBattleIfReady } from './game/fieldBattleHandoffCoordinator';
 import {
   checkForTrainersWantingBattle,
   startFieldTrainerSee,
   stepFieldTrainerSee,
   type FieldTrainerSeeState
 } from './game/fieldTrainerSee';
+import {
+  InMemoryLinkHub,
+  LINK_MESSAGES,
+  cancelLinkSession,
+  createBrowserLinkRuntime,
+  runUnionRoomHandshake,
+  setLinkReady,
+  tickLinkSession,
+  type LinkSessionView
+} from './game/browserLink';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -139,12 +145,77 @@ const defaultMap = loadRoute2Map();
 const player = createPlayer();
 const dialogue = createDialogueState();
 const scriptRuntime = createScriptRuntimeState();
+window.__pokemonFireRedAudioEvents = scriptRuntime.fieldAudio.events;
+window.__pokemonFireRedAudioDebug = {
+  emitMenuBeep: () => playMenuSoundEffect(scriptRuntime, 5, 'browser-qa-menu'),
+  getEvents: () => scriptRuntime.fieldAudio.events
+};
+window.__pokemonFireRedLinkDebug = {
+  runTwoClientUnionRoomReadyFlow: () => {
+    const hub = new InMemoryLinkHub();
+    const red = createBrowserLinkRuntime({
+      clientId: 'browser-red',
+      trainerName: 'RED',
+      partyCount: 2,
+      hasPokedex: true,
+      hasWirelessAdapter: true
+    }, hub);
+    const leaf = createBrowserLinkRuntime({
+      clientId: 'browser-leaf',
+      trainerName: 'LEAF',
+      partyCount: 2,
+      hasPokedex: true,
+      hasWirelessAdapter: true
+    }, hub);
+    const redOpen = runUnionRoomHandshake(red, 'browser-union-room-ready');
+    const leafOpen = runUnionRoomHandshake(leaf, 'browser-union-room-ready');
+    const redReadyToConfirm = tickLinkSession(red, redOpen.sessionId);
+    const leafReadyToConfirm = tickLinkSession(leaf, leafOpen.sessionId);
+    setLinkReady(red, redOpen.sessionId, true);
+    setLinkReady(leaf, leafOpen.sessionId, true);
+    return {
+      redReadyToConfirm,
+      leafReadyToConfirm,
+      redEstablished: tickLinkSession(red, redOpen.sessionId),
+      leafEstablished: tickLinkSession(leaf, leafOpen.sessionId),
+      expectedEstablishedMessage: LINK_MESSAGES.wirelessLinkEstablished
+    };
+  },
+  runTwoClientUnionRoomCancelFlow: () => {
+    const hub = new InMemoryLinkHub();
+    const red = createBrowserLinkRuntime({
+      clientId: 'browser-red',
+      trainerName: 'RED',
+      partyCount: 2,
+      hasPokedex: true,
+      hasWirelessAdapter: true
+    }, hub);
+    const leaf = createBrowserLinkRuntime({
+      clientId: 'browser-leaf',
+      trainerName: 'LEAF',
+      partyCount: 2,
+      hasPokedex: true,
+      hasWirelessAdapter: true
+    }, hub);
+    const redOpen = runUnionRoomHandshake(red, 'browser-union-room-cancel');
+    const leafOpen = runUnionRoomHandshake(leaf, 'browser-union-room-cancel');
+    tickLinkSession(red, redOpen.sessionId);
+    tickLinkSession(leaf, leafOpen.sessionId);
+    const leafCanceled = cancelLinkSession(leaf, leafOpen.sessionId);
+    return {
+      leafCanceled,
+      redCanceled: tickLinkSession(red, redOpen.sessionId),
+      expectedCancelMessage: LINK_MESSAGES.wirelessSearchCanceled
+    };
+  }
+};
 const startMenu = createStartMenuState();
 const battle = createBattleState();
 const battleEncounter = createBattleEncounterState();
 const fieldPoisonEffect = createFieldPoisonEffectState();
 const input = new BrowserInputAdapter();
 input.attach();
+const audioAdapter = new WebAudioEventAdapter();
 
 const storage = window.localStorage;
 const reloadSaveResult = reloadSave({
@@ -178,6 +249,15 @@ if (reloadSaveResult.loaded && reloadSaveResult.saveFileStatus === SAVE_STATUS_O
   doCurrentWeather(scriptRuntime);
 }
 let npcs = createMapNpcs(map);
+const fieldWorld: FieldWorldState = { map, npcs };
+const syncFieldWorldFromLocals = (): void => {
+  fieldWorld.map = map;
+  fieldWorld.npcs = npcs;
+};
+const syncLocalsFromFieldWorld = (): void => {
+  map = fieldWorld.map;
+  npcs = fieldWorld.npcs;
+};
 trySetMapSaveWarpStatus(scriptRuntime, map.id);
 
 const handleSaveConfirmed = () => {
@@ -371,30 +451,12 @@ const clearFinishedTrainerBattleRequest = () => {
 };
 
 const maybeStartPendingTrainerBattle = () => {
-  const pending = scriptRuntime.pendingTrainerBattle;
-  if (!pending || pending.started || dialogue.active || battle.active) {
-    return;
-  }
-
-  startTrainerBattle(battle, {
-    opponentName: pending.trainerName,
-    trainerId: pending.trainerId,
-    format: pending.format,
-    opponentParty: pending.opponentParty,
-    opponentTrainerItems: pending.trainerItems,
-    opponentTrainerAiFlags: pending.trainerAiFlags,
-    battleStyle: scriptRuntime.options.battleStyle,
-    playerName: scriptRuntime.startMenu.playerName,
-    playerParty: battle.playerSide.party,
-    activePlayerPartyIndex: battle.playerSide.activePartyIndexes[0],
-    mapBattleScene: map.battleScene
+  startPendingTrainerBattleIfReady({
+    runtime: scriptRuntime,
+    battle,
+    dialogue,
+    map
   });
-  for (const pokemon of pending.opponentParty) {
-    addPokedexSeenSpecies(scriptRuntime.pokedex, pokemon.species);
-  }
-  scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
-  pending.started = true;
-  scriptRuntime.lastScriptId = `battle.trainer.start.${pending.trainerId.toLowerCase()}`;
 };
 
 syncBattleStateFromRuntime();
@@ -452,25 +514,15 @@ const loop = new GameLoop({
       setUnlockedPokedexFlags(scriptRuntime);
     }
 
-    const fieldControlsLocked = activeFieldAction !== null || activeTrainerSee !== null;
-    const pendingForcedMovement = hasPendingForcedMovement(player, map);
-    const inputGateContext = {
-      fieldControlsLocked,
-      pendingForcedMovement,
-      dialogueActive: dialogue.active,
-      scriptSessionActive: dialogue.scriptSession !== null,
-      startMenuBlocking: isStartMenuBlockingWorld(startMenu),
-      battleBlocking: isBattleBlockingWorld(battle)
-    };
-    const canProcessStartMenu = canProcessStartMenuInput(player, inputGateContext);
-    const canProcessInteraction = canProcessFieldInteractionInput(player, inputGateContext);
-    const canProcessMovement = canProcessPlayerMovementInput(player, inputGateContext);
-    const canContinuePlayerMovement = player.stepTarget !== undefined;
-    const canStepActiveFieldAction = activeFieldAction !== null
-      && !dialogue.scriptSession
-      && !dialogue.active
-      && !isStartMenuBlockingWorld(startMenu)
-      && !isBattleBlockingWorld(battle);
+    const fieldInput = resolveFieldInputState(
+      player,
+      map,
+      dialogue,
+      startMenu,
+      battle,
+      activeFieldAction !== null || activeTrainerSee !== null,
+      activeFieldAction !== null
+    );
 
     if (!battle.active) {
       syncBattleStateFromRuntime();
@@ -554,7 +606,7 @@ const loop = new GameLoop({
       return;
     }
 
-    if (canProcessStartMenu) {
+    if (fieldInput.canProcessStartMenu) {
       stepStartMenu(startMenu, snapshot, dialogue, scriptRuntime, {
         onSaveConfirmed: handleSaveConfirmed,
         onSafariRetireConfirmed: handleSafariRetireConfirmed,
@@ -597,7 +649,7 @@ const loop = new GameLoop({
       });
     }
 
-    const canStepInteractionState = canProcessInteraction
+    const canStepInteractionState = fieldInput.canProcessInteraction
       || (dialogue.active && !isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle))
       || (dialogue.scriptSession !== null && !isStartMenuBlockingWorld(startMenu) && !isBattleBlockingWorld(battle));
 
@@ -622,185 +674,49 @@ const loop = new GameLoop({
 
     maybeStartPendingTrainerBattle();
 
-    const applyPendingScriptWarp = (): boolean => {
-      const pendingWarp = scriptRuntime.pendingScriptWarp;
-      if (!pendingWarp) {
-        return false;
-      }
-
-      scriptRuntime.pendingScriptWarp = null;
-      const destinationMap = loadMapById(pendingWarp.mapId);
-      if (!destinationMap) {
-        scriptRuntime.lastScriptId = `script-warp.unloaded.${pendingWarp.mapId}`;
-        openDialogueSequence(dialogue, 'system', [`This warp leads to ${pendingWarp.mapId}.`]);
-        return true;
-      }
-
-      map = destinationMap;
-      npcs = createMapNpcs(map);
-      player.position.x = pendingWarp.x * map.tileSize;
-      player.position.y = pendingWarp.y * map.tileSize;
-      clearPlayerMovement(player, map);
-      setSavedWeatherFromCurrMapHeader(scriptRuntime, map.coordEventWeather);
-      doCurrentWeather(scriptRuntime);
-      trySetMapSaveWarpStatus(scriptRuntime, map.id);
-      runDecompWarpMapScripts();
-      scriptRuntime.lastScriptId = `${pendingWarp.kind}.${pendingWarp.mapId}`;
-      return true;
+    const warpContext = {
+      world: fieldWorld,
+      player,
+      runtime: scriptRuntime,
+      loadMapById,
+      runWarpMapScripts: runDecompWarpMapScripts
     };
 
-    applyPendingScriptWarp();
+    syncFieldWorldFromLocals();
+    applyPendingScriptWarp(warpContext);
+    syncLocalsFromFieldWorld();
 
-    const applyWarpTransition = (warpTransition: ReturnType<typeof resolveWarpTransition>): boolean => {
-      if (warpTransition.status === 'resolved' && warpTransition.destinationMap && warpTransition.playerPosition) {
-        applyWarpTransitionEffect(scriptRuntime, player, warpTransition);
-        map = warpTransition.destinationMap;
-        npcs = createMapNpcs(map);
-        player.position.x = warpTransition.playerPosition.x;
-        player.position.y = warpTransition.playerPosition.y;
-        clearPlayerMovement(player, map);
-        setSavedWeatherFromCurrMapHeader(scriptRuntime, map.coordEventWeather);
-        doCurrentWeather(scriptRuntime);
-        trySetMapSaveWarpStatus(scriptRuntime, map.id);
-        runDecompWarpMapScripts();
-        scriptRuntime.lastScriptId = `warp.${warpTransition.sourceWarp?.destMap ?? map.id}`;
-        return true;
-      }
-
-      if (warpTransition.status === 'unloaded_map' || warpTransition.status === 'invalid_warp_id') {
-        clearPlayerMovement(player, map);
-        scriptRuntime.lastScriptId = `warp.${warpTransition.status}.${warpTransition.sourceWarp?.destMap ?? 'unknown'}`;
-        openDialogueSequence(
-          dialogue,
-          'system',
-          [
-            warpTransition.status === 'unloaded_map'
-              ? `This warp leads to ${warpTransition.sourceWarp?.destMap ?? 'an unloaded map'}.`
-              : `This warp points to an invalid destination on ${warpTransition.sourceWarp?.destMap ?? 'the target map'}.`
-          ]
-        );
-        return true;
-      }
-
-      return false;
-    };
-
-    const handleStepResult = (
-      stepResult: {
-        attemptedDirection: typeof player.facing | null;
-        collision: ReturnType<typeof evaluateFieldCollision> | null;
-        enteredNewTile: boolean;
-        forcedMovement: boolean;
-        connectionTransition: ReturnType<typeof evaluateFieldCollision> | null;
-      }
-    ) => {
-      const actionEnteredNewTile = stepResult.enteredNewTile;
-
-      if (stepResult.connectionTransition?.target?.viaConnection) {
-        map = stepResult.connectionTransition.target.map;
-        npcs = createMapNpcs(map);
-        player.position.x = stepResult.connectionTransition.target.tile.x * map.tileSize;
-        player.position.y = stepResult.connectionTransition.target.tile.y * map.tileSize;
-        clearPlayerMovement(player, map);
-        setSavedWeatherFromCurrMapHeader(scriptRuntime, map.coordEventWeather);
-        doCurrentWeather(scriptRuntime);
-        trySetMapSaveWarpStatus(scriptRuntime, map.id);
-        runDecompWarpMapScripts();
+    const handleStepResult = (stepResult: StepPlayerResult) => {
+      syncFieldWorldFromLocals();
+      if (applyConnectionTransition(warpContext, stepResult)) {
+        syncLocalsFromFieldWorld();
         return;
       }
 
       if (stepResult.collision?.result === 'directionalStairWarp') {
         player.avatarMode = 'normal';
       }
-      const heldDirection = resolveInputDirection(snapshot);
-      const warpTransition = actionEnteredNewTile || stepResult.collision?.result === 'directionalStairWarp'
-        ? resolveWarpTransition(map, player, loadMapById, scriptRuntime.dynamicWarp, {
-          allowArrowWarp: heldDirection === player.facing,
-          allowDirectionalStairWarp: stepResult.collision?.result === 'directionalStairWarp'
-        })
-        : resolveFacingDoorWarpTransition(map, player, stepResult.attemptedDirection, loadMapById, scriptRuntime.dynamicWarp);
-
-      if (applyWarpTransition(warpTransition)) {
+      if (applyResolvedWarpTransition(warpContext, resolveStepWarpTransition(warpContext, stepResult, snapshot))) {
+        syncLocalsFromFieldWorld();
         return;
       }
 
-      if (!shouldRunNormalStepSideEffects(stepResult)) {
-        return;
-      }
-
-      const poisonResult = doPoisonFieldEffect(scriptRuntime.party);
-      if (poisonResult !== 'FLDPSN_NONE' && !fldEffPoisonIsActive(fieldPoisonEffect)) {
-        fldEffPoisonStart(fieldPoisonEffect);
-      }
-      if (poisonResult === 'FLDPSN_FNT') {
-        const whiteOut = tryFieldPoisonWhiteOut(scriptRuntime.party);
-        const messages = [...whiteOut.faintedMessages];
-        if (whiteOut.allMonsFainted) {
-          messages.push(
-            `${scriptRuntime.startMenu.playerName} scurried to a POKeMON CENTER,`,
-            'protecting the exhausted and fainted',
-            'POKeMON from further harm...'
-          );
-          respawnAfterFieldPoisonWhiteOut();
-          scriptRuntime.lastScriptId = 'field.poison.whiteout';
-        } else {
-          scriptRuntime.lastScriptId = 'field.poison.faint';
-        }
-        if (messages.length > 0) {
-          openDialogueSequence(dialogue, 'system', messages);
-          return;
-        }
-      }
-
-      if (safariZoneTakeStep(scriptRuntime)) {
-        exitSafariMode(scriptRuntime);
-        openDialogueSequence(dialogue, 'system', [...SAFARI_ZONE_TEXT_TIMES_UP]);
-        scriptRuntime.lastScriptId = 'safari.times_up';
-        syncBattleStateFromRuntime();
-        return;
-      }
-
-      const stepTriggerStarted = runStepTriggersAtPlayerTile(map.triggers, player, map.tileSize, {
+      runPostMovementFieldOrder({
+        map,
         player,
         dialogue,
         runtime: scriptRuntime,
         scriptRegistry: prototypeScriptRegistry,
-        hiddenItems: map.hiddenItems ?? [],
-        npcs
-      });
-      if (stepTriggerStarted) {
-        return;
-      }
-
-      const isWaterEncounter = player.avatarMode === 'surfing' && hasWaterEncounterAtPixel(map, player.position);
-      const canEncounter = isWaterEncounter || hasLandEncounterAtPixel(map, player.position);
-      const encounterKind = isWaterEncounter ? 'water' : 'land';
-      if (tryStartWildBattle(
+        npcs,
         battle,
         battleEncounter,
-        actionEnteredNewTile,
-        canEncounter,
-        isWaterEncounter ? map.wildEncounters?.water : map.wildEncounters?.land,
-        map.battleScene,
-        map.id,
-        getSafariZoneFlag(scriptRuntime)
-          ? {
-            mode: 'safari',
-            battleTypeFlags: ['safari'],
-            safariBalls: getSafariZoneBallCount(scriptRuntime),
-            encounterKind
-          }
-          : { encounterKind }
-      )) {
-        addPokedexSeenSpecies(scriptRuntime.pokedex, battle.wildMon.species);
-        scriptRuntime.startMenu.seenPokemonCount = scriptRuntime.pokedex.seenSpecies.length;
-        scriptRuntime.lastScriptId = getSafariZoneFlag(scriptRuntime)
-          ? 'battle.safari.start'
-          : 'battle.wild.start';
-      }
+        fieldPoisonEffect,
+        respawnAfterFieldPoisonWhiteOut,
+        syncBattleStateFromRuntime
+      }, stepResult);
     };
 
-    if (canStepActiveFieldAction || canContinuePlayerMovement || canProcessMovement) {
+    if (fieldInput.canStepActiveFieldAction || fieldInput.canContinuePlayerMovement || fieldInput.canProcessMovement) {
       if (activeFieldAction) {
         const stepResult = stepFieldAction(activeFieldAction, player, npcs, map, dt);
         if (stepResult.completed) {
@@ -826,14 +742,9 @@ const loop = new GameLoop({
         if (
           !player.moving
           && !player.stepTarget
-          && applyWarpTransition(resolveArrowWarpTransition(
-            map,
-            player,
-            heldDirection,
-            loadMapById,
-            scriptRuntime.dynamicWarp
-          ))
+            && tryApplyArrowWarpBeforeMovement(warpContext, heldDirection)
         ) {
+          syncLocalsFromFieldWorld();
           return;
         }
 
@@ -868,16 +779,7 @@ const loop = new GameLoop({
           map,
           dt,
           (direction) =>
-            evaluateFieldCollision({
-              map,
-              object: {
-                ...getPlayerRuntimeObject(player, map),
-                strengthActive: scriptRuntime.flags.has('FLAG_SYS_USE_STRENGTH')
-              },
-              direction,
-              objects: visibleNpcs.map((npc) => getNpcRuntimeObject(npc, map)),
-              loadMapById
-            })
+            evaluatePlayerFieldCollision(map, player, visibleNpcs, scriptRuntime, loadMapById, direction)
         );
 
         if (stepResult.collision && stepResult.attemptedDirection) {
@@ -934,6 +836,7 @@ const loop = new GameLoop({
     if (dialogue.active) {
       stepFieldTextPrinter(dialogue.fieldMessageBox, 1, snapshot.interact || snapshot.cancel);
     }
+    audioAdapter.consume(scriptRuntime.fieldAudio.events);
   },
   render() {
     trySpawnObjectEvents(npcs, scriptRuntime.flags);
@@ -954,5 +857,30 @@ const loop = new GameLoop({
 loop.start();
 window.addEventListener('beforeunload', () => {
   input.detach();
+  audioAdapter.reset();
   loop.stop();
 });
+
+declare global {
+  interface Window {
+    __pokemonFireRedAudioEvents?: typeof scriptRuntime.fieldAudio.events;
+    __pokemonFireRedAudioDebug?: {
+      emitMenuBeep(): void;
+      getEvents(): typeof scriptRuntime.fieldAudio.events;
+    };
+    __pokemonFireRedLinkDebug?: {
+      runTwoClientUnionRoomReadyFlow(): {
+        redReadyToConfirm: LinkSessionView;
+        leafReadyToConfirm: LinkSessionView;
+        redEstablished: LinkSessionView;
+        leafEstablished: LinkSessionView;
+        expectedEstablishedMessage: string;
+      };
+      runTwoClientUnionRoomCancelFlow(): {
+        leafCanceled: LinkSessionView;
+        redCanceled: LinkSessionView;
+        expectedCancelMessage: string;
+      };
+    };
+  }
+}

@@ -34,6 +34,7 @@ import { getSafariZoneBallCount, getSafariZoneStepsRemaining, SAFARI_ZONE_TOTAL_
 import { formatTypeLabel } from './decompSpecies';
 import { getSpeciesDisplayName } from './pokemonStorage';
 import type { ScriptRuntimeState } from './scripts';
+import { playMenuSoundEffect } from './decompFieldSound';
 
 export type StartMenuOptionId =
   | 'POKEDEX'
@@ -161,6 +162,8 @@ const textSpeedValues = ['slow', 'mid', 'fast'] as const;
 const battleStyleValues = ['shift', 'set'] as const;
 const soundValues = ['mono', 'stereo'] as const;
 const buttonModeValues = ['help', 'lr', 'lEqualsA'] as const;
+const SE_SELECT = 5;
+const SE_EXIT = 9;
 
 type OptionSettingId =
   | 'textSpeed'
@@ -1599,20 +1602,24 @@ export const stepStartMenu = (
     }
 
     openStartMenu(menu, runtime);
+    playMenuSoundEffect(runtime, SE_SELECT, 'menu-open');
     runtime.lastScriptId = 'menu.open.start';
     return;
   }
 
   if (input.startPressed || input.cancelPressed) {
     closeStartMenu(menu);
+    playMenuSoundEffect(runtime, SE_EXIT, 'menu-close');
     runtime.lastScriptId = 'menu.close.start';
     return;
   }
 
   if (input.upPressed) {
     moveSelection(menu, -1);
+    playMenuSoundEffect(runtime, SE_SELECT, 'menu-cursor');
   } else if (input.downPressed) {
     moveSelection(menu, 1);
+    playMenuSoundEffect(runtime, SE_SELECT, 'menu-cursor');
   }
 
   if (!input.interactPressed) {
@@ -1631,11 +1638,13 @@ export const stepStartMenu = (
 
   if (selected.id === 'EXIT') {
     closeStartMenu(menu);
+    playMenuSoundEffect(runtime, SE_EXIT, 'menu-exit');
     runtime.lastScriptId = 'menu.exit';
     return;
   }
 
   closeStartMenu(menu);
+  playMenuSoundEffect(runtime, SE_SELECT, 'menu-confirm');
 
   if (selected.id === 'SAVE') {
     const summary = callbacks.getPlayerSummary?.() ?? createFallbackPlayerSummary(runtime);
