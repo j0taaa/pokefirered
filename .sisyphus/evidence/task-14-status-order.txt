@@ -1,0 +1,20 @@
+Command: cd ts-game && npm run test -- --run test/parity/battleParityHardening.test.ts
+Result: PASS
+
+Key output:
+✓ test/parity/battleParityHardening.test.ts (10 tests)
+Test Files  1 passed (1)
+Tests  10 passed (10)
+
+Status/RNG/order hardening covered by:
+- battle_main.c turn order preserves status timing and priority RNG order
+- native-oracle fixtures remain explicitly marked and produce non-trivial traces
+
+Assertions covered:
+- wild-status-exchange records turnActionOrder=player,opponent
+- status exchange includes BULBASAUR used GROWL! before Foe RATTATA used TAIL WHIP!
+- priority-quick-attack records turnActionOrder=player,opponent even though the foe is faster
+- player battler printedMoveId=QUICK_ATTACK and opponent printedMoveId=TACKLE
+
+Diagnostics note:
+lsp_diagnostics was attempted for ts-game/test/parity/battleParityHardening.test.ts but the environment lacks typescript-language-server. npm run build substituted TypeScript verification and passed.

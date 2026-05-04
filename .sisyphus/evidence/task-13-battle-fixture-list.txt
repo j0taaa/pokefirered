@@ -1,0 +1,171 @@
+[
+  {
+    "id": "wild-opening-exchange",
+    "categories": [
+      "battle-mode:wild",
+      "end-turn-timing",
+      "move-exchange",
+      "status-end-turn-timing",
+      "wild-battle"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "trainer-shift-prompt",
+    "categories": [
+      "battle-mode:trainer",
+      "faint-replacement",
+      "forced-faint-replacement",
+      "post-battle-script",
+      "trainer-battle",
+      "trainer-class"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "wild-catch",
+    "categories": [
+      "capture",
+      "capture-edge-case",
+      "post-battle-script",
+      "wild-battle"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "battle-whiteout",
+    "categories": [
+      "battle-mode:trainer",
+      "post-battle-script",
+      "trainer-battle",
+      "whiteout"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "wild-status-exchange",
+    "categories": [
+      "end-turn-timing",
+      "status-end-turn-timing",
+      "status-move",
+      "wild-battle"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "wild-player-switch",
+    "categories": [
+      "player-switch",
+      "switching",
+      "wild-battle"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "wild-run-escape",
+    "categories": [
+      "battle-mode:wild",
+      "flee",
+      "wild-battle"
+    ],
+    "hostComparable": true
+  },
+  {
+    "id": "trainer-ai-item-heal",
+    "categories": [
+      "ai-item",
+      "battle-mode:trainer",
+      "held-item",
+      "item-timing",
+      "trainer-ai",
+      "trainer-battle",
+      "trainer-class"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "trainer-ai-switch-perish-song",
+    "categories": [
+      "ai-switch",
+      "battle-mode:trainer",
+      "switching",
+      "trainer-ai",
+      "trainer-battle"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "safari-bait-flow",
+    "categories": [
+      "battle-mode:safari",
+      "capture",
+      "capture-edge-case",
+      "flee",
+      "safari",
+      "safari-bait",
+      "safari-run"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "safari-rock-capture-edge",
+    "categories": [
+      "battle-mode:safari",
+      "capture",
+      "capture-edge-case",
+      "flee",
+      "safari",
+      "safari-rock"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "priority-quick-attack",
+    "categories": [
+      "move-priority",
+      "priority",
+      "wild-battle"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "multi-hit-fury-attack",
+    "categories": [
+      "multi-hit",
+      "multi-hit-move",
+      "wild-battle"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "ability-wonder-guard-block",
+    "categories": [
+      "ability",
+      "move-effect",
+      "wild-battle"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "post-battle-reward-level-up",
+    "categories": [
+      "evolution",
+      "experience",
+      "level-up",
+      "post-battle-script",
+      "trainer-battle"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "doubles-partner-follow-me",
+    "categories": [
+      "battle-mode:trainer",
+      "double-battle",
+      "multi-battle",
+      "partner",
+      "targeting"
+    ],
+    "hostComparable": false
+  }
+]

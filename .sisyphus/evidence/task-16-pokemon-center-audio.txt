@@ -1,0 +1,17 @@
+Task 16 Pokemon Center / fanfare audio evidence
+
+Command: cd ts-game && npm run test -- --run test/*audio*.test.* test/*sound*.test.*
+Result: PASS
+Summary: Test Files 2 passed (2); Tests 3 passed (3)
+
+Pokemon Center representative trace from soundInventory.test.ts:
+0 music:start id=301 source=script scenario=field
+1 sfx id=5 source=script scenario=script
+2 sfx id=5 source=menu scenario=menu
+3 fanfare:start id=256 source=script scenario=fanfare duration=160
+4 fanfare:end id=256 source=script scenario=fanfare
+
+Inventory assertion: getMissingRequiredAudioEvents(runtime.fieldAudio.events) === []
+Build verification: npm run build exited 0.
+
+Browser QA: Playwright navigated to http://127.0.0.1:5173 and window.__pokemonFireRedAudioDebug.emitMenuBeep() produced one runtime event: { kind: 'sfx', source: 'menu', id: 5, scenario: 'browser-qa-menu', seq: 0 }.

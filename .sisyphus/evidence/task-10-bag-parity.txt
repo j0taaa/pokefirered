@@ -1,0 +1,22 @@
+Task 10 bag parity evidence - 2026-05-03
+
+Changed files:
+- ts-game/src/game/bag.ts
+- ts-game/src/game/battle.ts
+- ts-game/test/bag.test.ts
+- ts-game/test/shop.test.ts
+- ts-game/test/pcStorage.test.ts
+- ts-game/test/battleBag.test.ts
+
+Summary:
+- Added runtime-facing shop buy/sell helpers with FireRed-style money, no-room, no-money, and cannot-sell messages.
+- Added PC item storage helpers for deposit, withdraw, toss, slot reordering, compaction, full-PC rejection, and full-bag rejection.
+- Added full-pocket rejection messages for ITEMS, KEY ITEMS, POKe BALLS, TM CASE, and BERRY POUCH pockets.
+- Added context-aware item-use helper coverage for key item registration, VS Seeker map restrictions, Repel lingering restrictions, Bicycle restrictions, party item handoff, and give-to-Pokemon held item flow.
+- Broadened battle bag filtering to item `battleUsage` and added non-ball battle item handoff to the battle runtime while preserving ball capture behavior.
+
+Verification:
+- LSP diagnostics: attempted on changed TS files, but unavailable because `typescript-language-server` is not installed in the environment.
+- `npm run test -- --run test/*bag*.test.* test/*item*.test.* test/*shop*.test.* test/*pc*.test.*`: PASS, 4 files / 29 tests.
+- `npm run test -- --run test/battleBag.test.ts`: PASS, 1 file / 2 tests.
+- `npm run build`: PASS (`tsc --noEmit && vite build`).

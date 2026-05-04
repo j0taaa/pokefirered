@@ -1,0 +1,21 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/exportDecompMap.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/exportDecompMap.test.ts (7 tests) 2000ms
+   ✓ export-decomp-map > keeps every committed compact decomp map identical to a fresh export  967ms
+   ✓ export-decomp-map > loads every committed compact decomp map with exact runtime collision arrays  964ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  23:09:40
+   Duration  5.59s (transform 1.69s, setup 0ms, collect 3.20s, tests 2.00s, environment 0ms, prepare 94ms)
+
+
+Export inventory: 425/425 decomp maps exported
+Runtime JSON files (excluding prototypeRoute.json): 425
+Missing decomp map ids: 0
+Extra runtime map ids: 0

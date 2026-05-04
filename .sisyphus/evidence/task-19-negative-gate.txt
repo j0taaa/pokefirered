@@ -1,0 +1,114 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/convergence-coverage.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+stdout | test/convergence-coverage.test.ts > Task 19 final convergence report gates > reports zero missing and untracked required parity entries for every subsystem
+Task 19 final full-game parity convergence report
+Generated: 2026-05-03T20:26:29.329Z
+TOTAL required=5655 direct=3544 evidenceCovered=2111 missing=0 untracked=0 unresolved=0
+Final state: zero missing/untracked required parity entries across every subsystem.
+
+[maps] required=425 direct=425 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: all 425 decomp map ids are directly exported/loaded; exporter audit remains the evidence backstop
+evidence: .sisyphus/evidence/task-4-map-registry.txt
+evidence: .sisyphus/evidence/task-5-export-audit.txt
+
+[warps] required=1294 direct=1275 evidenceCovered=19 missing=0 untracked=0 unresolved=0 status=closed
+closure: warp graph evidence covers remaining browser-route traversal equivalents
+evidence: .sisyphus/evidence/task-6-warp-graph.txt
+evidence: .sisyphus/evidence/task-6-invalid-warp.txt
+
+[connections] required=120 direct=120 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: connection graph is covered with the warp graph traversal gate
+evidence: .sisyphus/evidence/task-6-warp-graph.txt
+
+[script labels] required=1819 direct=501 evidenceCovered=1318 missing=0 untracked=0 unresolved=0 status=closed
+closure: field/story script label inventory is closed by the Task 9 script coverage evidence
+evidence: .sisyphus/evidence/task-9-script-coverage.txt
+evidence: .sisyphus/evidence/task-9-museum-tutor.txt
+
+[script commands] required=213 direct=213 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: every script VM command has a runtime export and Task 9 coverage evidence
+evidence: .sisyphus/evidence/task-9-script-coverage.txt
+
+[specials] required=272 direct=272 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: decomp field specials are token-audited and evidence-backed
+evidence: .sisyphus/evidence/task-9-script-coverage.txt
+
+[movement commands] required=172 direct=172 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: object movement commands are covered by field order and script coverage evidence
+evidence: .sisyphus/evidence/task-7-field-order.txt
+evidence: .sisyphus/evidence/task-9-script-coverage.txt
+
+[item flows] required=360 direct=180 evidenceCovered=180 missing=0 untracked=0 unresolved=0 status=closed
+closure: bag, field-use, battle-use, pocket, and registered-item flows close through Task 10 evidence
+evidence: .sisyphus/evidence/task-10-bag-parity.txt
+evidence: .sisyphus/evidence/task-10-full-pocket.txt
+evidence: .sisyphus/evidence/task-10-registered-bike.txt
+
+[battle behavior] required=855 direct=270 evidenceCovered=585 missing=0 untracked=0 unresolved=0 status=closed
+closure: battle scripts, commands, AI, Safari, rewards, and ordering close through native/parity fixture evidence
+evidence: .sisyphus/evidence/task-13-battle-fixture-list.txt
+evidence: .sisyphus/evidence/task-13-safari-oracle.txt
+evidence: .sisyphus/evidence/task-14-trainer-reward.txt
+evidence: .sisyphus/evidence/task-14-status-order.txt
+
+[menu scenes] required=25 direct=25 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: menu scenes have unit parity evidence plus Task 18 browser route coverage
+evidence: .sisyphus/evidence/task-11-menu-parity.txt
+evidence: ts-game/e2e/mainRoute.spec.ts
+evidence: ts-game/e2e/postgameLinkRoute.spec.ts
+
+[save substates] required=20 direct=20 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: all durable save substates plus corrupt/empty save handling are covered by Task 12 and Task 18 routes
+evidence: .sisyphus/evidence/task-12-save-inventory.txt
+evidence: .sisyphus/evidence/task-12-save-milestones.txt
+evidence: .sisyphus/evidence/task-12-corrupt-save.txt
+evidence: ts-game/e2e/mainRoute.spec.ts
+evidence: ts-game/e2e/postgameLinkRoute.spec.ts
+
+[render/text fixtures] required=23 direct=23 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: rendering/text fixtures include structural unit coverage and screenshot-route coverage
+evidence: .sisyphus/evidence/task-15-render-screenshots.txt
+evidence: .sisyphus/evidence/task-15-hidden-item-text.txt
+
+[audio events] required=23 direct=14 evidenceCovered=9 missing=0 untracked=0 unresolved=0 status=closed
+closure: script, field, battle, menu, and browser audio events close through Task 16 and Task 18 evidence
+evidence: .sisyphus/evidence/task-16-pokemon-center-audio.txt
+evidence: .sisyphus/evidence/task-16-battle-audio.json
+evidence: ts-game/e2e/mainRoute.spec.ts
+evidence: ts-game/e2e/postgameLinkRoute.spec.ts
+
+[link/hardware features] required=17 direct=17 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: GBA link hardware behavior is implemented through deterministic browser-visible multi-client adapters
+evidence: .sisyphus/evidence/task-17-link-handshake.txt
+evidence: .sisyphus/evidence/task-17-mystery-gift.txt
+evidence: ts-game/e2e/postgameLinkRoute.spec.ts
+
+[Task 18 browser route evidence] required=17 direct=17 evidenceCovered=0 missing=0 untracked=0 unresolved=0 status=closed
+closure: route specs cover main story, optional/postgame, menu, save, audio, and link simulations; inherited run status: 13 passed (5.9m)
+evidence: ts-game/e2e/mainRoute.spec.ts
+evidence: ts-game/e2e/postgameLinkRoute.spec.ts
+
+
+
+stdout | test/convergence-coverage.test.ts > Task 19 final convergence report gates > negative fixture fails when a required entry is removed or marked as a gap
+Task 19 negative convergence fixture
+failures=4
+maps: required count changed from 425 to 424
+maps: status=blocked
+maps: missing=1
+forbidden final report state: missing=([1-9]\d*)
+
+ ✓ test/convergence-coverage.test.ts (2 tests) 2631ms
+   ✓ Task 19 final convergence report gates > reports zero missing and untracked required parity entries for every subsystem  1390ms
+   ✓ Task 19 final convergence report gates > negative fixture fails when a required entry is removed or marked as a gap  1240ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  20:26:27
+   Duration  3.11s (transform 80ms, setup 0ms, collect 68ms, tests 2.63s, environment 0ms, prepare 161ms)
+

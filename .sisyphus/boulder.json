@@ -1,0 +1,211 @@
+{
+  "active_plan": "/home/pokefirered/.sisyphus/plans/firered-ts-complete-port.md",
+  "started_at": "2026-05-02T20:23:09.297Z",
+  "session_ids": [
+    "ses_215b74a7bffetsYGKcNXBL3r6C",
+    "ses_2103f5e43ffeG2PDY4n54hL0hm",
+    "ses_2103f4f92ffeYmj1uwLkXmq9vh",
+    "ses_2103f4f7fffeFk4J3Uz9BnYV25",
+    "ses_2103f4f68ffe4JpC1anpBw4f63"
+  ],
+  "session_origins": {
+    "ses_215b74a7bffetsYGKcNXBL3r6C": "direct",
+    "ses_2103f5e43ffeG2PDY4n54hL0hm": "appended",
+    "ses_2103f4f92ffeYmj1uwLkXmq9vh": "appended",
+    "ses_2103f4f7fffeFk4J3Uz9BnYV25": "appended",
+    "ses_2103f4f68ffe4JpC1anpBw4f63": "appended"
+  },
+  "plan_name": "firered-ts-complete-port",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Define canonical parity contract and baseline inventory",
+      "session_id": "ses_215a2ab8dffeMhdvzuOTcaJmWz",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-05-02T20:28:49.278Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Make TS bootstrap and CI deterministic",
+      "session_id": "ses_21523bde4ffeA5eNIra3pR6Y0O",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T22:46:38.941Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Generate parity coverage inventories and hard gates",
+      "session_id": "ses_2151e8384ffeNw2aHEmtk5anQm",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-02T22:55:34.127Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Replace static map loading with generated decomp-backed registry",
+      "session_id": "ses_215177700ffemzgmtTGzogybRm",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-02T23:03:22.526Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Converge exporter output for all decomp maps and event data",
+      "session_id": "ses_2150f7b0effeQ2f3WPgVUZX1fR",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-02T23:30:20.384Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Add warp, connection, and traversal graph hard gates",
+      "session_id": "ses_214f76d76ffeEU4UPM1Pndp4DU",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-02T23:39:57.820Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Refactor field runtime orchestration out of `main.ts`",
+      "session_id": "ses_214eecb04ffeA5R4olnkx2rEky",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-02T23:56:45.549Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Align roadmap/docs with implementation truth",
+      "session_id": "ses_214df2b76ffeVgBkgiFlpeGinx",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-05-03T00:11:21.347Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Complete field script VM command, special, movement, and story-chapter coverage",
+      "session_id": "ses_214cf454cffedbaSVXkgwKQ6X4",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-03T00:35:21.002Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Complete bag, item-use, TM/HM, Berry, Key Item, shop, and PC item parity",
+      "session_id": "ses_2148947a9ffe0OGggOO0ZgZCdC",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-03T01:47:01.788Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Complete party, Pokemon Center, PC storage, Pokedex, naming, options, save, trainer card, and menu scene parity",
+      "session_id": "ses_2145db6eeffeyL73yEDc5s5Kop",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-03T02:45:26.186Z"
+    },
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "Audit and complete save/load persistence for all long-lived runtime state",
+      "session_id": "ses_21443c4f9ffefQTDS8iGKiG8OY",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-03T03:09:04.216Z"
+    },
+    "todo:13": {
+      "task_key": "todo:13",
+      "task_label": "13",
+      "task_title": "Expand native battle oracle fixtures before deeper battle changes",
+      "session_id": "ses_211e8e523ffedmm1FUgsR27lSw",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-03T13:53:16.849Z"
+    },
+    "todo:14": {
+      "task_key": "todo:14",
+      "task_label": "14",
+      "task_title": "Complete battle runtime, battle script VM, AI, rewards, capture, evolution, and post-battle handoff parity",
+      "session_id": "ses_211e0a538ffeLPiP8SKv9nNVnv",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-03T14:00:37.045Z"
+    },
+    "todo:15": {
+      "task_key": "todo:15",
+      "task_label": "15",
+      "task_title": "Complete text, window, glyph, menu rendering, map rendering, and screenshot parity fixtures",
+      "session_id": "ses_211ad46a2ffesS1KopD7XXgsa6",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-03T15:20:14.683Z"
+    },
+    "todo:16": {
+      "task_key": "todo:16",
+      "task_label": "16",
+      "task_title": "Complete audio, music, cries, fanfares, fades, and sound-event parity",
+      "session_id": "ses_2118dd4bcffeJI85tQZXVEyZ2D",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-03T15:46:44.388Z"
+    },
+    "todo:17": {
+      "task_key": "todo:17",
+      "task_label": "17",
+      "task_title": "Implement browser-compatible link, wireless, Mystery Gift, e-Reader, Union Room, Trainer Tower, and multiplayer-adjacent parity",
+      "session_id": "ses_21178c5bcffeRZgCTyXhN9u0vt",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-03T16:02:25.774Z"
+    },
+    "todo:18": {
+      "task_key": "todo:18",
+      "task_label": "18",
+      "task_title": "Build full-game browser QA route suite across story, optional, postgame, menus, battles, saves, and link simulations",
+      "session_id": "ses_2114e1388ffeDEwSKBZ0K1yoWK",
+      "agent": "Sisyphus-Junior",
+      "category": "",
+      "updated_at": "2026-05-03T19:22:39.479Z"
+    },
+    "todo:19": {
+      "task_key": "todo:19",
+      "task_label": "19",
+      "task_title": "Produce zero-missing full-game parity convergence report and enforce it in tests",
+      "session_id": "ses_210aba738ffeIrIW09wJ6DGdPB",
+      "agent": "Sisyphus-Junior",
+      "category": "",
+      "updated_at": "2026-05-03T20:26:42.821Z"
+    },
+    "todo:20": {
+      "task_key": "todo:20",
+      "task_label": "20",
+      "task_title": "Lock docs, roadmap, and migration notes to final parity state",
+      "session_id": "ses_21072ddbaffeC38VlpM0CTpym9",
+      "agent": "Sisyphus-Junior",
+      "category": "",
+      "updated_at": "2026-05-03T20:53:49.570Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_2103f4f7fffeFk4J3Uz9BnYV25",
+      "agent": "Sisyphus-Junior",
+      "category": "",
+      "updated_at": "2026-05-04T03:22:19.414Z"
+    }
+  }
+}

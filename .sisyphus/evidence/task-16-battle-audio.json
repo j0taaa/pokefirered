@@ -1,0 +1,41 @@
+{
+  "task": 16,
+  "command": "cd ts-game && npm run test -- --run test/*audio*.test.* test/*sound*.test.*",
+  "result": "PASS",
+  "summary": {
+    "testFilesPassed": 2,
+    "testsPassed": 3
+  },
+  "representativeTrace": [
+    {
+      "kind": "music",
+      "action": "battleTransition",
+      "id": 352,
+      "source": "battle",
+      "scenario": "battle"
+    },
+    {
+      "kind": "music",
+      "action": "lowHpStart",
+      "id": 83,
+      "source": "battle",
+      "scenario": "battle"
+    },
+    {
+      "kind": "music",
+      "action": "lowHpStop",
+      "id": 83,
+      "source": "battle",
+      "scenario": "battle"
+    },
+    {
+      "kind": "cry",
+      "species": "SPECIES_PIKACHU",
+      "mode": "normal",
+      "source": "battle",
+      "scenario": "cry"
+    }
+  ],
+  "inventoryGate": "getMissingRequiredAudioEvents(runtime.fieldAudio.events) === []",
+  "build": "npm run build exited 0"
+}

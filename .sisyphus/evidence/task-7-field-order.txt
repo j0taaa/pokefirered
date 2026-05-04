@@ -1,0 +1,17 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/route3Map.test.ts test/pewterCityInteriors.test.ts test/fieldOrderCoordinator.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/route3Map.test.ts (4 tests) 389ms
+   ✓ Route 3 compact map source > matches the decomp exporter output exactly  322ms
+ ✓ test/pewterCityInteriors.test.ts (53 tests) 136ms
+ ✓ test/fieldOrderCoordinator.test.ts (5 tests) 29ms
+
+ Test Files  3 passed (3)
+      Tests  62 passed (62)
+   Start at  23:48:26
+   Duration  20.34s (transform 9.23s, setup 0ms, collect 18.26s, tests 553ms, environment 1ms, prepare 448ms)
+

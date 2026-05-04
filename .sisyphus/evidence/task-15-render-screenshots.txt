@@ -1,0 +1,195 @@
+Task 15: Render Screenshot Parity Fixture Manifest
+
+This file documents the deterministic structural and pixel fixtures created for
+rendering parity verification. Since Playwright browser execution may be blocked
+in CI, these structural fixtures provide offline verification of rendering behavior.
+
+## Unit Test Fixtures (deterministic, no browser required)
+
+### Text Control Codes and Glyph Metrics
+- test/renderTextControlCodes.test.ts
+  - Hidden-item text flow (COLOR_HIGHLIGHT_SHADOW + CHAR_PROMPT_CLEAR)
+  - Individual color/highlight/shadow control codes
+  - Font switch and reset font codes
+  - Escape code glyph rendering
+  - Shift right/down cursor positioning
+  - Fill window pixel buffer
+  - Play BGM/SE byte skipping
+  - Pause delay counter and state machine
+  - Pause until press / auto-scroll
+  - Wait SE state transitions
+  - Keypad icon byte skipping
+  - CHAR_PROMPT_SCROLL state machine
+  - Scroll distances match C SCROLL_DISTANCES
+  - Text speed options match C constants
+  - Braille glyph decompression source offsets
+  - Braille glyph width (always 16px)
+  - 16-bit glyph index normalization
+  - Letter spacing and line spacing cursor advancement
+  - Newline cursor reset
+
+### Window 8bpp Rendering
+- test/renderWindow8bpp.test.ts
+  - Window allocation and slot management
+  - WINDOW_NONE when all slots full
+  - Fill pixel buffer (entire window)
+  - Fill pixel rect (sub-rect with clipping)
+  - Blit 4bpp to 8bpp with palette offset and transparency
+  - Copy window to VRAM (MAP, GFX, FULL modes)
+  - Active window counting per BG layer
+
+### Battle Scene Layout
+- test/renderBattleLayout.test.ts
+  - GBA viewport dimensions (240x160)
+  - Battler sprite coordinates
+  - Healthbox OAM anchors
+  - Healthbox dimensions
+  - Healthbox text colors (palette indices)
+  - Battle message text colors
+  - Battle palette 5 text colors
+  - Window rects within viewport bounds
+  - Command labels (FIGHT/BAG/POKéMON/RUN)
+  - Move slot positions (2x2 grid)
+  - Monospace char advance
+  - Healthbox overlay offsets within dimensions
+  - PP state colors (GetCurrentPpToMaxPpState logic)
+  - PP line color CSS strings
+
+### Party Screen Layout
+- test/renderPartyLayout.test.ts
+  - GBA viewport dimensions
+  - 7 window entries (6 mon + message)
+  - Column layout (left/right/message)
+  - Sprite coords (mon/item/status/pokeball)
+  - Text column offsets
+  - Cancel button window and BG blit within viewport
+  - Actions window tile scaling
+  - Mon window rect with column info
+  - Message window rect
+
+### Bag Screen Layout
+- test/renderBagLayout.test.ts
+  - GBA viewport dimensions
+  - Window rects within viewport bounds
+  - List layout constants (item X, cursor X, row pitch, qty X)
+  - Sprite position (CreateBagSprite)
+  - Item icon position (CreateItemMenuIcon)
+  - Message text position (PrintItemDescriptionOnMessageWindow)
+  - Pocket name centering width
+  - Pocket arrow positions
+  - Context actions rect scaling
+  - Context menu text layout constants
+
+### Pokedex Screen Layout
+- test/renderPokedexLayout.test.ts
+  - GBA viewport dimensions
+  - String constants (TABLE OF CONTENTS, POKeMON LIST, SEARCH, PICK OK)
+  - Window rects within viewport bounds
+  - Mode select list layout (max showed, row stride, item X, cursor X)
+  - Ordered list layout
+  - Entry rects within viewport bounds
+  - Category slots scaling (1-4)
+  - Color constants (footer, enabled, disabled, inner pixel, icon tile BG)
+  - Counts layout offsets
+
+### Trainer Card Layout
+- test/renderTrainerCardLayout.test.ts
+  - GBA viewport dimensions
+  - Window 1 offset and inner width
+  - Window 2 offset (trainer pic)
+  - Trainer pic position and size
+  - Footer rect within viewport bounds
+  - String constants (NAME, IDNo, MONEY, POKéDEX, TIME, etc.)
+  - Front name position
+  - ID position
+  - Money label position
+  - Time positions (hours, colon, minutes)
+  - Back name position
+  - Back stat positions
+  - Badge tile positions
+  - Window-relative coordinate computation
+  - Pitch width (6px per character)
+  - Money value right-alignment
+  - Dex count right-alignment
+
+### Map Name Popup
+- test/renderMapNamePopup.test.ts
+  - Constants (FLOOR_ROOFTOP, WIN_PAL_NUM, etc.)
+  - Runtime initialization
+  - Task creation and BG scroll offsets
+  - Re-show with existing task
+  - Suppression when flag set or quest log playing
+  - State machine progression
+  - Dismiss transitions to state 6
+  - Active task detection
+  - Window creation with correct template
+  - Floor number window widening
+  - Rooftop window widening
+  - Floor number formatting (positive, negative, rooftop)
+  - Text centering and print recording
+
+### Help Message Window
+- test/renderHelpMessage.test.ts
+  - Window template matches src/help_message.c
+  - Tile IDs match DrawHelpMessageWindowTilesById
+  - Tile ID selection (top/middle/bottom)
+  - Window rect pixel coordinates
+  - Text origin position
+  - Text color constants
+
+### Blend Palette
+- test/renderBlendPalette.test.ts
+  - RGB5 encode/decode round-trip
+  - Palette color blending interpolation
+  - Coefficient clamping (0-16)
+  - Hex color blending
+  - Weather tint application (rain, sun, sandstorm, hail)
+  - No-op for 'none' weather
+
+### Field Render Order
+- test/renderFieldRenderOrder.test.ts
+  - Render order alternation (sprites/map/sprites/map/...)
+  - Metatile layer pass selection (covered/split/normal)
+  - Elevation-to-priority mapping
+
+### GBA Tile Decode
+- test/renderGbaTileDecode.test.ts
+  - 4bpp tile round-trip (encode/decode)
+  - Metatile layout round-trip
+  - Insufficient tile bytes error
+  - Palette index to RGBA mapping
+  - LZ77 decompression
+  - JASC palette parsing (with alpha 0 on index 0)
+  - Invalid header error
+
+### GPU Register Parity (Extended)
+- test/renderGpuRegsExtended.test.ts
+  - Buffer size, empty slot, DISPCNT/DISPSTAT/VCOUNT offsets
+  - Buffer/hardware register independence
+  - DISPSTAT special handling
+  - VCOUNT reads from hardware
+  - Interrupt enable/disable with DISPSTAT bits
+  - Set/clear register bits
+  - Full state reset
+
+### Field Dialogue
+- test/renderFieldDialogue.test.ts
+  - Empty options returns null
+  - Yes/no window dimensions
+  - Viewport bounds clamping
+  - List menu with scroll offset
+  - Multichoice with columns
+  - Widest option determines column width
+  - Left position clamping
+
+## Playwright E2E Fixtures (browser required)
+- e2e/screenshotParity.spec.ts
+  - Field dialogue canvas visibility
+  - START menu choice overlay
+  - Bag menu rendering
+  - Party menu rendering
+  - Save menu rendering
+  - Options menu rendering
+  - Canvas screenshot capture
+  - Trainer card rendering
+  - Pokedex rendering

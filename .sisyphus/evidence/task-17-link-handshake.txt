@@ -1,0 +1,46 @@
+Command:
+cd ts-game && npm run test -- --run test/*link*.test.* test/*wireless*.test.* test/*mystery*.test.* test/*union*.test.* test/*trainer*tower*.test.*
+
+Output summary:
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/linkWireless.test.ts test/*wireless*.test.* test/mysteryGift.test.ts test/unionRoom.test.ts test/trainer-tower.test.ts
+
+RUN  v3.2.4 /home/pokefirered/ts-game
+
+✓ test/linkWireless.test.ts (4 tests) 7ms
+✓ test/mysteryGift.test.ts (3 tests) 6ms
+✓ test/trainer-tower.test.ts (2 tests) 7ms
+✓ test/unionRoom.test.ts (2 tests) 7ms
+
+Test Files  4 passed (4)
+Tests  11 passed (11)
+Duration  20.57s
+
+Covered evidence:
+- deterministic in-memory two-client cable trade handshake reaches readyToConfirm then established
+- wireless Union Room two-client branch reaches cancel with WIRELESS COMMUNICATION SYSTEM search canceled message
+- different link selections fail with Cable Club different-selections message
+- hardware-dependent feature-flow inventory returns zero untracked flows
+
+Build verification:
+cd ts-game && npm run build
+✓ tsc --noEmit && vite build completed successfully.
+
+Playwright browser QA follow-up:
+Command:
+cd ts-game && npx playwright test e2e/linkHandshake.spec.ts --reporter=line
+
+Output summary:
+Running 2 tests using 1 worker
+[1/2] [chromium] › e2e/linkHandshake.spec.ts:10:3 › Task 17 browser link handshake debug hook › two local wireless clients reach ready-to-confirm and established states
+[2/2] [chromium] › e2e/linkHandshake.spec.ts:23:3 › Task 17 browser link handshake debug hook › two local wireless clients expose decomp-correct cancel message
+2 passed (55.1s)
+
+Playwright covered evidence:
+- browser-exposed deterministic debug hook creates two local Union Room wireless clients through InMemoryLinkHub
+- both browser clients reach readyToConfirm and established states without external network/server beyond Vite
+- cancel branch returns decomp-correct message: The WIRELESS COMMUNICATION SYSTEM search has been canceled.
+
+Follow-up build verification:
+cd ts-game && npm run build
+✓ tsc --noEmit && vite build completed successfully.

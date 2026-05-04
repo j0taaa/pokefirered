@@ -1,0 +1,14 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/fieldOrderCoordinator.test.ts -t blocked movement
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/fieldOrderCoordinator.test.ts (5 tests | 4 skipped) 19ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 4 skipped (5)
+   Start at  23:48:57
+   Duration  16.40s (transform 7.98s, setup 0ms, collect 15.88s, tests 19ms, environment 0ms, prepare 149ms)
+

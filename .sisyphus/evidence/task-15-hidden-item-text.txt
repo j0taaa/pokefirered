@@ -1,0 +1,65 @@
+Task 15: Hidden Item Text Flow and Render Screenshot Parity Fixtures
+
+## Hidden Item Text Flow
+
+The hidden item text flow in FireRed uses extended control codes to switch text color
+mid-string, then advances the page with CHAR_PROMPT_CLEAR. The decompBrailleText module
+covers this flow through the following control code sequence:
+
+1. EXT_CTRL_CODE_BEGIN + EXT_CTRL_CODE_COLOR_HIGHLIGHT_SHADOW (0x04) - reads 3 params
+   (fg, bg, shadow) and generates a font half-row lookup table
+2. Glyph printing advances currentX by glyphWidth + letterSpacing
+3. EXT_CTRL_CODE_BEGIN + EXT_CTRL_CODE_COLOR (0x01) - reads 1 param, updates fgColor
+4. CHAR_PROMPT_CLEAR (0xfb) - enters CLEAR state, fills window with bgColor, resets cursor
+5. EOS (0xff) - terminates the printer
+
+The "put the PEARL" sequence specifically uses:
+- Color/highlight/shadow to set item name color
+- Shift codes to position text
+- Fill window to clear before the next page
+
+## Control Code Coverage
+
+All FireRed text control codes are covered by the decompBrailleText module:
+- COLOR (0x01), HIGHLIGHT (0x02), SHADOW (0x03), COLOR_HIGHLIGHT_SHADOW (0x04)
+- PALETTE (0x05), FONT (0x06), RESET_FONT (0x07)
+- PAUSE (0x08), PAUSE_UNTIL_PRESS (0x09), WAIT_SE (0x0a)
+- PLAY_BGM (0x0b), ESCAPE (0x0c), SHIFT_RIGHT (0x0d), SHIFT_DOWN (0x0e)
+- FILL_WINDOW (0x0f), PLAY_SE (0x10)
+- CHAR_NEWLINE (0xfe), CHAR_PROMPT_CLEAR (0xfb), CHAR_PROMPT_SCROLL (0xfa)
+- CHAR_EXTRA_SYMBOL (0xf9), CHAR_KEYPAD_ICON (0xf8), PLACEHOLDER_BEGIN (0xfd)
+
+## Glyph Metrics
+
+Braille glyph metrics:
+- Width: always 16 pixels (matching GetGlyphWidth_Braille)
+- Height: always 16 pixels
+- Source offsets: [base, base+0x8, base+0x80, base+0x88] where base = 0x100 * (glyph/8) + 0x10 * (glyph%8)
+- Letter spacing and line spacing advance cursor position
+
+## Screenshot Parity
+
+Playwright e2e fixtures cover:
+- Field dialogue (canvas visible content)
+- START menu choice overlay
+- Bag menu rendering
+- Party menu rendering
+- Save menu rendering
+- Options menu rendering
+- Trainer card rendering
+- Pokedex rendering
+- Canvas screenshot capture for field state
+
+Structural fixtures (unit tests) cover:
+- Battle scene layout (window rects, healthbox anchors, command labels, PP colors)
+- Party screen layout (window templates, sprite coords, cancel button)
+- Bag screen layout (window rects, list layout, sprite positions, context actions)
+- Pokedex screen layout (window rects, list layout, category slots, color constants)
+- Trainer card layout (window offsets, string constants, badge positions, pitch width)
+- Map name popup (window creation, floor number formatting, text centering)
+- Help message window (tile IDs, rect computation, text origin)
+- Blend palette (RGB5 encode/decode, color blending, weather tints)
+- Field render order (layer passes, elevation priority)
+- GBA tile decode (4bpp round-trip, LZ77 decompression, JASC palette parsing)
+- GPU register parity (buffer/hardware register separation, DISPSTAT handling, interrupt bits)
+- Window 8bpp (allocation, fill, blit, VRAM copy, BG window counting)

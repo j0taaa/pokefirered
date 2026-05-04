@@ -1,8 +1,12 @@
 # Battle Parity Gap Tracker
 
-Last updated: 2026-04-26
+Last updated: 2026-05-02 (Wave 1 completion)
 
 Open major gaps left to close: 0
+
+## Wave 1 Status
+
+Battle parity foundation is established with VM-owned move pipeline, live doubles/partner/link execution, battler-derived active-mon views, decomp terrain mapping, and native oracle integration. No major hardening gaps tracked; test-driven guardrail in place.
 
 ## Open
 

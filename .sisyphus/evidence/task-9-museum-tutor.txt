@@ -1,0 +1,31 @@
+Task 9 Museum / OLD AMBER / tutor evidence
+Generated: 2026-05-03
+
+Implemented runtime flows:
+- Museum admission: `PewterCity_Museum_1F_EventScript_Scientist1` charges ¥50 and sets `VAR_MAP_SCENE_PEWTER_CITY_MUSEUM_1F`.
+- OLD AMBER: `PewterCity_Museum_1F_EventScript_OldAmberScientist` gives `ITEM_OLD_AMBER` and sets `FLAG_GOT_OLD_AMBER` once.
+- Seismic Toss tutor: `PewterCity_Museum_1F_EventScript_SeismicTossTutor` teaches `SEISMIC TOSS` to the lead party Pokémon and sets `FLAG_TUTOR_SEISMIC_TOSS` once.
+
+Focused museum/tutor test command:
+- `npm run test -- --run test/*museum*.test.* test/*tutor*.test.*`
+- Result: passed after adding `test/museumTutor.test.ts` so the requested glob has a matching test file.
+- Output summary:
+  - `test/museumTutor.test.ts` passed: 1 test
+  - Test Files: 1 passed (1)
+  - Tests: 1 passed (1)
+  - Duration: 22.97s
+
+Additional regression coverage in `test/scripts.test.ts`:
+- Museum admission takes the ticket fee and marks admission paid.
+- OLD AMBER scientist gives the fossil once.
+- Seismic Toss tutor teaches the lead Pokémon once.
+- Representative story chapter scripts cover Pallet/Viridian, Pewter/Mt. Moon, Cerulean/Bill, Vermilion/S.S. Anne, Rock Tunnel/Lavender, Celadon/Rocket, Safari/Fuchsia, Silph/Saffron, Cinnabar, Victory Road/E4, and Sevii/postgame.
+
+Changed script test command:
+- `npm run test -- --run test/scripts.test.ts test/museumTutor.test.ts`
+- Result: passed
+- Output summary:
+  - `test/scripts.test.ts`: 86 tests passed
+  - `test/museumTutor.test.ts`: 1 test passed
+  - Test Files: 2 passed (2)
+  - Tests: 87 passed (87)

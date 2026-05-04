@@ -1,0 +1,23 @@
+Command:
+cd ts-game && npm run test -- --run test/*link*.test.* test/*wireless*.test.* test/*mystery*.test.* test/*union*.test.* test/*trainer*tower*.test.*
+
+Output summary:
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/linkWireless.test.ts test/*wireless*.test.* test/mysteryGift.test.ts test/unionRoom.test.ts test/trainer-tower.test.ts
+
+RUN  v3.2.4 /home/pokefirered/ts-game
+
+✓ test/mysteryGift.test.ts (3 tests) 6ms
+✓ test/linkWireless.test.ts (4 tests) 7ms
+✓ test/trainer-tower.test.ts (2 tests) 7ms
+✓ test/unionRoom.test.ts (2 tests) 7ms
+
+Test Files  4 passed (4)
+Tests  11 passed (11)
+Duration  20.57s
+
+Covered evidence:
+- Mystery Gift unavailable branch returns no payload when wireless/Mystery Gift state is unavailable
+- Wonder Card receive branch requires sender payload exchange through the in-memory wireless session
+- duplicate Wonder Card branch returns alreadyHadCard and durable mysteryGiftCleared / FLAG_MYSTERY_GIFT_DONE state is represented
+- e-Reader checksum success/failure branches and Trainer Tower records run under the lowercase trainer-tower acceptance glob

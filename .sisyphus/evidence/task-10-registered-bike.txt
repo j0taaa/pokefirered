@@ -1,0 +1,19 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/bag.test.ts test/decompItem.test.ts test/decompItemMenu.test.ts test/decompItemPc.test.ts test/decompItemUse.test.ts test/decompShop.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/decompItemUse.test.ts (18 tests) 25ms
+ ✓ test/decompShop.test.ts (8 tests) 32ms
+ ✓ test/decompItemMenu.test.ts (8 tests) 19ms
+ ✓ test/decompItem.test.ts (11 tests) 46ms
+ ✓ test/decompItemPc.test.ts (6 tests) 19ms
+ ✓ test/bag.test.ts (6 tests) 18ms
+
+ Test Files  6 passed (6)
+      Tests  57 passed (57)
+   Start at  00:40:19
+   Duration  4.66s (transform 955ms, setup 0ms, collect 1.39s, tests 159ms, environment 6ms, prepare 976ms)
+

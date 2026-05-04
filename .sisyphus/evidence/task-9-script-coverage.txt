@@ -1,0 +1,60 @@
+Task 9 script coverage evidence
+Generated: 2026-05-03
+
+Changed files verified:
+- ts-game/src/game/scripts.ts
+- ts-game/src/game/decompMovementActions.ts
+- ts-game/test/scripts.test.ts
+- ts-game/test/museumTutor.test.ts
+
+LSP diagnostics:
+- Blocked: TypeScript LSP server is configured but not installed in the environment.
+- Tool error for each changed TS file: `Command not found: typescript-language-server`.
+- Fallback verification used repo TypeScript typecheck, Vitest, inventory gate, and Vite build.
+
+Required script/trigger test command:
+- `npm run test -- --run test/*script*.test.* test/*trigger*.test.*`
+- Result: script suites passed, trigger suite hit a Vitest worker fetch timeout while loading `/src/world/maps/undergroundPathEastEntrance.json`.
+- Output summary from that command:
+  - `test/scripts.test.ts` passed: 86 tests
+  - `test/decompMoveDescriptions.test.ts` passed: 4 tests
+  - `test/triggers.test.ts` failed during collection: `[vitest-worker]: Timeout calling "fetch" with "[\"/src/world/maps/undergroundPathEastEntrance.json\",\"ssr\"]"`
+
+Trigger rerun:
+- Command: `npm run test -- --run test/triggers.test.ts`
+- Result: passed
+- Output summary:
+  - Test Files: 1 passed (1)
+  - Tests: 15 passed (15)
+  - Duration: 19.66s
+
+Changed script tests:
+- Command: `npm run test -- --run test/scripts.test.ts test/museumTutor.test.ts`
+- Result: passed
+- Output summary:
+  - `test/scripts.test.ts`: 86 tests passed
+  - `test/museumTutor.test.ts`: 1 test passed
+  - Test Files: 2 passed (2)
+  - Tests: 87 passed (87)
+
+Movement + inventory verification:
+- Command: `npm run test -- --run test/decompMovementActions.test.ts test/coverageInventory.test.ts`
+- Result: passed
+- Output summary:
+  - Test Files: 2 passed (2)
+  - Tests: 5 passed (5)
+
+Inventory zero-gap evidence from `test/coverageInventory.test.ts`:
+- `[script commands] required=213 implemented=213 missing=0`
+- `[specials] required=272 implemented=272 missing=0`
+- `[movement commands] required=172 implemented=172 missing=0`
+
+Typecheck/build:
+- Command: `npx tsc --noEmit`
+- Result: passed (no output)
+- Command: `npx vite build`
+- Result: passed
+- Output summary:
+  - `✓ 5135 modules transformed.`
+  - `✓ built in 37.96s`
+  - Warning only: large chunks after minification.

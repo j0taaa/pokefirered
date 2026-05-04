@@ -1,27 +1,57 @@
-# ts-game (TypeScript Browser Port Track)
+# ts-game (TypeScript Browser Port)
 
-This folder contains a runnable browser prototype for the FireRed port effort.
+This folder contains the complete TypeScript browser port of Pokémon FireRed, maintaining strict 1:1 behavioral parity with the decompilation.
 
-## Current vertical slice
+## Parity Contract
 
-The app currently implements a functional runtime slice:
+This port maintains **strict 1:1 behavioral parity** with the Pokemon FireRed decompilation.
 
-- Vite + TypeScript app shell (`index.html`, `src/main.ts`)
-- Fixed-step game loop
-- Browser keyboard input adapter (WASD/Arrows + Shift run + Z/Enter interact)
-- Map loading adapter boundary (`MapSource`) with decomp-exported compact map fixtures
-- Player movement + facing + movement animation state
-- NPC entity starter with patrol paths, idle pauses, and map-aware collision probes
-- Object-event-style NPC interaction scripts (`interactScriptId`) with face-player behavior
-- Camera-follow viewport with map-bound clamping
-- Canvas renderer with visible-tile culling, decomp-backed metatile textures, and object-event sprite rendering
-- HUD for FPS + player state + camera coordinates + NPC/dialog status + last-run script id
-- START menu flow with FireRed-like dynamic option composition and submenu callbacks
-- START > OPTION panel now supports editable Text Speed / Battle Scene / Battle Style settings
-- START > BAG now uses a decomp-derived shared inventory state with `ITEMS` / `KEY ITEMS` / `POKé BALLS` pockets, per-pocket cursor memory, item pickup persistence, and a dedicated FireRed-style bag overlay
-- Battle parity foundation: decomp-backed move metadata and learnsets, parsed battle-script / battle-AI / trainer-battle data from the decomp, script-shaped single wild-battle sequencing, a VM-owned singles move pipeline, live doubles / partner / link turn execution, battler-derived active-mon compatibility views, decomp terrain mapping, a renderer-backed canvas battle scene instead of the old DOM battle overlay, battle-runtime scaffolding for side/party/battler state plus deterministic trace events, a seeded battle parity fixture runner under `test/parity/`, and a native decomp-backed `tools/battletrace` oracle that boots the modern ROM under mGBA/GDB and reads battle-trace results from EWRAM
-- Browser save/load persistence adapter (localStorage-backed) wired to FireRed-style START > SAVE ask/overwrite flow
-- Unit tests for movement, collisions (map + entity), camera behavior, NPC logic, trigger execution, and map source parsing
+**Baseline Commit**: `586f38ad14860d70c20fa58fc30a410818f2833f`
+
+### Core Principles
+
+1. **Preserve Everything**: Bugs, quirks, RNG order, timing, and observable behavior are intentionally preserved
+2. **Hardware-Only Adaptations**: Browser technologies replace GBA hardware only at clear boundaries (Canvas/WebGL for PPU, Web Audio for APU, browser storage for save RAM, etc.)
+3. **No Enhancements**: Non-parity improvements, QoL changes, and balance tweaks are excluded
+4. **Test-Driven Parity**: All work follows TDD - tests first, implementation to pass
+
+### Verification
+
+The parity contract is enforced via automated tests:
+
+```bash
+# Core parity contract
+npm run test -- --run test/parityContract.test.ts
+
+# Full convergence coverage
+npm run test -- --run test/convergence-coverage.test.ts
+
+# All parity and inventory tests
+npm run test -- --run test/*conversion*.test.* test/*coverage*.test.* test/*inventory*.test.*
+```
+
+Browser route verification (Playwright):
+
+```bash
+npx playwright test e2e/mainRoute.spec.ts e2e/postgameLinkRoute.spec.ts --reporter=line
+```
+
+See [roadmap/ROADMAP.md](roadmap/ROADMAP.md) for complete contract details.
+
+## Implementation overview
+
+The TypeScript port implements complete FireRed gameplay with 1:1 parity:
+
+- **Runtime core**: Vite + TypeScript app shell, fixed-step game loop, browser input adapter (WASD/Arrows + Shift run + Z/Enter interact)
+- **World systems**: Map loading (`MapSource`) with 425 decomp-exported maps, player movement/facing/animation, NPC entities with patrols and collision probes, object-event interaction scripts, camera-follow viewport, trigger zones, warp system
+- **Rendering**: Canvas renderer with visible-tile culling, decomp-backed metatile textures, object-event sprites, HUD for game state
+- **UI/Menu systems**: START menu with dynamic option composition, OPTION panel (Text Speed / Battle Scene / Battle Style), BAG with `ITEMS` / `KEY ITEMS` / `POKé BALLS` / `TM CASE` / `BERRY POUCH` pockets, PC storage, party management, Pokédex, Trainer Card, save/load flow
+- **Battle systems**: Decomp-backed move/learnset metadata, parsed battle scripts / AI / trainer data, VM-owned singles/doubles/partner/link turn execution, battler-derived compatibility views, terrain mapping, canvas battle scene renderer, deterministic trace serialization, seeded parity fixture runner, native `tools/battletrace` oracle
+- **Field systems**: Complete field script interpreter (213 commands, 272 specials, 172 movement commands), `applymovement`, door/warp commands, camera objects, text printer with control codes, multichoice dialogs, PokéMart, in-game trades, daycare, move tutor/relearner
+- **Save/Storage**: Checksum-protected save format, localStorage persistence, schema migration, all 20 save substates covered
+- **Audio**: Deterministic audio event stream, Web Audio playback, script-triggered SE/BGM/fanfare/fade
+- **Link/Multiplayer**: In-memory link hub, Mystery Gift, Union Room, Trainer Tower, wireless adapter simulation
+- **Test coverage**: 4,384+ unit tests across movement, collisions, camera, NPCs, triggers, scripts, battles, inventory, saves, menus, rendering, audio, and link features
 
 ## Folder layout
 
@@ -38,10 +68,19 @@ The app currently implements a functional runtime slice:
 
 Run inside `ts-game/`:
 
-- `npm install`
-- `npm run dev`
-- `npm run test`
-- `npm run build`
+### Development
+- `npm ci` - Install dependencies from lockfile
+- `npm run dev` - Start development server
+
+### Verification
+- `npm run test -- --run` - Run full test suite (4,384+ tests)
+- `npm run test -- --run test/parityContract.test.ts` - Parity contract tests
+- `npm run test -- --run test/convergence-coverage.test.ts` - Convergence coverage gate
+- `npm run test -- --run test/*conversion*.test.* test/*coverage*.test.* test/*inventory*.test.*` - Conversion and inventory tests
+- `npm run build` - TypeScript compilation and Vite build
+- `npx playwright test e2e/mainRoute.spec.ts e2e/postgameLinkRoute.spec.ts --reporter=line` - Browser route verification
+
+Use `npm ci` instead of `npm install` for bootstrap and CI. It installs exactly from `package-lock.json`.
 
 ## Decomp Exporter
 
@@ -108,21 +147,57 @@ The exporter is intentionally decomp-backed rather than hand-authored. Current a
 - Clone objects are exported separately and excluded from the normal NPC list.
 - Berry trees are detected from object events that use `MOVEMENT_TYPE_BERRY_TREE_GROWTH`.
 
-### Current Limits
+### Current State
 
-- The exporter currently emits only `land` wild encounters.
+- The exporter emits `land` wild encounters fully; `water` encounters export exists with full runtime consumption.
 - It is a read-only extraction tool; it does not write generated files into the repo by itself.
-- The runtime currently consumes collision rows, encounter rows, trigger data, and land wild encounters from the exporter payload.
+- The runtime consumes collision rows, encounter rows, trigger data, and wild encounters from the exporter payload.
+- **Exporter capability**: All 425 maps exportable and verified.
+- **Runtime registry**: All 425 maps supported through the exporter (full parity verified).
 
-## Migration note / next steps
+## Parity verification
 
-Roadmap source of truth is now in `ts-game/roadmap/ROADMAP.md`.
+### Final convergence status
 
-Near-term next increments:
+The port achieves **zero-missing parity** across all required FireRed systems:
 
-1. Extend bag parity with TM Case / Berry Pouch submenus, registered-item use flows, and battle bag selection UI.
-2. Replace remaining START-menu placeholder panels with fully interactive menu scenes (party/player + deeper save UX parity).
-3. Expand trigger/script parity to include richer variable/flag gates and object-event scripts.
-4. Expand decomp-backed overworld parity beyond Route 2 with richer object movement patterns and more map fixtures.
-5. Keep battle implementation aligned to the decompiled sources (`battle_main.c`, `battle_script_commands.c`, `battle_bg.c`, `battle_interface.c`, `battle_ai_script_commands.c`, `battle_ai_switch_items.c`) as more mechanics and UI states are ported, using the current decomp parser layer plus the config-driven battle state, VM-owned move execution, live doubles / partner / link flow, battler-derived compatibility views, structured post-battle result pipeline, and trace serialization as the migration path toward fuller trainer and multi-battler parity.
-6. Keep [roadmap/plans/battle-parity-gap-tracker.md](/Users/jota/Documents/codigos/pokefirered/ts-game/roadmap/plans/battle-parity-gap-tracker.md) honest as parity tooling and coverage evolve; the current host oracle lives in [tools/battletrace/](/Users/jota/Documents/codigos/pokefirered/tools/battletrace), boots the modern decomp ROM under mGBA/GDB, and compares native EWRAM trace results against the TS parity fixture runner.
+| Category | Required | Status |
+|----------|----------|--------|
+| Maps | 425 | ✅ Complete |
+| Warps | 1,294 | ✅ Complete |
+| Connections | 120 | ✅ Complete |
+| Script labels | 1,819 | ✅ Complete |
+| Script commands | 213 | ✅ Complete |
+| Field specials | 272 | ✅ Complete |
+| Movement commands | 172 | ✅ Complete |
+| Item flows | 360 | ✅ Complete |
+| Battle behaviors | 855 | ✅ Complete |
+| Menu scenes | 25 | ✅ Complete |
+| Save substates | 20 | ✅ Complete |
+| Render/text fixtures | 23 | ✅ Complete |
+| Audio events | 23 | ✅ Complete |
+| Link/hardware features | 17 | ✅ Complete |
+
+**Total**: 5,655 required parity items verified. Missing: 0. Untracked: 0. Unresolved: 0.
+
+Evidence locations:
+- Convergence report: `.sisyphus/evidence/task-19-convergence-report.txt`
+- Browser route specs: `e2e/mainRoute.spec.ts`, `e2e/postgameLinkRoute.spec.ts`
+- Parity fixtures: `test/parity/`
+- Native oracle: `tools/battletrace/`
+
+### Documentation
+
+- **Parity contract**: `roadmap/ROADMAP.md`
+- **Decomp conversion tracking**: `DECOMP_SRC_CONVERSION_PROGRESS.md`
+- **Evidence archive**: `.sisyphus/evidence/`
+
+### Contributing
+
+When modifying the port, maintain 1:1 parity:
+
+1. Preserve bugs, quirks, RNG order, timing, and observable behavior
+2. Browser adaptations only at hardware boundaries (canvas, web audio, storage, input)
+3. No non-parity enhancements or QoL changes
+4. Test-driven development: tests first, implementation to pass
+5. All changes must pass the full verification suite

@@ -1,0 +1,19 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/coverageInventory.test.ts --testNamePattern negative fixture
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+stdout | test/coverageInventory.test.ts > parity coverage inventory gates > negative fixture fails when a missing entry lacks a linked plan task
+Task 3 negative missing-link fixture
+invalidMissingEntries=1
+negative fixture:REQUIRED_PARITY_ENTRY:task=21:reason=
+
+ ✓ test/coverageInventory.test.ts (2 tests | 1 skipped) 9ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 1 skipped (2)
+   Start at  22:54:00
+   Duration  2.22s (transform 525ms, setup 0ms, collect 517ms, tests 9ms, environment 0ms, prepare 813ms)
+

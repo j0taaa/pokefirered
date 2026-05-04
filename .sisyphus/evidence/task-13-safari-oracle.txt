@@ -1,0 +1,27 @@
+[
+  {
+    "id": "safari-bait-flow",
+    "categories": [
+      "battle-mode:safari",
+      "capture",
+      "capture-edge-case",
+      "flee",
+      "safari",
+      "safari-bait",
+      "safari-run"
+    ],
+    "hostComparable": false
+  },
+  {
+    "id": "safari-rock-capture-edge",
+    "categories": [
+      "battle-mode:safari",
+      "capture",
+      "capture-edge-case",
+      "flee",
+      "safari",
+      "safari-rock"
+    ],
+    "hostComparable": false
+  }
+]

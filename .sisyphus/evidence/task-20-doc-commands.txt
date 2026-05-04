@@ -1,0 +1,74 @@
+Task 20 documentation lock verification
+Generated: 2026-05-03T20:48:XX
+
+Documentation files verified and locked to final parity state:
+
+1. README.md (root)
+   - Updated title: "Pokémon FireRed Decomp + TypeScript Browser Port" (removed WIP)
+   - Current status reflects final parity: 5,655 items verified, zero missing
+   - Repository structure section added with two-track distinction
+   - Parity contract section added with exact numbers
+   - Hardware-only adaptations table included
+   - Exact commands documented:
+     * cd ts-game && npm ci
+     * cd ts-game && npm run test -- --run
+     * cd ts-game && npm run build
+     * cd ts-game && npx playwright test e2e/mainRoute.spec.ts e2e/postgameLinkRoute.spec.ts --reporter=line
+     * cd ts-game && npm run test -- --run test/*conversion*.test.* test/*coverage*.test.* test/*inventory*.test.*
+   - Contributor guardrails added
+
+2. ts-game/README.md
+   - Title updated: "ts-game (TypeScript Browser Port)" (removed "Track")
+   - Parity contract section updated with exact verification commands
+   - Implementation overview section replaces "Current vertical slice"
+   - Commands section expanded with all verification commands
+   - Final convergence status table added (5,655 items)
+   - Parity verification section with evidence locations
+   - Migration/next steps replaced with contributor guidelines
+   - Current limits updated to reflect 425 maps supported
+
+3. ts-game/roadmap/ROADMAP.md
+   - Wave 1 Completion Summary replaced with Final Convergence Summary (Task 19)
+   - Status table: 5,655 required, 0 missing, 0 untracked, 0 unresolved
+   - Key evidence locations table added
+   - Steps table updated to show Tasks 1-19 all complete
+   - Contributor guardrails section added with:
+     * What is in scope
+     * What is NOT in scope
+     * Hard boundaries
+     * Required verification commands
+     * How to propose changes
+     * Regression policy
+
+4. ts-game/DECOMP_SRC_CONVERSION_PROGRESS.md
+   - Field script parity tracker already complete (all items checked)
+   - No changes needed (already reflects final state)
+
+Verification commands executed:
+- npm run test -- --run test/parityContract.test.ts: PASS (26 tests)
+- npm run test -- --run test/convergence-coverage.test.ts: PASS (2 tests)
+- npm run test -- --run test/*conversion*.test.* test/*coverage*.test.* test/*inventory*.test.*: PASS (4 tests)
+- npm run build: PASS (tsc --noEmit && vite build exited 0)
+
+Browser route verification:
+- Command documented: npx playwright test e2e/mainRoute.spec.ts e2e/postgameLinkRoute.spec.ts --reporter=line
+- Evidence from Task 18: 13 passed (5.9m)
+
+Final parity status aligned with Task 19 convergence report:
+- Total: 5,655 required parity items
+- Direct: 3,544
+- Evidence-covered: 2,111
+- Missing: 0
+- Untracked: 0
+- Unresolved: 0
+
+All stale "early prototype", "planned", "in progress" wording removed.
+All documentation now reflects final convergence state.
+
+CORRECTIONS (post-Atlas review):
+- Fixed "byte-identical behavioral parity" → "observable/game-visible behavioral parity" (ROADMAP.md line 23)
+- Fixed "WebRTC/networking" → "deterministic in-memory/local multi-client transport" in all locations:
+  * README.md (root) - current status bullet and hardware table
+  * ts-game/roadmap/ROADMAP.md - hardware boundaries table and contributor guardrails
+  * task-20-roadmap-lock.txt - browser adaptations list
+- Rationale: Implementation uses InMemoryLinkHub (deterministic local multi-client transport), not actual WebRTC. Future transport implementations must preserve game-visible state transitions.

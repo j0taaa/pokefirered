@@ -1,0 +1,28 @@
+Command: cd ts-game && npm run test -- --run test/parity/battleParity.test.ts test/parity/battleParityHost.test.ts test/parity/battleParityHardening.test.ts
+Result: PASS
+
+Key output:
+✓ test/parity/battleParityHost.test.ts (9 tests)
+✓ test/parity/battleParityHardening.test.ts (10 tests)
+✓ test/parity/battleParity.test.ts (23 tests)
+Test Files  3 passed (3)
+Tests  42 passed (42)
+
+Trainer reward/post-battle hardening covered by:
+- battle_script_commands.c reward and post-battle handoff paths stay deterministic
+- battle inventory reports zero missing required runtime categories
+
+Assertions covered:
+- post-battle-reward-level-up resolves with outcome=won
+- CHARMANDER gains 33 EXP and levels to 16
+- pending evolution handoff is CHARMANDER -> CHARMELEON at level 16
+- trainer-shift-prompt reaches phase=shiftPrompt with BROCK about to use ONIX
+- battle-whiteout resolves with outcome=lost and whiteout=true
+
+Build verification:
+Command: cd ts-game && npm run build
+Result: PASS
+Key output:
+> tsc --noEmit && vite build
+✓ 5137 modules transformed.
+✓ built in 14.96s

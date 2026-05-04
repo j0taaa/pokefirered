@@ -1,0 +1,14 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/bag.test.ts -t TM and Berry pouch acquisition fails when the key item pocket is full
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/bag.test.ts (6 tests | 5 skipped) 7ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 5 skipped (6)
+   Start at  00:40:39
+   Duration  948ms (transform 307ms, setup 0ms, collect 332ms, tests 7ms, environment 0ms, prepare 178ms)
+

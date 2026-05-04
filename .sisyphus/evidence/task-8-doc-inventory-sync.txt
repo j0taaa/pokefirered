@@ -1,0 +1,66 @@
+Task 8: Doc-Inventory Sync Evidence
+Generated: 2026-05-03T00:05:00Z
+
+=== VERIFICATION SUMMARY ===
+
+Documentation files updated to reflect Task 3 inventory truth:
+1. ts-game/README.md - Updated exporter limits section with coverage stats
+2. ts-game/roadmap/ROADMAP.md - Updated Step 11 status, added Wave 1 summary
+3. ts-game/roadmap/plans/step-07-trigger-zones-and-scripts.md - Added completion status
+4. ts-game/roadmap/plans/battle-parity-gap-tracker.md - Added Wave 1 status
+
+=== TEST RESULTS ===
+
+Test command: npm run test -- --run test/coverageInventory.test.ts
+
+Result: PASSED (2/2 tests)
+
+Key inventory metrics (from test output):
+- [maps] required=425 implemented=425 missing=0
+  * All 425 maps are exportable via the exporter
+  * Runtime registry loads subset based on committed fixtures
+  
+- [warps] required=1294 implemented=1275 missing=19
+  * 98.5% warp coverage
+  * Missing warps are MAP_DYNAMIC destinations (elevators, colosseums, etc.)
+  
+- [script labels] required=1819 implemented=501 missing=1318
+  * 27.5% script label coverage
+  * Remaining labels linked to Task 9
+
+- [battle flows] extensive coverage with VM-owned pipeline
+  * VM command handlers for all major mechanics
+  * Native oracle integration via tools/battletrace
+  * 0 major hardening gaps tracked
+
+=== DOC DRIFT CORRECTIONS ===
+
+1. README.md line 138: Clarified that exporter handles all 425 maps, water 
+   encounters export exists but runtime consumption is partial
+   
+2. ROADMAP.md Step 11: Changed from "Planned" to "In Progress" with 
+   exporter complete (425/425) and runtime partial (77 committed, 
+   full registry capable)
+   
+3. Added Wave 1 Completion Summary with explicit coverage percentages
+
+=== STATUS MATCH VERIFICATION ===
+
+Documentation claims MATCH inventory truth:
+- Exporter capability: 425/425 maps (100%) - MATCH
+- Runtime registry: Partial (18% fixtures, 100% capable) - MATCH
+- Warp coverage: 1275/1294 (98.5%) - MATCH
+- Battle parity: Foundation complete, 0 open gaps - MATCH
+
+All documentation now accurately reflects Task 3 inventory categories:
+- Complete: Exporter, battle VM foundation, field runtime
+- Partial: Warp graph (98.5%), script labels (27.5%)
+- Blocked/Unimplemented: None (all linked to future tasks 9-17)
+
+=== BUILD STATUS ===
+
+TypeScript compilation: PASSED (no errors)
+Full build: Deferred (timeout during vite build, not relevant to doc sync)
+
+=== EVIDENCE SAVED ===
+This file confirms documentation alignment with implementation truth.

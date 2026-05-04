@@ -1,0 +1,200 @@
+Task 11: Menu Parity Implementation Summary
+=============================================
+
+## Game Logic Files Created
+
+### ts-game/src/game/pokemonCenter.ts
+- PokemonCenterState with stages: idle, nurseWelcome, nurseTakePokemon, healing, nurseRestored, nurseGoodbye, pcAccess, pcExit
+- Nurse dialogue flow: welcome -> takePokemon -> healing animation -> restored -> goodbye
+- Healing animation with configurable duration (120 frames)
+- PC access open/close flow
+- Decline path returns to idle with goodbye text
+- All decomp-correct nurse messages preserved
+
+### ts-game/src/game/namingScreen.ts
+- Wraps decompNamingScreen with InputSnapshot-based step function
+- Supports player (7 chars), rival (7 chars), Pokemon nickname (10 chars), box (8 chars)
+- Keyboard navigation with d-pad, character entry, page swap, backspace, OK
+- Cancel (B) returns unconfirmed result
+- Re-exports keyboard chars, column count, key role, text entry position for UI
+
+### ts-game/src/game/titleScreen.ts
+- TitleScreenState with stages: title, intro, newGame, continue, options, credits
+- Title menu with CONTINUE/NEW GAME/OPTION (has save) or NEW GAME/OPTION (no save)
+- Intro timer with configurable duration
+- Credits scroll with configurable speed
+- Keyboard navigation matching decomp (up/down, A/start to select, B to cancel)
+
+### ts-game/src/game/pcStorage.ts
+- PcStorageState with deposit/withdraw/move operations
+- Deposit: validates party size > 1, box capacity, moves Pokemon from party to current box
+- Withdraw: validates party size < 6, moves Pokemon from box to party
+- Move between boxes: validates source/destination box IDs and capacity
+- Box switching with wrap-around (14 boxes)
+- Box renaming (8 char limit)
+- getCurrentBoxSlots/getPartySlots for UI rendering
+- PC action labels matching decomp (WITHDRAW, DEPOSIT, MOVE, MOVE ITEMS, CANCEL)
+
+## UI View Files Created
+
+### ts-game/src/ui/partyMenu.ts
+- PartyMenuViewBindings with list, actions, summary, message sections
+- HP bar visualization (10-char bar with filled/empty blocks)
+- Status labels (OK, PSN, PAR, SLP, BRN, FRZ)
+- Action menu (SUMMARY, SWITCH, CANCEL)
+- Summary pages (page 1: species/HP/status/types, page 2: stats)
+
+### ts-game/src/ui/pokedex.ts
+- PokedexViewBindings with top menu, ordered list, entry, category, area screens
+- Seen/owned count display
+- Ordered list with national dex numbers and caught markers
+- Category page grid with species names
+- Area markers with position data
+
+### ts-game/src/ui/optionsMenu.ts
+- OptionMenuViewBindings with list and description
+- Cursor-based selection matching decomp layout
+
+### ts-game/src/ui/saveMenu.ts
+- SaveMenuViewBindings with stats, choice, and result sections
+- YES/NO choice display with cursor
+- Stats rows (PLAYER, LOCATION, BADGES, POKEDEX, TIME)
+- Overwrite confirmation stage
+
+### ts-game/src/ui/trainerCard.ts
+- TrainerCardViewBindings with name, money, badges, time, saves, location
+- Two-page flip (front: stats, back: profile)
+- Badge count display (X/8)
+- Play time formatting (H:MM)
+
+### ts-game/src/ui/namingScreen.ts
+- NamingScreenViewBindings with keyboard grid, text entry, buttons
+- Three keyboard pages (lower, upper, symbols)
+- Cursor highlighting on selected key
+- PAGE/BACKSPACE/OK button row
+- Text entry with cursor position marker
+
+### ts-game/src/ui/pokemonStorage.ts
+- PokemonStorageViewBindings with box grid, party list, actions, messages
+- 6x5 box grid with species names
+- Party slot list (6 slots)
+- Action menu (WITHDRAW, DEPOSIT, MOVE, MOVE ITEMS, CANCEL)
+- Box navigation (left/right arrows)
+- Message display
+
+### ts-game/src/ui/pokemonCenter.ts
+- PokemonCenterViewBindings with nurse dialogue, healing overlay, PC access
+- Healing progress bar (0-100%)
+- Nurse text display
+- PC access overlay
+
+### ts-game/src/ui/titleScreen.ts
+- TitleScreenViewBindings with menu, intro overlay, credits overlay
+- Menu options (CONTINUE/NEW GAME/OPTION or NEW GAME/OPTION)
+- Credits scroll with transform animation
+- Intro overlay for fade-in sequence
+
+## Test Files Created
+
+### test/party.test.ts (6 tests)
+- Opens party panel from start menu
+- Shows members and allows navigation
+- Opens actions on interact
+- Switches Pokemon positions
+- Cancel returns to list mode
+- Closes on cancel from list mode
+
+### test/pokemonStorage.test.ts (12 tests)
+- Creates storage state with defaults
+- Deposits Pokemon from party to box
+- Rejects deposit of last Pokemon
+- Rejects deposit when box is full
+- Withdraws Pokemon from box to party
+- Rejects withdraw when party is full
+- Moves Pokemon between boxes
+- Switches box with wrap-around
+- Renames box within character limit
+- Rejects empty box name
+- getCurrentBoxSlots returns padded array
+- getPartySlots returns padded array
+
+### test/pokedex.test.ts (6 tests)
+- Opens pokedex panel from start menu
+- Shows seen and owned counts
+- Navigates top menu with up/down
+- Enters ordered list on interact
+- Cancels back to top menu from ordered list
+- Closes on cancel from top menu
+
+### test/naming.test.ts (8 tests)
+- Creates naming screen state with correct max length for player/rival/nickname
+- Starts in fade-in state and transitions to handle input
+- Confirms on OK button
+- Cancels on B button
+- Cursor moves with d-pad
+- Default text is set correctly
+
+### test/options.test.ts (7 tests)
+- Opens options panel from start menu
+- Shows all settings (TEXT SPEED, BATTLE SCENE, BATTLE STYLE, SOUND, BUTTON MODE, FRAME, CANCEL)
+- Cycles text speed with left/right
+- Cycles battle scene with left/right
+- Navigates with up/down
+- Closes on interact or cancel
+- Cycles frame type
+
+### test/save.test.ts (8 tests)
+- Saves and loads game state
+- Returns null for missing save
+- Returns null for corrupted save
+- Returns null for wrong schema version
+- Clears save data
+- Save increments save counter
+- Apply save snapshot restores runtime state
+- Save preserves party and pokedex state
+
+### test/trainerCard.test.ts (6 tests)
+- Opens player summary panel from start menu
+- Shows player info on page 0 (MONEY, BADGES, TIME)
+- Flips to profile page on interact
+- Flips back on cancel from page 1
+- Closes on cancel from page 0
+- Closes on interact from page 1
+
+### test/menuScenes.test.ts (7 tests)
+- Creates Pokemon Center state in idle stage
+- Starts nurse dialogue
+- Advances through full healing flow (welcome -> take -> healing -> restored -> goodbye)
+- Declines healing
+- Healing animation is active during healing stage
+- Healing progress goes from 0 to 1
+- PC access opens and closes
+
+## Playwright E2E Tests Created
+
+### e2e/menuNavigation.spec.ts (11 tests)
+- Game loads and renders canvas
+- START menu opens with Enter key
+- START menu closes with Escape key after opening
+- Arrow keys navigate START menu options
+- HUD displays player state
+- Bag menu opens from START menu
+- Options menu opens from START menu
+- Player card opens from START menu
+- Save menu opens from START menu
+- Party menu opens from START menu
+- Pokedex menu opens from START menu
+
+### e2e/playwright.config.ts
+- Configured for Chromium browser
+- Auto-starts dev server via `npm run dev`
+- baseURL: http://localhost:5173
+- Tests parse correctly (`npx playwright test --list` shows all 11 tests)
+
+Note: E2E tests require the dev server to be running. Run `npm run dev` in a separate terminal before running `npx playwright test`.
+
+## Build Verification
+- All 8 unit test files pass (60 tests total)
+- `npm run build` exits with 0 errors
+- All new files follow existing codebase patterns (DOM-based UI views, state machine game logic)
+- Playwright E2E test file parses correctly (11 tests listed)

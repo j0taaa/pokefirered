@@ -1,5 +1,8 @@
 # Step 07 — Trigger zones + scripts v1
 
+## Status
+Complete (Wave 1). Core infrastructure implemented; script label coverage continues in Task 9.
+
 ## Objective
 
 Add a first trigger/script slice that mirrors core FireRed field flow:

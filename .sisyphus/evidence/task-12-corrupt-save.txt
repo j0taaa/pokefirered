@@ -1,0 +1,14 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/saveCorruption.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/saveCorruption.test.ts (3 tests) 15ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  03:06:47
+   Duration  33.35s (transform 16.46s, setup 0ms, collect 32.55s, tests 15ms, environment 0ms, prepare 413ms)
+

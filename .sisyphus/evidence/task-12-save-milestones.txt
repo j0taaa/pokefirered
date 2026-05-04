@@ -1,0 +1,14 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/saveMilestones.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/saveMilestones.test.ts (5 tests) 31ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  03:05:33
+   Duration  25.63s (transform 13.35s, setup 0ms, collect 24.82s, tests 31ms, environment 1ms, prepare 211ms)
+
