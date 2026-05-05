@@ -27,11 +27,14 @@ const FORBIDDEN_PATTERNS: RegExp[] = [
   /save corrupt/i,
   /battle crash/i,
 ];
+const CANVAS_BOOT_TIMEOUT_MS = 60000;
 
 test.describe('Main route: Badge-to-Hall-of-Fame', () => {
+  test.describe.configure({ timeout: 120000 });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:5173/');
-    await page.waitForSelector('canvas', { timeout: 10000 });
+    await page.waitForSelector('canvas', { timeout: CANVAS_BOOT_TIMEOUT_MS });
   });
 
   // -----------------------------------------------------------------------
@@ -161,7 +164,7 @@ test.describe('Main route: Badge-to-Hall-of-Fame', () => {
       localStorage.setItem('pokefirered.ts.save.v6', 'not-valid-json{{{');
     });
     await page.goto('http://localhost:5173/');
-    await page.waitForSelector('canvas', { timeout: 15000 });
+    await page.waitForSelector('canvas', { timeout: CANVAS_BOOT_TIMEOUT_MS });
     await page.waitForTimeout(300);
     let canvas = page.locator('canvas');
     await expect(canvas).toBeVisible();

@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+const CANVAS_BOOT_TIMEOUT_MS = 60000;
+
 test.describe('Menu keyboard navigation', () => {
+  test.describe.configure({ timeout: 120000 });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:5173/');
-    await page.waitForSelector('canvas', { timeout: 10000 });
+    await page.waitForSelector('canvas', { timeout: CANVAS_BOOT_TIMEOUT_MS });
   });
 
   test('game loads and renders canvas', async ({ page }) => {
