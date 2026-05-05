@@ -3,6 +3,10 @@ import { GameSession } from '../core/gameSession';
 import type { AudioAdapter, InputAdapter, RenderAdapter, StorageAdapter } from './adapters';
 import type { RenderFrameState } from '../core/gameSession';
 import type { InputSnapshot } from '../input/inputState';
+import type { TextApiSaveBlob } from './textApiTypes';
+
+const DEFAULT_MAX_INACTIVE_MS = 60 * 60 * 1000;
+const MAX_ACTION_LOG_ENTRIES = 1000;
 
 const neutralInput = (): InputSnapshot => ({
   up: false,
@@ -74,8 +78,17 @@ export interface Session {
   version: number;
 }
 
+export interface ActionLogEntry {
+  readonly sessionId: string;
+  readonly version: number;
+  readonly actionId: string;
+  readonly resultingVersion: number;
+  readonly timestamp: string;
+}
+
 export interface SessionManagerOptions {
   readonly maxSessions?: number;
+  readonly inactiveTimeoutMs?: number;
   readonly now?: () => Date;
   readonly createId?: () => string;
   readonly createGameSession?: () => GameSession;
@@ -90,19 +103,23 @@ const createHeadlessGameSession = (): GameSession => new GameSession({
 
 export class SessionManager {
   private readonly sessions = new Map<string, Session>();
+  private readonly actionLogs = new Map<string, ActionLogEntry[]>();
   private readonly maxSessions: number;
+  private readonly inactiveTimeoutMs: number;
   private readonly now: () => Date;
   private readonly createId: () => string;
   private readonly createGameSession: () => GameSession;
 
   constructor(options: SessionManagerOptions = {}) {
     this.maxSessions = options.maxSessions ?? 100;
+    this.inactiveTimeoutMs = options.inactiveTimeoutMs ?? DEFAULT_MAX_INACTIVE_MS;
     this.now = options.now ?? (() => new Date());
     this.createId = options.createId ?? randomUUID;
     this.createGameSession = options.createGameSession ?? createHeadlessGameSession;
   }
 
   createSession(): Session {
+    this.cleanupInactiveSessions(this.inactiveTimeoutMs);
     if (this.sessions.size >= this.maxSessions) {
       throw new Error(`Session limit reached (${this.maxSessions}).`);
     }
@@ -117,11 +134,20 @@ export class SessionManager {
       version: 1
     };
     this.sessions.set(id, session);
+    this.actionLogs.set(id, []);
     return session;
   }
 
   getSession(id: string): Session | null {
-    return this.sessions.get(id) ?? null;
+    const session = this.sessions.get(id) ?? null;
+    if (!session) {
+      return null;
+    }
+    if (this.isInactive(session, this.inactiveTimeoutMs)) {
+      this.deleteSession(id);
+      return null;
+    }
+    return session;
   }
 
   deleteSession(id: string): boolean {
@@ -130,6 +156,7 @@ export class SessionManager {
       return false;
     }
     session.gameSession.cleanup();
+    this.actionLogs.delete(id);
     return this.sessions.delete(id);
   }
 
@@ -139,6 +166,66 @@ export class SessionManager {
 
   touch(session: Session): void {
     session.lastActivityAt = this.now();
+  }
+
+  exportSaveBlob(sessionId: string): TextApiSaveBlob {
+    const session = this.requireSession(sessionId);
+    this.touch(session);
+    return { ...session.gameSession.exportSaveBlob(), sessionId: session.id };
+  }
+
+  importSaveBlob(sessionId: string, blob: TextApiSaveBlob): void {
+    const session = this.requireSession(sessionId);
+    session.gameSession.importSaveBlob(blob);
+    session.version += 1;
+    this.touch(session);
+  }
+
+  recordAction(sessionId: string, version: number, actionId: string, resultingVersion: number): void {
+    const session = this.requireSession(sessionId);
+    const entries = this.actionLogs.get(sessionId) ?? [];
+    const timestamp = this.now();
+    entries.push({
+      sessionId,
+      version,
+      actionId,
+      resultingVersion,
+      timestamp: timestamp.toISOString()
+    });
+    if (entries.length > MAX_ACTION_LOG_ENTRIES) {
+      entries.splice(0, entries.length - MAX_ACTION_LOG_ENTRIES);
+    }
+    this.actionLogs.set(sessionId, entries);
+    session.lastActivityAt = timestamp;
+  }
+
+  getActionLog(sessionId: string): ActionLogEntry[] {
+    this.requireSession(sessionId);
+    return [...(this.actionLogs.get(sessionId) ?? [])];
+  }
+
+  cleanupInactiveSessions(maxInactiveMs = this.inactiveTimeoutMs): number {
+    const inactiveSessionIds = [...this.sessions.values()]
+      .filter((session) => this.isInactive(session, maxInactiveMs))
+      .map((session) => session.id);
+
+    for (const id of inactiveSessionIds) {
+      this.deleteSession(id);
+    }
+
+    return inactiveSessionIds.length;
+  }
+
+  private requireSession(id: string): Session {
+    const session = this.getSession(id);
+    if (!session) {
+      throw new Error(`Session not found: ${id}`);
+    }
+    return session;
+  }
+
+  private isInactive(session: Session, maxInactiveMs: number): boolean {
+    return this.now().getTime() - session.lastActivityAt.getTime() > maxInactiveMs;
   }
 
   private nextUniqueId(): string {

@@ -1,0 +1,17 @@
+{
+  "id": "mainRoute",
+  "description": "Accessible API playability route from overworld navigation through dialogue, menu, battle, save, and save export.",
+  "start": { "mapId": "route2", "mode": "overworld" },
+  "steps": [
+    { "id": "overworld-navigation", "mode": "overworld", "category": "maps/warps/connections", "provider": "ActionEnumerator.enumerateSemanticNavigation", "actionType": "navigate-to-connection-up-route2", "expected": "success" },
+    { "id": "npc-dialogue", "mode": "overworld", "category": "NPCs", "provider": "ActionEnumerator.enumerateFieldInteractions", "actionType": "talk-to-professor-oak", "expected": "success" },
+    { "id": "dialogue-choice", "mode": "dialogue", "category": "dialogue choices", "provider": "ActionEnumerator.enumerateDialogue", "actionType": "dialogue-choice-0", "expected": "success" },
+    { "id": "open-start-menu", "mode": "overworld", "category": "start menu", "provider": "ActionEnumerator.enumerateOverworld", "actionType": "openMenu", "expected": "success" },
+    { "id": "open-bag", "mode": "menu", "category": "bag", "provider": "ActionEnumerator.enumerateBag", "actionType": "choose", "target": "bagItem", "expected": "success" },
+    { "id": "battle-command", "mode": "battle", "category": "battle commands", "provider": "ActionEnumerator.enumerateBattle", "actionType": "fight", "expected": "success" },
+    { "id": "battle-move", "mode": "battle", "category": "battle moves", "provider": "ActionEnumerator.enumerateBattle", "actionType": "battleMove", "expected": "success" },
+    { "id": "save-confirm", "mode": "saveLoad", "category": "save", "provider": "ActionEnumerator.enumerateSaveLoad", "actionType": "confirm", "target": "saveLoad", "expected": "success" },
+    { "id": "export-save", "mode": "saveLoad", "category": "save", "provider": "GameSession.exportSaveBlob", "actionType": "exportSaveBlob", "expected": "success" }
+  ],
+  "expectedOutcome": "completed"
+}

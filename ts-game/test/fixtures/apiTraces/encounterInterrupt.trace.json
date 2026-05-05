@@ -1,0 +1,11 @@
+{
+  "id": "encounterInterrupt",
+  "description": "Grass encounter interruption must stop semantic navigation and switch the API to battle choices.",
+  "start": { "mapId": "route1", "mode": "overworld" },
+  "steps": [
+    { "id": "route-navigation-start", "mode": "overworld", "category": "maps/warps/connections", "provider": "ActionEnumerator.enumerateSemanticNavigation", "actionType": "navigate-to-connection-up-route1", "expected": "success" },
+    { "id": "wild-encounter-interrupt", "mode": "battle", "category": "wild/trainer battles", "provider": "ActionEnumerator.enumerateBattle", "actionType": "fight", "expected": "interruptsNavigation", "interruptedActionId": "route-navigation-start" },
+    { "id": "battle-run-choice", "mode": "battle", "category": "battle run/Safari", "provider": "ActionEnumerator.enumerateBattle", "actionType": "flee", "expected": "success" }
+  ],
+  "expectedOutcome": "navigation-interrupted"
+}

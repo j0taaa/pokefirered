@@ -1,0 +1,13 @@
+{
+  "id": "obstacleCases",
+  "description": "Blocked field-move cases must expose semantic disabled reasons instead of raw controls.",
+  "start": { "mapId": "route2", "mode": "overworld" },
+  "steps": [
+    { "id": "cut-missing-move", "mode": "overworld", "category": "field moves", "provider": "ActionEnumerator.enumerateFieldMoves", "actionType": "use-cut", "expected": "disabled", "disabledReasonIncludes": "HM01 Cut" },
+    { "id": "strength-missing-move", "mode": "overworld", "category": "field moves", "provider": "ActionEnumerator.enumerateFieldMoves", "actionType": "use-strength", "expected": "disabled", "disabledReasonIncludes": "HM04 Strength" },
+    { "id": "rock-smash-missing-move", "mode": "overworld", "category": "field moves", "provider": "ActionEnumerator.enumerateFieldMoves", "actionType": "use-rock-smash", "expected": "disabled", "disabledReasonIncludes": "HM06 Rock Smash" },
+    { "id": "surf-missing-badge", "mode": "overworld", "category": "field moves", "provider": "ActionEnumerator.enumerateFieldMoves", "actionType": "use-surf", "expected": "disabled", "disabledReasonIncludes": "Soul Badge" },
+    { "id": "fishing-missing-rod", "mode": "overworld", "category": "field moves", "provider": "ActionEnumerator.enumerateFieldMoves", "actionType": "fish", "expected": "disabled", "disabledReasonIncludes": "fishing rod item" }
+  ],
+  "expectedOutcome": "blocked-with-reasons"
+}

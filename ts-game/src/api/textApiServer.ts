@@ -205,9 +205,12 @@ export const createTextApiServer = (options: TextApiServerOptions = {}): Server 
       }
 
       if (route.resource === 'save') {
-        sessionManager.touch(session);
-        const saveBlob = session.gameSession.exportSaveBlob();
-        writeJson(res, 200, { ...saveBlob, sessionId: session.id } satisfies TextApiSaveBlob);
+        try {
+          writeJson(res, 200, sessionManager.exportSaveBlob(session.id) satisfies TextApiSaveBlob);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to export save blob.';
+          writeError(res, 400, 'save_export_failed', message);
+        }
         return;
       }
 
@@ -220,6 +223,7 @@ export const createTextApiServer = (options: TextApiServerOptions = {}): Server 
         (session.gameSession as typeof session.gameSession & { version: number }).version = session.version;
         const result = actionExecutor.execute(session.gameSession, body.actionId, body.version);
         session.version = result.body.newVersion;
+        sessionManager.recordAction(session.id, body.version, body.actionId, result.body.newVersion);
         if (result.body.success) {
           sessionManager.touch(session);
         }
@@ -234,14 +238,12 @@ export const createTextApiServer = (options: TextApiServerOptions = {}): Server 
       }
 
       try {
-        session.gameSession.importSaveBlob(body);
+        sessionManager.importSaveBlob(session.id, body);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid save blob.';
         writeError(res, 400, 'invalid_save_blob', message);
         return;
       }
-      session.version += 1;
-      sessionManager.touch(session);
       writeJson(res, 200, createSnapshot(session, false));
     } catch (error) {
       if (error instanceof HttpError) {

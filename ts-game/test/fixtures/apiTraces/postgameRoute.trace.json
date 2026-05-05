@@ -1,0 +1,14 @@
+{
+  "id": "postgameRoute",
+  "description": "Postgame and link-adjacent accessible API route covering Sevii navigation, Pokémon Center recovery, PC, Pokédex, options, and party management.",
+  "start": { "mapId": "oneIsland", "mode": "overworld" },
+  "steps": [
+    { "id": "sevii-map-connection", "mode": "overworld", "category": "maps/warps/connections", "provider": "ActionEnumerator.enumerateSemanticNavigation", "actionType": "navigate-to-door-one-island-pokemon-center", "expected": "success" },
+    { "id": "pokemon-center-dialogue", "mode": "dialogue", "category": "Pokémon Center", "provider": "ActionEnumerator.enumerateDialogue", "actionType": "dialogue-continue", "target": "dialogue", "expected": "success" },
+    { "id": "pc-storage", "mode": "menu", "category": "PC", "provider": "ActionEnumerator.enumeratePcStorage", "actionType": "choose", "target": "pcBox", "expected": "success" },
+    { "id": "pokedex-panel", "mode": "menu", "category": "Pokédex", "provider": "ActionEnumerator.enumerateMenu", "actionType": "choose", "target": "menu", "expected": "success" },
+    { "id": "options-panel", "mode": "menu", "category": "options", "provider": "ActionEnumerator.enumerateOptions", "actionType": "optionAdjust", "target": "panel", "expected": "success" },
+    { "id": "party-panel", "mode": "menu", "category": "party", "provider": "ActionEnumerator.enumerateParty", "actionType": "choose", "target": "panel", "expected": "success" }
+  ],
+  "expectedOutcome": "completed"
+}

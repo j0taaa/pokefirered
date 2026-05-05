@@ -5,6 +5,9 @@ import { SessionManager } from '../src/api/sessionManager';
 import type { TextApiOption } from '../src/api/textApiTypes';
 import type { GameRuntimeState, GameSession } from '../src/core/gameSession';
 import { vec2 } from '../src/core/vec2';
+import { OBJ_EVENT_GFX_CUT_TREE } from '../src/game/decompFldEffCut';
+import { OBJ_EVENT_GFX_ROCK_SMASH_ROCK } from '../src/game/decompFldEffRockSmash';
+import { OBJ_EVENT_GFX_PUSHABLE_BOULDER } from '../src/game/decompFldEffStrength';
 import type { InputSnapshot } from '../src/input/inputState';
 import type { NpcState } from '../src/game/npc';
 import type { TileMap } from '../src/world/tileMap';
@@ -186,6 +189,29 @@ describe('Text API field interactions', () => {
     expect(new ActionEnumerator().enumerate(fakeSessionForState(onTile)).some((option) => option.action.target === 'hiddenItem')).toBe(false);
   });
 
+  it('executes hidden item inspection through the same interaction path as map triggers', () => {
+    const base = createBaseState();
+    const map = makeMap(base.map, {
+      hiddenItems: [{ x: 2, y: 2, item: 'ITEM_RARE_CANDY', quantity: 1, flag: 'FLAG_HIDDEN_RARE_CANDY', underfoot: true }]
+    });
+    const state = placePlayer(withState(base, { map, npcs: [] }), 2, 2, 'down');
+    const hiddenOption = findOption(state, (candidate) => candidate.action.target === 'hiddenItem');
+
+    let pressedInteract = false;
+    const result = new ActionExecutor().execute(fakeSessionForState(state, 4, (input) => {
+      pressedInteract ||= input.interactPressed;
+      if (input.interactPressed) {
+        state.scriptRuntime.flags.add('FLAG_HIDDEN_RARE_CANDY');
+      }
+    }), hiddenOption.id, 4);
+
+    expect(result.status).toBe(200);
+    expect(hiddenOption.action.value).toBe('FLAG_HIDDEN_RARE_CANDY');
+    expect(pressedInteract).toBe(true);
+    expect(state.scriptRuntime.flags.has('FLAG_HIDDEN_RARE_CANDY')).toBe(true);
+    expect(new ActionEnumerator().enumerate(fakeSessionForState(state)).some((option) => option.action.target === 'hiddenItem')).toBe(false);
+  });
+
   it('reports field move badge and move prerequisites', () => {
     const base = createBaseState();
     const map = setBehavior(makeMap(base.map), 2, 1, 0x10);
@@ -210,6 +236,87 @@ describe('Text API field interactions', () => {
     missingBadge.scriptRuntime.flags.add('FLAG_BADGE05_GET');
     const surfReady = findOption(missingBadge, (candidate) => candidate.action.type === 'use-surf');
     expect(surfReady.enabled).toBe(true);
+  });
+
+  it('reports object field move prerequisite reasons for Cut, Strength, and Rock Smash', () => {
+    const base = createBaseState();
+    const cases = [
+      {
+        actionType: 'use-cut',
+        graphicsId: OBJ_EVENT_GFX_CUT_TREE,
+        move: 'MOVE_CUT',
+        badge: 'FLAG_BADGE02_GET',
+        missingMoveReason: 'HM01 Cut',
+        missingBadgeReason: 'Cascade Badge'
+      },
+      {
+        actionType: 'use-strength',
+        graphicsId: OBJ_EVENT_GFX_PUSHABLE_BOULDER,
+        move: 'MOVE_STRENGTH',
+        badge: 'FLAG_BADGE04_GET',
+        missingMoveReason: 'HM04 Strength',
+        missingBadgeReason: 'Rainbow Badge'
+      },
+      {
+        actionType: 'use-rock-smash',
+        graphicsId: OBJ_EVENT_GFX_ROCK_SMASH_ROCK,
+        move: 'MOVE_ROCK_SMASH',
+        badge: 'FLAG_BADGE06_GET',
+        missingMoveReason: 'HM06 Rock Smash',
+        missingBadgeReason: 'Marsh Badge'
+      }
+    ] as const;
+
+    for (const fieldMove of cases) {
+      const obstacle = makeNpc({
+        id: `obstacle-${fieldMove.actionType}`,
+        graphicsId: fieldMove.graphicsId,
+        currentTile: vec2(2, 1),
+        position: vec2(2 * 16, 1 * 16)
+      });
+      const state = placePlayer(withState(base, { map: makeMap(base.map), npcs: [obstacle] }), 1, 1, 'right');
+      const missingMove = findOption(state, (candidate) => candidate.action.type === fieldMove.actionType);
+      expect(missingMove.enabled).toBe(false);
+      expect(missingMove.disabledReason).toContain(fieldMove.missingMoveReason);
+
+      state.scriptRuntime.party = [{ ...state.scriptRuntime.party[0], moves: [fieldMove.move] }];
+      const missingBadge = findOption(state, (candidate) => candidate.action.type === fieldMove.actionType);
+      expect(missingBadge.enabled).toBe(false);
+      expect(missingBadge.disabledReason).toContain(fieldMove.missingBadgeReason);
+
+      state.scriptRuntime.flags.add(fieldMove.badge);
+      const ready = findOption(state, (candidate) => candidate.action.type === fieldMove.actionType);
+      expect(ready.enabled).toBe(true);
+    }
+  });
+
+  it('reports Waterfall and fishing prerequisites with semantic disabled reasons', () => {
+    const base = createBaseState();
+    const waterfallMap = setBehavior(makeMap(base.map), 2, 1, 0x13);
+    const noWaterfallMove = placePlayer(withState(base, { map: waterfallMap, npcs: [] }), 1, 1, 'right');
+    const waterfallWithoutMove = findOption(noWaterfallMove, (candidate) => candidate.action.type === 'use-waterfall');
+    expect(waterfallWithoutMove.enabled).toBe(false);
+    expect(waterfallWithoutMove.disabledReason).toContain('HM07 Waterfall');
+
+    const missingPosition = placePlayer(withState(base, {
+      map: waterfallMap,
+      npcs: [],
+      scriptRuntime: {
+        ...base.scriptRuntime,
+        party: [{ ...base.scriptRuntime.party[0], moves: ['MOVE_WATERFALL'] }],
+        flags: new Set<string>(['FLAG_BADGE07_GET'])
+      },
+      player: { ...base.player, avatarMode: 'normal' }
+    }), 1, 1, 'right');
+    const waterfallWrongPosition = findOption(missingPosition, (candidate) => candidate.action.type === 'use-waterfall');
+    expect(waterfallWrongPosition.enabled).toBe(false);
+    expect(waterfallWrongPosition.disabledReason).toContain('surfing north');
+
+    const fishingMap = setBehavior(makeMap(base.map), 2, 1, 0x10);
+    const noRod = placePlayer(withState(base, { map: fishingMap, npcs: [] }), 1, 1, 'right');
+    const fishingWithoutRod = findOption(noRod, (candidate) => candidate.action.type === 'fish');
+    expect(fishingWithoutRod.enabled).toBe(false);
+    expect(fishingWithoutRod.disabledReason).toContain('fishing rod item');
   });
 
   it('round-trips dialogue choices through semantic API actions', () => {
