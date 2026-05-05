@@ -1,4 +1,5 @@
 import type { GameSession } from '../core/gameSession';
+import { fieldUseFuncRod, getFishingRodSecondaryId } from '../game/decompFishing';
 import type { InputSnapshot } from '../input/inputState';
 import { ActionEnumerator } from './actionEnumerator';
 import { StateObserver } from './stateObserver';
@@ -115,13 +116,25 @@ export class ActionExecutor {
         return;
       case 'interact':
       case 'continue':
+      case 'dialogue-continue':
+      case 'read-sign':
+      case 'inspect-object':
+      case 'pick-up-item':
         this.stepInteract(session);
+        return;
+      case 'use-surf':
+      case 'use-waterfall':
+        this.stepFieldMovePrompt(session);
+        return;
+      case 'fish':
+        this.stepFishing(session, action.value);
         return;
       case 'openMenu':
         session.step(withInput({ start: true, startPressed: true }));
         return;
       case 'back':
       case 'cancel':
+      case 'dialogue-cancel':
         this.stepCancel(session);
         return;
       case 'confirm':
@@ -148,6 +161,15 @@ export class ActionExecutor {
         return;
       }
       default:
+        if (action.type.startsWith('dialogue-choice-')) {
+          const targetIndex = numericValue(action);
+          this.chooseIndexThenConfirm(session, targetIndex ?? 0, this.currentSelectionIndex(session, 'dialogue'));
+          return;
+        }
+        if (action.type.startsWith('talk-to-')) {
+          this.stepInteract(session);
+          return;
+        }
         this.stepInteract(session);
     }
   }
@@ -211,6 +233,29 @@ export class ActionExecutor {
 
   private stepInteract(session: GameSession): void {
     session.step(withInput({ interact: true, interactPressed: true }));
+  }
+
+  private stepFieldMovePrompt(session: GameSession): void {
+    this.stepInteract(session);
+    for (let frame = 0; frame < 12; frame += 1) {
+      const choice = session.getRuntimeState().dialogue.choice;
+      if (choice && choice.options.length > 0) {
+        this.chooseIndexThenConfirm(session, 0, choice.selectedIndex);
+        return;
+      }
+      session.step(neutralInput());
+    }
+  }
+
+  private stepFishing(session: GameSession, value: unknown): void {
+    const rod = typeof value === 'string' ? getFishingRodSecondaryId(value) : null;
+    if (rod === null) {
+      this.stepInteract(session);
+      return;
+    }
+
+    const state = session.getRuntimeState();
+    fieldUseFuncRod(state.scriptRuntime, state.player, state.map, rod, state.dialogue);
   }
 
   private stepCancel(session: GameSession): void {
