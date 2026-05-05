@@ -315,6 +315,8 @@ const snapshotToFieldPokemon = (member: BattlePokemonSnapshot) =>
     spDefense: member.spDefense,
     catchRate: member.catchRate,
     types: [...member.types],
+    moves: member.moves.map((move) => move.id),
+    movePpRemaining: member.moves.map((move) => move.ppRemaining),
     status: battleStatusToField(member.status)
   });
 

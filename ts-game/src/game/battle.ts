@@ -1360,6 +1360,18 @@ export const createBattlePokemonFromSpeciesWithMoves = (
 export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): BattlePokemonSnapshot => {
   const species = normalizeSpecies(pokemon.species);
   const personality = Math.trunc(pokemon.personality ?? pokemon.otId ?? hashBattleString(`${species}:${pokemon.level}`)) >>> 0;
+  const explicitMoves = pokemon.moves
+    ?.map((moveId) => createBattleMoveFromId(moveId.replace(/^MOVE_/u, '')))
+    .filter((move): move is BattleMove => move !== null);
+  const moves = explicitMoves && explicitMoves.length > 0
+    ? explicitMoves
+    : getKnownMovesForSpecies(pokemon.species, pokemon.level);
+  pokemon.movePpRemaining?.forEach((ppRemaining, index) => {
+    const move = moves[index];
+    if (move) {
+      move.ppRemaining = Math.max(0, Math.min(move.pp, ppRemaining));
+    }
+  });
   return {
     species,
     level: pokemon.level,
@@ -1384,7 +1396,7 @@ export const createBattlePokemonFromFieldPokemon = (pokemon: FieldPokemon): Batt
     abilityId: getDecompSpeciesInfo(pokemon.species)?.abilities[0] ?? null,
     ivs: createBattleIvs(),
     evs: pokemon.evs ? { ...pokemon.evs } : createBattleEvs(),
-    moves: getKnownMovesForSpecies(pokemon.species, pokemon.level),
+    moves,
     statStages: createStatStages(),
     volatile: createVolatileState()
   };

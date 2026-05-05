@@ -1,0 +1,19 @@
+
+> pokefirered-ts-game@0.1.0 test
+> vitest run --run test/battle.test.ts test/renderBattleLayout.test.ts
+
+
+ RUN  v3.2.4 /home/pokefirered/ts-game
+
+ ✓ test/battle.test.ts (151 tests) 289ms
+ ✓ test/renderBattleLayout.test.ts (15 tests) 14ms
+
+ Test Files  2 passed (2)
+      Tests  166 passed (166)
+   Start at  01:33:35
+   Duration  19.59s (transform 9.13s, setup 0ms, collect 18.49s, tests 304ms, environment 0ms, prepare 207ms)
+
+
+Additional verification:
+- lsp_diagnostics attempted on changed TypeScript files but unavailable: typescript-language-server is not installed in this environment.
+- npm run build: PASS (tsc --noEmit && vite build exited 0).

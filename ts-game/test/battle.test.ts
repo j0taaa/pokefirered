@@ -2309,6 +2309,54 @@ describe('battle vertical slice', () => {
     expect(battle.turnSummary).toContain('used TACKLE');
   });
 
+  test('field party move PP seeds the same active move reference used by the renderer', () => {
+    const battle = createBattleState({
+      playerParty: [{
+        species: 'CHARMANDER',
+        level: 8,
+        maxHp: 23,
+        hp: 23,
+        attack: 13,
+        defense: 11,
+        speed: 99,
+        spAttack: 15,
+        spDefense: 12,
+        catchRate: 45,
+        types: ['fire'],
+        status: 'none',
+        moves: ['TACKLE'],
+        movePpRemaining: [34]
+      }],
+      opponentParty: [{
+        species: 'PIDGEY',
+        level: 3,
+        maxHp: 15,
+        hp: 15,
+        attack: 8,
+        defense: 7,
+        speed: 1,
+        spAttack: 6,
+        spDefense: 6,
+        catchRate: 255,
+        types: ['normal', 'flying'],
+        status: 'none',
+        moves: ['SPLASH']
+      }]
+    });
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+
+    expect(battle.moves).toBe(battle.playerMon.moves);
+    expect(battle.moves[0]!.id).toBe('TACKLE');
+    expect(battle.moves[0]!.ppRemaining).toBe(34);
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.moves).toBe(battle.playerMon.moves);
+    expect(battle.moves[0]!.ppRemaining).toBe(33);
+  });
+
   test('opening the fight menu and canceling back out does not consume PP', () => {
     const battle = createBattleState();
     const encounter = createBattleEncounterState();

@@ -122,6 +122,7 @@ const isFieldPokemon = (value: unknown): value is FieldPokemon => {
   return typeof candidate.species === 'string'
     && (candidate.nickname === undefined || typeof candidate.nickname === 'string')
     && (candidate.moves === undefined || (Array.isArray(candidate.moves) && candidate.moves.every((entry) => typeof entry === 'string')))
+    && (candidate.movePpRemaining === undefined || (Array.isArray(candidate.movePpRemaining) && candidate.movePpRemaining.every((entry) => Number.isInteger(entry))))
     && (candidate.otName === undefined || typeof candidate.otName === 'string')
     && (candidate.otId === undefined || Number.isInteger(candidate.otId))
     && (candidate.personality === undefined || Number.isInteger(candidate.personality))

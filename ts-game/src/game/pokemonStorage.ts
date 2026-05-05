@@ -13,6 +13,7 @@ export interface FieldPokemon {
   species: string;
   nickname?: string;
   moves?: string[];
+  movePpRemaining?: number[];
   otName?: string;
   otId?: number;
   personality?: number;
@@ -94,6 +95,7 @@ export const cloneFieldPokemon = (pokemon: FieldPokemon): FieldPokemon => ({
   ...pokemon,
   evs: pokemon.evs ? { ...pokemon.evs } : undefined,
   moves: pokemon.moves ? [...pokemon.moves] : undefined,
+  movePpRemaining: pokemon.movePpRemaining ? [...pokemon.movePpRemaining] : undefined,
   types: [...pokemon.types]
 });
 
