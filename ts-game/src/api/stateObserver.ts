@@ -54,6 +54,9 @@ export const determineTextApiMode = (state: GameRuntimeState): TextApiMode => {
   if (state.startMenu.active || state.startMenu.panel) {
     return 'menu';
   }
+  if ('active' in state.scriptRuntime.pcStorage && state.scriptRuntime.pcStorage.active === true) {
+    return 'menu';
+  }
   if (state.dialogue.active) {
     return 'dialogue';
   }

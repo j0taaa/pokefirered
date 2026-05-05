@@ -1,8 +1,14 @@
 import type { GameSession } from '../core/gameSession';
+import { getBattleBagChoices } from '../game/battle';
+import { evaluateFieldCollision, getDirectionVector } from '../game/fieldCollision';
 import { fieldUseFuncRod, getFishingRodSecondaryId } from '../game/decompFishing';
+import { getNpcRuntimeObject, isNpcVisible } from '../game/npc';
+import { getPlayerRuntimeObject } from '../game/player';
 import type { InputSnapshot } from '../input/inputState';
+import { loadMapById } from '../world/mapSource';
+import { getCollisionTilePosition, type TileDirection } from '../world/tileMap';
 import { ActionEnumerator } from './actionEnumerator';
-import { StateObserver } from './stateObserver';
+import { determineTextApiMode, StateObserver } from './stateObserver';
 import type { TextApiAction, TextApiActionResult, TextApiError, TextApiOption } from './textApiTypes';
 
 export interface ActionResult {
@@ -11,6 +17,21 @@ export interface ActionResult {
 }
 
 type VersionedGameSession = GameSession & { version?: number };
+type NavigationTargetKind = 'tile' | 'door' | 'warp' | 'npc' | 'sign';
+
+interface NavigationTargetValue {
+  readonly mapId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly kind: NavigationTargetKind;
+  readonly finalFacing?: TileDirection;
+}
+
+interface PathStep {
+  readonly direction: TileDirection;
+  readonly x: number;
+  readonly y: number;
+}
 
 const neutralInput = (): InputSnapshot => ({
   up: false,
@@ -34,6 +55,13 @@ const neutralInput = (): InputSnapshot => ({
 
 const withInput = (partial: Partial<InputSnapshot>): InputSnapshot => ({ ...neutralInput(), ...partial });
 
+const DIRECTION_INPUT: Record<TileDirection, Partial<InputSnapshot>> = {
+  up: { up: true, upPressed: true },
+  down: { down: true, downPressed: true },
+  left: { left: true, leftPressed: true },
+  right: { right: true, rightPressed: true }
+};
+
 const versionOf = (session: GameSession): number => (session as VersionedGameSession).version ?? 0;
 
 const setVersion = (session: GameSession, version: number): void => {
@@ -45,6 +73,20 @@ const numericValue = (action: TextApiAction): number | null =>
 
 const textApiError = (code: string, message: string, details?: TextApiError['details']): TextApiError =>
   details === undefined ? { code, message } : { code, message, details };
+
+const isNavigationTargetValue = (value: unknown): value is NavigationTargetValue => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Partial<NavigationTargetValue>;
+  return typeof candidate.mapId === 'string'
+    && typeof candidate.x === 'number'
+    && Number.isInteger(candidate.x)
+    && typeof candidate.y === 'number'
+    && Number.isInteger(candidate.y)
+    && (candidate.kind === 'tile' || candidate.kind === 'door' || candidate.kind === 'warp' || candidate.kind === 'npc' || candidate.kind === 'sign')
+    && (candidate.finalFacing === undefined || candidate.finalFacing === 'up' || candidate.finalFacing === 'down' || candidate.finalFacing === 'left' || candidate.finalFacing === 'right');
+};
 
 export class ActionExecutor {
   constructor(
@@ -114,6 +156,9 @@ export class ActionExecutor {
       case 'move':
         this.stepMove(session, action.target);
         return;
+      case 'use-cut':
+      case 'use-strength':
+      case 'use-rock-smash':
       case 'interact':
       case 'continue':
       case 'dialogue-continue':
@@ -132,6 +177,16 @@ export class ActionExecutor {
       case 'openMenu':
         session.step(withInput({ start: true, startPressed: true }));
         return;
+      case 'bagPocket': {
+        const targetIndex = numericValue(action);
+        this.choosePocket(session, targetIndex ?? 0);
+        return;
+      }
+      case 'optionAdjust': {
+        const targetIndex = numericValue(action);
+        this.chooseIndexThenAdjust(session, targetIndex ?? 0, this.currentSelectionIndex(session, action.target));
+        return;
+      }
       case 'back':
       case 'cancel':
       case 'dialogue-cancel':
@@ -160,7 +215,38 @@ export class ActionExecutor {
         this.chooseIndexThenConfirm(session, targetIndex ?? 0, session.getRuntimeState().battle.selectedCommandIndex);
         return;
       }
+      case 'battleMove': {
+        const targetIndex = numericValue(action);
+        this.chooseIndexThenConfirm(session, targetIndex ?? 0, session.getRuntimeState().battle.selectedMoveIndex);
+        return;
+      }
+      case 'battleBagItem': {
+        const targetIndex = this.battleBagTargetIndex(session, action.value);
+        this.chooseIndexThenConfirm(session, targetIndex, session.getRuntimeState().battle.selectedBagIndex);
+        return;
+      }
+      case 'battlePartySwitch':
+      case 'battleViewParty': {
+        const targetIndex = numericValue(action);
+        this.chooseIndexThenConfirm(session, targetIndex ?? 0, session.getRuntimeState().battle.selectedPartyIndex);
+        return;
+      }
+      case 'battleShift': {
+        const targetIndex = numericValue(action);
+        this.chooseIndexThenConfirm(session, targetIndex ?? 0, session.getRuntimeState().battle.selectedShiftPromptIndex);
+        return;
+      }
+      case 'battleCancel':
+        this.stepCancel(session);
+        return;
+      case 'battleContinue':
+        this.stepInteract(session);
+        return;
       default:
+        if (action.type.startsWith('navigate-to-')) {
+          this.autopilot(session, action.value);
+          return;
+        }
         if (action.type.startsWith('dialogue-choice-')) {
           const targetIndex = numericValue(action);
           this.chooseIndexThenConfirm(session, targetIndex ?? 0, this.currentSelectionIndex(session, 'dialogue'));
@@ -172,6 +258,19 @@ export class ActionExecutor {
         }
         this.stepInteract(session);
     }
+  }
+
+  private battleBagTargetIndex(session: GameSession, value: unknown): number {
+    const state = session.getRuntimeState();
+    const choices = getBattleBagChoices(state.battle, state.scriptRuntime.bag);
+    if (typeof value === 'string') {
+      const index = choices.findIndex((choice) => choice.itemId === value);
+      return index >= 0 ? index : state.battle.selectedBagIndex;
+    }
+    if (typeof value === 'number' && Number.isInteger(value)) {
+      return value;
+    }
+    return state.battle.selectedBagIndex;
   }
 
   private currentSelectionIndex(session: GameSession, target: string | undefined): number {
@@ -190,6 +289,25 @@ export class ActionExecutor {
       if (panel?.kind === 'pokedex') {
         return panel.screen === 'topMenu' ? panel.topMenuSelectedIndex : panel.orderSelectedIndex;
       }
+    }
+    if (target === 'bagItem') {
+      const bag = state.scriptRuntime.bag;
+      return bag.selectedIndexByPocket[bag.selectedPocket] ?? 0;
+    }
+    if (target === 'bagContext') {
+      const panel = state.startMenu.panel;
+      return panel?.kind === 'bag' ? panel.contextMenu?.selectedIndex ?? 0 : 0;
+    }
+    if (target === 'bagConfirm') {
+      const panel = state.startMenu.panel;
+      return panel?.kind === 'bag' ? panel.confirmationPrompt?.selectedIndex ?? 0 : 0;
+    }
+    if (target === 'partyAction') {
+      const panel = state.startMenu.panel;
+      return panel?.kind === 'party' ? panel.actionIndex : 0;
+    }
+    if (target === 'shop') {
+      return state.dialogue.shop?.selectedIndex ?? 0;
     }
     if (target === 'saveLoad') {
       const panel = state.startMenu.panel;
@@ -212,6 +330,34 @@ export class ActionExecutor {
     this.stepInteract(session);
   }
 
+  private chooseIndexThenAdjust(session: GameSession, targetIndex: number, currentIndex: number): void {
+    const distance = Math.max(0, targetIndex - currentIndex);
+    for (let index = 0; index < distance; index += 1) {
+      session.step(withInput({ down: true, downPressed: true }));
+    }
+
+    const reverseDistance = Math.max(0, currentIndex - targetIndex);
+    for (let index = 0; index < reverseDistance; index += 1) {
+      session.step(withInput({ up: true, upPressed: true }));
+    }
+
+    session.step(withInput({ right: true, rightPressed: true }));
+  }
+
+  private choosePocket(session: GameSession, targetIndex: number): void {
+    const order = ['items', 'keyItems', 'pokeBalls', 'tmCase', 'berryPouch'];
+    const currentPocket = session.getRuntimeState().scriptRuntime.bag.selectedPocket;
+    const currentIndex = Math.max(0, order.indexOf(currentPocket));
+    const clampedTarget = Math.max(0, Math.min(order.length - 1, targetIndex));
+    const distance = clampedTarget - currentIndex;
+    const input = distance > 0
+      ? { right: true, rightPressed: true }
+      : { left: true, leftPressed: true };
+    for (let index = 0; index < Math.abs(distance); index += 1) {
+      session.step(withInput(input));
+    }
+  }
+
   private stepMove(session: GameSession, direction: string | undefined): void {
     switch (direction) {
       case 'north':
@@ -229,6 +375,127 @@ export class ActionExecutor {
       default:
         session.stepFrames([], 1);
     }
+  }
+
+  private autopilot(session: GameSession, rawTarget: unknown): void {
+    if (!isNavigationTargetValue(rawTarget)) {
+      this.stepInteract(session);
+      return;
+    }
+
+    const path = this.findPath(session, rawTarget);
+    if (!path) {
+      session.stepFrames([], 1);
+      return;
+    }
+
+    for (const step of path) {
+      if (!this.stepOneTile(session, step.direction, step.x, step.y)) {
+        return;
+      }
+      if (determineTextApiMode(session.getRuntimeState()) !== 'overworld') {
+        return;
+      }
+    }
+
+    if (rawTarget.finalFacing && session.getRuntimeState().player.facing !== rawTarget.finalFacing) {
+      session.step(withInput(DIRECTION_INPUT[rawTarget.finalFacing]));
+      if (determineTextApiMode(session.getRuntimeState()) !== 'overworld') {
+        return;
+      }
+    }
+
+    if (rawTarget.kind === 'door') {
+      const direction = rawTarget.finalFacing ?? session.getRuntimeState().player.facing;
+      this.stepOneTile(session, direction, rawTarget.x + getDirectionVector(direction).x, rawTarget.y + getDirectionVector(direction).y);
+    }
+  }
+
+  private findPath(session: GameSession, target: NavigationTargetValue): PathStep[] | null {
+    const state = session.getRuntimeState();
+    if (state.map.id !== target.mapId) {
+      return null;
+    }
+
+    const start = state.player.currentTile ?? getCollisionTilePosition(state.player.position, state.map.tileSize);
+    if (start.x === target.x && start.y === target.y) {
+      return [];
+    }
+
+    const queue: { readonly x: number; readonly y: number; readonly path: PathStep[] }[] = [{ x: start.x, y: start.y, path: [] }];
+    const seen = new Set<string>([`${start.x},${start.y}`]);
+    const maxVisited = Math.max(1, state.map.width * state.map.height);
+
+    for (let index = 0; index < queue.length && seen.size <= maxVisited; index += 1) {
+      const current = queue[index];
+      for (const direction of ['up', 'down', 'left', 'right'] as const) {
+        const vector = getDirectionVector(direction);
+        const nextX = current.x + vector.x;
+        const nextY = current.y + vector.y;
+        const key = `${nextX},${nextY}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        const collision = evaluateFieldCollision({
+          map: state.map,
+          object: {
+            ...getPlayerRuntimeObject(state.player, state.map),
+            currentTile: { x: current.x, y: current.y },
+            previousTile: { x: current.x, y: current.y },
+            initialTile: { x: current.x, y: current.y },
+            currentElevation: state.player.currentElevation ?? 0,
+            previousElevation: state.player.currentElevation ?? 0
+          },
+          direction,
+          objects: state.npcs
+            .filter((npc) => isNpcVisible(npc, state.scriptRuntime.flags))
+            .map((npc) => getNpcRuntimeObject(npc, state.map)),
+          loadMapById
+        });
+        if (collision.result !== 'none' || !collision.movementTarget || collision.movementTarget.map.id !== state.map.id) {
+          continue;
+        }
+
+        const nextStep = { direction, x: collision.movementTarget.tile.x, y: collision.movementTarget.tile.y };
+        const nextPath = [...current.path, nextStep];
+        if (nextStep.x === target.x && nextStep.y === target.y) {
+          return nextPath;
+        }
+        seen.add(key);
+        queue.push({ x: nextStep.x, y: nextStep.y, path: nextPath });
+      }
+    }
+
+    return null;
+  }
+
+  private stepOneTile(session: GameSession, direction: TileDirection, expectedX: number, expectedY: number): boolean {
+    const before = session.getRuntimeState();
+    const startMapId = before.map.id;
+    const startTile = before.player.currentTile ?? getCollisionTilePosition(before.player.position, before.map.tileSize);
+
+    for (let frame = 0; frame < 48; frame += 1) {
+      const state = session.getRuntimeState();
+      if (state.map.id !== startMapId) {
+        return false;
+      }
+      if (determineTextApiMode(state) !== 'overworld') {
+        return false;
+      }
+      session.step(withInput(frame === 0 ? DIRECTION_INPUT[direction] : { ...DIRECTION_INPUT[direction], upPressed: false, downPressed: false, leftPressed: false, rightPressed: false }));
+      const next = session.getRuntimeState();
+      if (next.map.id !== startMapId || determineTextApiMode(next) !== 'overworld') {
+        return false;
+      }
+      const tile = next.player.currentTile ?? getCollisionTilePosition(next.player.position, next.map.tileSize);
+      if (tile.x === expectedX && tile.y === expectedY && !next.player.moving && !next.player.stepTarget) {
+        return true;
+      }
+      if (!next.player.moving && !next.player.stepTarget && tile.x === startTile.x && tile.y === startTile.y && frame > 1) {
+        return false;
+      }
+    }
+    return false;
   }
 
   private stepInteract(session: GameSession): void {
