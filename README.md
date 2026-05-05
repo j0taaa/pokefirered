@@ -57,6 +57,18 @@ npm run test -- --run
 npm run build
 ```
 
+## Text API
+
+The TypeScript port also exposes a localhost-only Node REST API for semantic, text-first play. It uses the same runtime underneath the browser build, so it is not a separate text simulation.
+
+```bash
+cd ts-game
+npm run api:build
+npm run api:start -- --port 3000
+```
+
+See [ts-game/README.md](ts-game/README.md#text-api-node-rest) for the endpoint list, curl examples, and verification commands.
+
 Browser route verification (Playwright):
 
 ```bash

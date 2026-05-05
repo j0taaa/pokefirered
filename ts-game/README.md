@@ -38,6 +38,58 @@ npx playwright test e2e/mainRoute.spec.ts e2e/postgameLinkRoute.spec.ts --report
 
 See [roadmap/ROADMAP.md](roadmap/ROADMAP.md) for complete contract details.
 
+## Text API (Node REST)
+
+The accessible text API exposes the real game runtime through semantic options only. It is localhost-only in this phase and does not include auth.
+
+### Quick start
+
+```bash
+npm run api:build
+npm run api:start -- --port 3000
+```
+
+Use `--port 0` for an ephemeral port; the server prints the bound URL on startup.
+
+### Endpoints
+
+- `POST /sessions` — create a session
+- `GET /sessions/:id/state` — read the current snapshot
+- `GET /sessions/:id/state?debug=true` — include debug metadata
+- `POST /sessions/:id/actions` — apply a semantic option
+- `GET /sessions/:id/save` — export a save blob
+- `POST /sessions/:id/load` — import a save blob
+- `DELETE /sessions/:id` — remove a session
+- `GET /health` — health check
+
+### Curl examples
+
+```bash
+curl -X POST http://127.0.0.1:3000/sessions
+curl http://127.0.0.1:3000/sessions/<id>/state?debug=true
+curl -X POST http://127.0.0.1:3000/sessions/<id>/actions \
+  -H 'Content-Type: application/json' \
+  --data '{"version":1,"actionId":"walk-north"}'
+curl http://127.0.0.1:3000/sessions/<id>/save
+curl -X DELETE http://127.0.0.1:3000/sessions/<id>
+```
+
+### Contract notes
+
+- Public options are semantic only; no raw button names, keys, or input sequences appear in responses.
+- Action requests must include the observed `version`; stale actions return `409`.
+- `debug` is omitted by default and only appears when `?debug=true` is requested.
+- Save blobs are portable JSON payloads with `schemaVersion`, `exportedAt`, optional `sessionId`/`checksum`, and `data`.
+
+### Verification commands
+
+```bash
+npm run test -- --run test/textApi*.test.ts test/api*.test.ts
+npm run test -- --run
+npm run build
+npm run api:build
+```
+
 ## Implementation overview
 
 The TypeScript port implements complete FireRed gameplay with 1:1 parity:

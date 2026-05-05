@@ -1,0 +1,46 @@
+# Task 14 — Text API Final Verification
+
+Date: 2026-05-05
+
+## Verification results
+
+- Focused API tests: PASS
+  - Command: `npm run test -- --run test/textApi*.test.ts test/api*.test.ts`
+  - Result: 12 files passed, 72 tests passed, 0 failed
+- Full Vitest suite: PASS
+  - Command: `npm run test -- --run`
+  - Result: 531 files passed, 1 skipped, 4475 tests total, 0 failed
+- Build verification: PASS
+  - Command: `npm run build`
+  - Result: exit 0
+  - Warning: Vite reported a large chunk warning for `dist/assets/index-D3CKTOPP.js`
+- API bundle build: PASS
+  - Command: `npm run api:build`
+  - Result: exit 0
+- API smoke test: PASS
+  - Server start: `npm run api:start -- --host 127.0.0.1 --port 0`
+  - Smoke results: `POST /sessions` 201, `GET /sessions/:id/state` 200, `GET /sessions/:id/state?debug=true` 200, `POST /sessions/:id/actions` 200, `GET /sessions/:id/save` 200, `DELETE /sessions/:id` 204, post-delete `GET /sessions/:id/state` 404
+
+## Files created or modified
+
+- `README.md`
+- `ts-game/README.md`
+- `.sisyphus/evidence/text-api-task-14-full-verify.txt`
+- `.sisyphus/notepads/text-api-accessible-game/learnings.md`
+
+## Known issues
+
+- Build emits a non-fatal Vite chunk-size warning.
+- Text API is localhost-only and unauthenticated by design for this phase.
+
+## Curl examples
+
+```bash
+curl -X POST http://127.0.0.1:3000/sessions
+curl http://127.0.0.1:3000/sessions/<id>/state?debug=true
+curl -X POST http://127.0.0.1:3000/sessions/<id>/actions \
+  -H 'Content-Type: application/json' \
+  --data '{"version":1,"actionId":"walk-north"}'
+curl http://127.0.0.1:3000/sessions/<id>/save
+curl -X DELETE http://127.0.0.1:3000/sessions/<id>
+```
