@@ -20,6 +20,8 @@ import {
   getBattlePpToMaxPpState,
   getBattlePpLineColors
 } from '../src/rendering/battleScreenLayout';
+import { CanvasRenderer } from '../src/rendering/canvasRenderer';
+import { createBattleState } from '../src/game/battle';
 
 describe('battle screen layout parity', () => {
   test('GBA viewport dimensions match FireRed hardware', () => {
@@ -119,5 +121,29 @@ describe('battle screen layout parity', () => {
     const colors = getBattlePpLineColors(10, 10);
     expect(colors.fg).toMatch(/^#[0-9a-f]{6}$/);
     expect(colors.shadow).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  test('battle move renderer prints the current PP after a decrement', () => {
+    const battle = createBattleState();
+    battle.phase = 'moveSelect';
+    battle.selectedMoveIndex = 0;
+    battle.moves[0]!.pp = 35;
+    battle.moves[0]!.ppRemaining = 34;
+
+    const ppText: string[] = [];
+    const renderer = {
+      battleTextboxLayerReady: () => false,
+      drawWindowFrame: () => undefined,
+      drawCursor: () => undefined,
+      drawBattlePal5SmallText: () => undefined,
+      drawBattlePal5SmallTextCustom: (text: string) => {
+        ppText.push(text);
+      }
+    } as unknown as CanvasRenderer;
+
+    (CanvasRenderer.prototype as any).drawBattleMoveMenu.call(renderer, battle);
+
+    expect(ppText).toContain('PP 34/35');
+    expect(ppText).not.toContain('PP 35/35');
   });
 });

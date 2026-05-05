@@ -1,0 +1,9 @@
+Command: npm run test -- --run test/battle.test.ts
+Result: PASS
+
+Vitest summary:
+- 1 file passed
+- 150 tests passed
+
+Notes:
+- `ts-game/test/battle.test.ts` already contains the PP regression cases for 35/35 -> 34/35, 1 PP -> 0 and Struggle fallback, and menu open/cancel no-consume coverage.

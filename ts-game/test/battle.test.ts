@@ -2287,6 +2287,76 @@ describe('battle vertical slice', () => {
     expect([focusPunchBattle.turnSummary, ...focusPunchBattle.queuedMessages]).not.toContain(`${focusPunchBattle.playerMon.species} used FOCUS PUNCH!`);
   });
 
+  test('valid move use decrements PP exactly once from 35/35 to 34/35', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [{ ...makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40), pp: 35, ppRemaining: 35 }];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+    const tacklePp = battle.moves[0]!.ppRemaining;
+    const wildHp = battle.wildMon.hp;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.moves[0]!.ppRemaining).toBe(tacklePp - 1);
+    expect(battle.moves[0]!.ppRemaining).toBe(34);
+    expect(battle.wildMon.hp).toBeLessThan(wildHp);
+    expect(battle.turnSummary).toContain('used TACKLE');
+  });
+
+  test('opening the fight menu and canceling back out does not consume PP', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'command';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [{ ...makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40), pp: 35, ppRemaining: 35 }];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+    battle.selectedCommandIndex = battle.commands.findIndex((command) => command === 'fight');
+
+    stepBattle(battle, confirmInput, encounter);
+    expect(battle.phase).toBe('moveSelect');
+
+    stepBattle(battle, { ...neutralInput, cancel: true, cancelPressed: true }, encounter);
+
+    expect(battle.phase).toBe('command');
+    expect(battle.moves[0]!.ppRemaining).toBe(35);
+  });
+
+  test('a move at 1 PP drops to 0 after use and falls back to Struggle on the next selection', () => {
+    const battle = createBattleState();
+    const encounter = createBattleEncounterState();
+    battle.active = true;
+    battle.phase = 'moveSelect';
+    battle.playerMon.speed = 99;
+    battle.wildMon.speed = 1;
+    battle.moves = [{ ...makeDamageMove('TACKLE', 'EFFECT_HIT', 'normal', 40), pp: 1, ppRemaining: 1 }];
+    battle.playerMon.moves = battle.moves;
+    battle.wildMoves = [makeStatusMove('SPLASH', 'EFFECT_SPLASH', 'normal')];
+    battle.wildMon.moves = battle.wildMoves;
+    const lowPpMove = battle.moves[0]!;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(lowPpMove.ppRemaining).toBe(0);
+    flushScriptMessages(battle, encounter);
+    battle.phase = 'moveSelect';
+    battle.selectedMoveIndex = 0;
+
+    stepBattle(battle, confirmInput, encounter);
+
+    expect(battle.turnSummary).toContain('used STRUGGLE');
+    expect(lowPpMove.ppRemaining).toBe(0);
+  });
+
   test('multi-hit, OHKO, and self-dropping damage effects follow decomp move scripts', () => {
     const doubleHitBattle = createBattleState();
     const singleHitBattle = createBattleState();
