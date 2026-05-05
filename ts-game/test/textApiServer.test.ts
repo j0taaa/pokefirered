@@ -74,10 +74,13 @@ describe('Text API server', () => {
     expect(missingResponse.status).toBe(404);
   });
 
-  it('handles placeholder actions with version checks', async () => {
+  it('handles semantic actions with version checks', async () => {
     const baseUrl = await startServer();
     const createResponse = await fetch(`${baseUrl}/sessions`, { method: 'POST' });
-    const created = await readJson<{ sessionId: string; snapshot: { version: number } }>(createResponse);
+    const created = await readJson<{ sessionId: string; snapshot: { version: number; options: Array<{ id: string; enabled: boolean }> } }>(createResponse);
+    const action = created.snapshot.options.find((option) => option.enabled);
+
+    expect(action).toBeDefined();
 
     const invalidResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/actions`, {
       method: 'POST',
@@ -87,13 +90,13 @@ describe('Text API server', () => {
 
     const staleResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ version: 0, actionId: 'wait' })
+      body: JSON.stringify({ version: 0, actionId: action!.id })
     });
     expect(staleResponse.status).toBe(409);
 
     const actionResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ version: created.snapshot.version, actionId: 'wait' })
+      body: JSON.stringify({ version: created.snapshot.version, actionId: action!.id })
     });
     const result = await readJson<{ success: boolean; newVersion: number; snapshot: { version: number } }>(actionResponse);
 
@@ -132,11 +135,15 @@ describe('Text API server', () => {
   it('keeps multiple sessions isolated', async () => {
     const baseUrl = await startServer();
     const first = await readJson<{ sessionId: string; snapshot: { version: number } }>(await fetch(`${baseUrl}/sessions`, { method: 'POST' }));
-    const second = await readJson<{ sessionId: string; snapshot: { version: number } }>(await fetch(`${baseUrl}/sessions`, { method: 'POST' }));
+    const second = await readJson<{ sessionId: string; snapshot: { version: number; options: Array<{ id: string; enabled: boolean }> } }>(await fetch(`${baseUrl}/sessions`, { method: 'POST' }));
+    const firstStateBefore = await readJson<{ options: Array<{ id: string; enabled: boolean }> }>(await fetch(`${baseUrl}/sessions/${first.sessionId}/state`));
+    const firstAction = firstStateBefore.options.find((option) => option.enabled);
+
+    expect(firstAction).toBeDefined();
 
     await fetch(`${baseUrl}/sessions/${first.sessionId}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ version: first.snapshot.version, actionId: 'wait' })
+      body: JSON.stringify({ version: first.snapshot.version, actionId: firstAction!.id })
     });
 
     const firstState = await readJson<{ version: number }>(await fetch(`${baseUrl}/sessions/${first.sessionId}/state`));

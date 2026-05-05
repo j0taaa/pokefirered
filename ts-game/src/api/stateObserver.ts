@@ -2,6 +2,7 @@ import type { GameRuntimeState, GameSession } from '../core/gameSession';
 import { getCollisionTilePosition } from '../world/tileMap';
 import type { TextApiJsonValue, TextApiMode, TextApiSnapshot } from './textApiTypes';
 import { DescriptionBuilder } from './descriptionBuilder';
+import { ActionEnumerator } from './actionEnumerator';
 
 export interface StateObserverOptions {
   readonly debug?: boolean;
@@ -90,7 +91,10 @@ const buildDebugMetadata = (state: GameRuntimeState, mode: TextApiMode): TextApi
 };
 
 export class StateObserver {
-  constructor(private readonly descriptionBuilder = new DescriptionBuilder()) {}
+  constructor(
+    private readonly descriptionBuilder = new DescriptionBuilder(),
+    private readonly actionEnumerator = new ActionEnumerator()
+  ) {}
 
   observe(session: GameSession, options: StateObserverOptions = {}): TextApiSnapshot {
     const state = session.getRuntimeState();
@@ -100,7 +104,7 @@ export class StateObserver {
       version: (session as VersionedGameSession).version ?? 0,
       summary: this.descriptionBuilder.buildSummary(session),
       details: this.descriptionBuilder.buildDetails(session),
-      options: []
+      options: this.actionEnumerator.enumerate(session)
     };
 
     if (options.debug === true) {

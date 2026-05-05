@@ -27,7 +27,7 @@ const withState = (
 ): GameRuntimeState => ({ ...base, ...override });
 
 describe('Text API snapshots', () => {
-  it('includes required public fields with empty options for the current task', () => {
+  it('includes required public fields with semantic options', () => {
     const { manager, session } = createObservedSession();
 
     const snapshot = observer.observe(session.gameSession);
@@ -37,7 +37,16 @@ describe('Text API snapshots', () => {
       version: 1,
       summary: expect.any(String),
       details: expect.any(String),
-      options: []
+      options: expect.any(Array)
+    }));
+    expect(snapshot.options.length).toBeGreaterThan(0);
+    expect(snapshot.options[0]).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      label: expect.any(String),
+      description: expect.any(String),
+      category: expect.any(String),
+      enabled: expect.any(Boolean),
+      action: expect.objectContaining({ type: expect.any(String) })
     }));
     expect(snapshot.summary.length).toBeGreaterThan(0);
     expect(snapshot.details.length).toBeGreaterThan(snapshot.summary.length);

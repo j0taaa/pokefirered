@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { fileURLToPath } from 'node:url';
 import { SessionManager, type Session } from './sessionManager';
 import { StateObserver } from './stateObserver';
+import { ActionExecutor } from './actionExecutor';
 import type {
   TextApiActionRequest,
   TextApiActionResult,
@@ -113,6 +114,7 @@ const isSaveBlob = (value: unknown): value is TextApiSaveBlob => {
 };
 
 const snapshotObserver = new StateObserver();
+const actionExecutor = new ActionExecutor();
 
 const createSnapshot = (session: Session, debug: boolean): TextApiSnapshot => {
   (session.gameSession as typeof session.gameSession & { version: number }).version = session.version;
@@ -215,21 +217,13 @@ export const createTextApiServer = (options: TextApiServerOptions = {}): Server 
           writeError(res, 400, 'invalid_action_request', 'Action request must include numeric version and string actionId.');
           return;
         }
-        if (body.version !== session.version) {
-          writeError(res, 409, 'stale_action', 'Action version does not match the current session version.');
-          return;
+        (session.gameSession as typeof session.gameSession & { version: number }).version = session.version;
+        const result = actionExecutor.execute(session.gameSession, body.actionId, body.version);
+        session.version = result.body.newVersion;
+        if (result.body.success) {
+          sessionManager.touch(session);
         }
-        if (body.actionId !== 'wait') {
-          writeError(res, 400, 'invalid_action', 'Action is not available for the current snapshot.');
-          return;
-        }
-
-        session.gameSession.stepFrames([], 1);
-        session.version += 1;
-        sessionManager.touch(session);
-        const snapshot = createSnapshot(session, false);
-        const result: TextApiActionResult = { success: true, newVersion: session.version, snapshot };
-        writeJson(res, 200, result);
+        writeJson(res, result.status, result.body satisfies TextApiActionResult);
         return;
       }
 
