@@ -1,0 +1,1 @@
+- Use the existing Vitest renderer integration as the fallback verification path instead of adding production-only debug UI or a flaky random-encounter e2e.

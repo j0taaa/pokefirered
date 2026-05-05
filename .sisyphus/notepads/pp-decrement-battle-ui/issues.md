@@ -1,0 +1,1 @@
+- Playwright battle-flow verification is blocked by the lack of a deterministic battle starter / forced encounter hook in the browser runtime.

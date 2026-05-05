@@ -6,3 +6,5 @@
 - `battle.moves` is an accessor over the active `battle.playerMon.moves`, so the renderer and VM can share the same live move objects when battle state is configured correctly.
 - The propagation gap was field/runtime conversion: `createBattlePokemonFromFieldPokemon` ignored explicit field moves/remaining PP, and `snapshotToFieldPokemon` did not write battle move PP back to runtime party state.
 - Fix preserved single ownership of PP decrement in `battleScriptVm.ts`; conversion now carries `movePpRemaining` between field party state and battle snapshots.
+- `ts-game/src/main.ts` exposes audio/link debug hooks only; there is no battle-specific deterministic entry hook for Playwright.
+- `test/renderBattleLayout.test.ts` already verifies the battle move renderer prints current PP (`PP 34/35`) after a decrement.

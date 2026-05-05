@@ -1,0 +1,12 @@
+Browser battle PP visibility verification fallback
+
+Deterministic Playwright battle entry was not feasible in the browser runtime: `ts-game/src/main.ts` only exposes audio/link debug hooks, and there is no battle-specific test hook or forced-encounter entry point to start a battle deterministically without adding production-only UI.
+
+Fallback verification used the existing Vitest renderer integration path in `test/renderBattleLayout.test.ts` and `test/battleScreenLayout.test.ts`. That coverage already asserts the move menu renders current PP after a decrement (`PP 34/35` vs `PP 35/35`).
+
+Verification command:
+`npm run test -- --run test/renderBattleLayout.test.ts test/battleScreenLayout.test.ts`
+
+Result:
+- 2 test files passed
+- 17 tests passed
