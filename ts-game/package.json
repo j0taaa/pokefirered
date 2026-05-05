@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "api:build": "vite build --ssr src/api/textApiServer.ts --outDir dist-api --emptyOutDir",
+    "api:start": "node dist-api/textApiServer.js --host 127.0.0.1",
+    "test:api": "vitest run test/textApiServer.test.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
