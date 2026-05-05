@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { SessionManager, type Session } from './sessionManager';
+import { StateObserver } from './stateObserver';
 import type {
   TextApiActionRequest,
   TextApiActionResult,
@@ -111,42 +112,11 @@ const isSaveBlob = (value: unknown): value is TextApiSaveBlob => {
   return !!body && typeof body === 'object' && typeof body.schemaVersion === 'number' && typeof body.exportedAt === 'string' && 'data' in body;
 };
 
+const snapshotObserver = new StateObserver();
+
 const createSnapshot = (session: Session, debug: boolean): TextApiSnapshot => {
-  const state = session.gameSession.getRuntimeState();
-  const playerTile = {
-    x: Math.floor(state.player.position.x / state.map.tileSize),
-    y: Math.floor(state.player.position.y / state.map.tileSize)
-  };
-  const snapshot: TextApiSnapshot = {
-    mode: 'overworld',
-    version: session.version,
-    summary: `You are on ${state.map.id}.`,
-    details: `You are at tile (${playerTile.x}, ${playerTile.y}) on ${state.map.id}. Full semantic options will be provided by the action engine task.`,
-    options: [
-      {
-        id: 'wait',
-        label: 'Wait',
-        description: 'Let the current game session advance without choosing a new activity.',
-        category: 'system',
-        enabled: true,
-        action: { type: 'wait' }
-      }
-    ]
-  };
-
-  if (debug) {
-    return {
-      ...snapshot,
-      debug: {
-        mapId: state.map.id,
-        playerTile,
-        npcCount: state.npcs.length,
-        lastScriptId: state.scriptRuntime.lastScriptId
-      }
-    };
-  }
-
-  return snapshot;
+  (session.gameSession as typeof session.gameSession & { version: number }).version = session.version;
+  return snapshotObserver.observe(session.gameSession, { debug });
 };
 
 const getRequiredSession = (manager: SessionManager, sessionId: string): Session | null => manager.getSession(sessionId);
