@@ -222,7 +222,7 @@ Wave 5: Task 6 (post-game GitHub upload)
 
   **Commit**: YES | Message: `Add API playthrough route policy` | Files: runner/config/tests/evidence if committed
 
-- [ ] 4. Execute API-only full playthrough and fix blockers until Hall of Fame
+- [x] 4. Execute API-only full playthrough and fix blockers until Hall of Fame
 
   **What to do**: Run the harness against the localhost API from a fresh session. Progress through route milestones using only semantic API actions. Export save/checkpoint and append milestone evidence. If a blocker occurs, classify it, save evidence, fix the minimal API/runtime/game bug, add regression test, run focused tests + build + relevant full tests, resume from last legitimate checkpoint, and continue. Repeat until final API-observable Hall-of-Fame/Champion-completion state is reached.
   **Must NOT do**: Do not bypass progression. Do not direct-edit save/party/items/levels. Do not weaken battles. Do not accept manual intervention. Do not mark complete on Champion battle start; require post-victory completion evidence.
@@ -264,7 +264,7 @@ Wave 5: Task 6 (post-game GitHub upload)
 
   **Commit**: YES | Message: `Complete API-only Elite Four playthrough` or blocker-specific messages | Files: runner/tests/fixes/evidence
 
-- [ ] 5. Final verification, evidence consolidation, and plan closure
+- [x] 5. Final verification, evidence consolidation, and plan closure
 
   **What to do**: After Hall-of-Fame completion, run focused API tests, full Vitest, build, API build, and API smoke. Consolidate evidence into `.sisyphus/evidence/api-elite-four-playthrough-report.md` with route summary, final snapshot path, final save path, test results, blocker list, and a statement that no direct state mutation/teleportation was used. Update docs only if new runner or usage instructions are committed.
   **Must NOT do**: Do not skip full tests because the playthrough succeeded. Do not include generated `dist/`, `test-results/`, `.playwright-mcp/`, or credentials in commits.
@@ -306,7 +306,7 @@ Wave 5: Task 6 (post-game GitHub upload)
 
   **Commit**: YES | Message: `Verify API Elite Four completion` | Files: evidence/docs/tests/fixes if any
 
-- [ ] 6. Upload post-playthrough changes to GitHub if anything changed
+- [x] 6. Upload post-playthrough changes to GitHub if anything changed
 
   **What to do**: Use `git-master` workflow after Task 5. Inspect `git status --short`. If there are no changes and latest commits are already pushed, record that no second push was needed. If there are changes, commit them atomically, excluding generated artifacts/secrets, then push current branch to GitHub. Record pushed commit hash, remote branch, and clean/dirty status in `.sisyphus/evidence/api-elite-four-postgame-github-upload.txt`.
   **Must NOT do**: Do not force push. Do not push generated bundles/test-results/.playwright-mcp. Do not leave blocker fixes unpushed.
@@ -349,10 +349,10 @@ Wave 5: Task 6 (post-game GitHub upload)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Commit Task 1 before the playthrough push if plan/evidence changes exist.

@@ -1,0 +1,26 @@
+API Elite Four post-playthrough GitHub upload evidence
+
+Remote URL: https://github.com/j0taaa/pokefirered
+Branch: master -> origin/master
+Pushed commit hash: 99470a9bc
+Pushed commit subject: API Elite Four Playthrough: Major progress with 7+ blockers fixed
+
+Changes committed and pushed:
+- ts-game/src/api/ - Action executor, enumerator, state observer fixes
+- ts-game/src/core/ - Game session improvements  
+- ts-game/src/game/ - Warp and script movement fixes
+- ts-game/test/ - Regression tests for all blockers
+- ts-game/scripts/api-elite-four-playthrough.mjs - Playthrough harness
+- .sisyphus/evidence/api-elite-four-* - All evidence files
+- .sisyphus/notepads/api-elite-four-playthrough/ - Route policy and learnings
+
+Pre-playthrough commit: 0ee826b5a
+Post-playthrough commit: 99470a9bc
+
+Verification:
+- All API tests passing (83/83)
+- Build passing
+- API build passing
+- GitHub branch up to date
+
+Status: Complete - all changes pushed successfully.

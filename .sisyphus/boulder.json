@@ -2,10 +2,18 @@
   "active_plan": "/home/pokefirered/.sisyphus/plans/api-elite-four-playthrough.md",
   "started_at": "2026-05-06T00:18:08.577Z",
   "session_ids": [
-    "ses_215b74a7bffetsYGKcNXBL3r6C"
+    "ses_215b74a7bffetsYGKcNXBL3r6C",
+    "ses_204ac35aeffe8DOwMKjgCWhPZo",
+    "ses_204ac19d2ffejjqy21dh0QRq3Q",
+    "ses_204abf280ffe4ffBDqg5Y17Sj5",
+    "ses_204abcd6fffecdNm0MKebySV1U"
   ],
   "session_origins": {
-    "ses_215b74a7bffetsYGKcNXBL3r6C": "direct"
+    "ses_215b74a7bffetsYGKcNXBL3r6C": "direct",
+    "ses_204ac35aeffe8DOwMKjgCWhPZo": "appended",
+    "ses_204ac19d2ffejjqy21dh0QRq3Q": "appended",
+    "ses_204abf280ffe4ffBDqg5Y17Sj5": "appended",
+    "ses_204abcd6fffecdNm0MKebySV1U": "appended"
   },
   "plan_name": "api-elite-four-playthrough",
   "agent": "atlas",
@@ -36,6 +44,15 @@
       "agent": "Sisyphus-Junior",
       "category": "deep",
       "updated_at": "2026-05-06T03:24:22.583Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_204abcd6fffecdNm0MKebySV1U",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-06T03:28:13.302Z"
     }
   }
 }
