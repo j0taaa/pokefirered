@@ -831,6 +831,28 @@ const runSmoke = async (options) => {
   let sessionId = null;
   let latestSnapshot = null;
   let checkpointPath = null;
+  
+  // Oscillation detection - track recent actions to prevent enter/exit loops
+  const recentActionHistory = [];
+  const OSCILLATION_WINDOW = 6;
+  const getActionPattern = (action) => {
+    // Extract pattern from action ID or label to detect oscillation
+    // e.g., "v900:overworld:navigate:connection:south:map-route2" -> "connection:south:map-route2"
+    const match = action.id.match(/:(navigate:[^:]+:[^:]+)$/);
+    return match ? match[1] : action.label;
+  };
+  const detectOscillation = () => {
+    if (recentActionHistory.length < OSCILLATION_WINDOW) return null;
+    const recent = recentActionHistory.slice(-OSCILLATION_WINDOW);
+    const patterns = recent.map(getActionPattern);
+    // Check for A-B-A-B-A-B pattern (oscillation between two actions)
+    if (patterns[0] === patterns[2] && patterns[2] === patterns[4] &&
+        patterns[1] === patterns[3] && patterns[3] === patterns[5] &&
+        patterns[0] !== patterns[1]) {
+      return [patterns[0], patterns[1]];
+    }
+    return null;
+  };
 
   const exportCheckpoint = async (step, label) => {
     const checkpoint = await client.exportSave(sessionId);
@@ -862,7 +884,30 @@ const runSmoke = async (options) => {
       stuck.observeSnapshot(latestSnapshot, step, progress.actionsSinceMilestone);
       observeActionSelectionSnapshot(actionSelection, latestSnapshot);
 
-      const action = chooseFirstEnabledSemanticAction(latestSnapshot, actionSelection);
+      // Check for oscillation and avoid repeating the pattern
+      const oscillatingPatterns = detectOscillation();
+      let action = chooseFirstEnabledSemanticAction(latestSnapshot, actionSelection);
+      const currentPattern = getActionPattern(action);
+      
+      if (oscillatingPatterns && oscillatingPatterns.includes(currentPattern)) {
+        // We're about to repeat an oscillating action - choose alternative
+        const enabled = latestSnapshot.options.filter((option) => option.enabled);
+        const alternative = enabled.find((option) => {
+          const altPattern = getActionPattern(option);
+          return !oscillatingPatterns.includes(altPattern) && 
+            option.category !== 'menu' &&
+            option.label !== 'Interact with what is ahead';
+        });
+        if (alternative) {
+          console.log(`[Step ${step}] Avoiding oscillation - switching from "${action.label}" to "${alternative.label}"`);
+          action = alternative;
+        }
+      }
+      
+      recentActionHistory.push(action);
+      if (recentActionHistory.length > OSCILLATION_WINDOW * 2) {
+        recentActionHistory.shift();
+      }
       trace.record({
         step,
         version: latestSnapshot.version,
