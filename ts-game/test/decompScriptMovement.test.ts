@@ -4,6 +4,7 @@ import {
   GetMovementScript,
   GetMovementScriptIdFromObjectEventId,
   GetMoveObjectsTaskId,
+  HasUnfinishedScriptMovement,
   IsMovementScriptFinished,
   LoadObjectEventIdFromMovementScript,
   LoadObjectEventIdPtrFromMovementScript,
@@ -29,6 +30,7 @@ import {
   getMovementScript,
   getMovementScriptIdFromObjectEventId,
   getMoveObjectsTaskId,
+  hasUnfinishedScriptMovement,
   isMovementScriptFinished,
   loadObjectEventIdFromMovementScript,
   loadObjectEventIdPtrFromMovementScript,
@@ -59,6 +61,7 @@ describe('decompScriptMovement', () => {
     expect(typeof SetMovementScriptFinished).toBe('function');
     expect(typeof IsMovementScriptFinished).toBe('function');
     expect(typeof SetMovementScript).toBe('function');
+    expect(HasUnfinishedScriptMovement).toBe(hasUnfinishedScriptMovement);
     expect(GetMovementScript).toBe(getMovementScript);
     expect(typeof ScriptMovement_AddNewMovement).toBe('function');
     expect(typeof ScriptMovement_UnfreezeActiveObjects).toBe('function');
@@ -170,5 +173,21 @@ describe('decompScriptMovement', () => {
     expect(runtime.objectEvents[1].frozen).toBe(false);
     expect(runtime.tasks[taskId].destroyed).toBe(true);
     expect(getMoveObjectsTaskId(runtime)).toBe(TAIL_SENTINEL);
+  });
+
+  test('unfinished movement detection ignores completed but undisposed tasks', () => {
+    const runtime = createScriptMovementRuntime();
+    runtime.objectEvents[0] = createMovementObjectEvent(0, 1, 0, 0);
+    const taskId = scriptMovementStartMoveObjects(runtime, 50);
+    setObjectEventIdAtMovementScript(runtime, taskId, 0, 0);
+    runtime.movementScripts[0] = [MOVEMENT_ACTION_STEP_END];
+
+    expect(hasUnfinishedScriptMovement(runtime)).toBe(true);
+
+    scriptMovementMoveObjects(runtime, taskId);
+
+    expect(isMovementScriptFinished(runtime, taskId, 0)).toBe(true);
+    expect(runtime.tasks[taskId].destroyed).toBe(false);
+    expect(hasUnfinishedScriptMovement(runtime)).toBe(false);
   });
 });

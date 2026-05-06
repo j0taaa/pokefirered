@@ -4,8 +4,10 @@ import { ActionExecutor } from '../src/api/actionExecutor';
 import { SessionManager } from '../src/api/sessionManager';
 import type { TextApiMode, TextApiOption } from '../src/api/textApiTypes';
 import type { GameRuntimeState, GameSession } from '../src/core/gameSession';
+import { createMapNpcs } from '../src/game/npc';
+import { loadPalletTownProfessorOaksLabMap } from '../src/world/mapSource';
 
-const RAW_CONTROL_PATTERN = /(^|[^a-z0-9])(a|b|start|select|up|down|left|right|button|key)(?=$|[^a-z0-9])/iu;
+const RAW_CONTROL_PATTERN = /(^|[^a-z0-9])((?:press|tap|hold|use)\s+(?:a|b|start|select|up|down|left|right)|(?:a|b|start|select|up|down|left|right)\s+(?:button|key)|button|key)(?=$|[^a-z0-9])/iu;
 
 const createSession = () => {
   const manager = new SessionManager({ createId: () => `action-test-${Math.random().toString(16).slice(2)}` });
@@ -106,6 +108,118 @@ describe('Text API semantic actions', () => {
 
     expect(result.status).toBe(400);
     expect(result.body.error).toEqual(expect.objectContaining({ code: 'disabled_action', message: expect.stringContaining('trainer battle') }));
+
+    manager.deleteSession(session.id);
+  });
+
+  it('advances wait actions by a semantic chunk of frames', () => {
+    const { manager, session } = createSession();
+    const base = session.gameSession.getRuntimeState();
+    const scriptState = withState(base, {
+      dialogue: {
+        ...base.dialogue,
+        scriptSession: { id: 'test-script' } as unknown as typeof base.dialogue.scriptSession
+      }
+    });
+    let waitedFrames = 0;
+    const fakeSession = {
+      ...fakeSessionForState(scriptState, 12),
+      stepFrames: (_inputs: unknown[], frameCount: number) => { waitedFrames += frameCount; }
+    } as unknown as GameSession;
+    const wait = new ActionEnumerator().enumerate(fakeSession).find((option) => option.action.type === 'wait');
+
+    expect(wait).toBeDefined();
+    const result = new ActionExecutor().execute(fakeSession, wait!.id, 12);
+
+    expect(result.status).toBe(200);
+    expect(waitedFrames).toBe(30);
+
+    manager.deleteSession(session.id);
+  });
+
+  it('advances dialogue continuation by a semantic chunk of frames', () => {
+    const { manager, session } = createSession();
+    const base = session.gameSession.getRuntimeState();
+    const dialogueState = withState(base, {
+      dialogue: {
+        ...base.dialogue,
+        active: true,
+        text: 'Long dialogue line.',
+        queue: ['Long dialogue line.'],
+        queueIndex: 0
+      }
+    });
+    let continuedFrames = 0;
+    const fakeSession = {
+      ...fakeSessionForState(dialogueState, 13),
+      stepFrames: (_inputs: unknown[], frameCount: number) => { continuedFrames += frameCount; }
+    } as unknown as GameSession;
+    const continueDialogue = new ActionEnumerator().enumerate(fakeSession).find((option) => option.action.type === 'dialogue-continue');
+
+    expect(continueDialogue).toBeDefined();
+    const result = new ActionExecutor().execute(fakeSession, continueDialogue!.id, 13);
+
+    expect(result.status).toBe(200);
+    expect(continuedFrames).toBe(30);
+
+    manager.deleteSession(session.id);
+  });
+
+  it('prioritizes choosing a starter over navigating to the same starter ball', () => {
+    const { manager, session } = createSession();
+    const base = session.gameSession.getRuntimeState();
+    const map = loadPalletTownProfessorOaksLabMap();
+    const runtime = {
+      ...base.scriptRuntime,
+      vars: {
+        ...base.scriptRuntime.vars,
+        VAR_MAP_SCENE_PALLET_TOWN_PROFESSOR_OAKS_LAB: 2
+      },
+      flags: new Set([...base.scriptRuntime.flags].filter((flag) => flag !== 'FLAG_HIDE_BULBASAUR_BALL'))
+    };
+    const starterState = withState(base, {
+      map,
+      npcs: createMapNpcs(map),
+      player: {
+        ...base.player,
+        position: { x: 8 * map.tileSize, y: 5 * map.tileSize },
+        currentTile: { x: 8, y: 5 },
+        previousTile: { x: 8, y: 5 },
+        facing: 'up',
+        moving: false
+      },
+      scriptRuntime: runtime
+    });
+    let interacted = false;
+    const fakeSession = {
+      ...fakeSessionForState(starterState, 14),
+      step: () => { interacted = true; }
+    } as unknown as GameSession;
+    const options = new ActionEnumerator().enumerate(fakeSession);
+    const bulbasaurOptions = options.filter((option) => /bulbasaur/iu.test(`${option.label}\n${option.description}\n${option.action.target ?? ''}`));
+
+    expect(bulbasaurOptions[0]).toEqual(expect.objectContaining({
+      label: 'Choose Bulbasaur',
+      category: 'interaction',
+      action: expect.objectContaining({ type: 'choose-starter', target: 'LOCALID_BULBASAUR_BALL' })
+    }));
+    expect(bulbasaurOptions.some((option) => option.category === 'navigation')).toBe(true);
+
+    const result = new ActionExecutor().execute(fakeSession, bulbasaurOptions[0]!.id, 14);
+    expect(result.status).toBe(200);
+    expect(interacted).toBe(true);
+
+    const beforeStarterScene = withState(starterState, {
+      scriptRuntime: {
+        ...runtime,
+        vars: {
+          ...runtime.vars,
+          VAR_MAP_SCENE_PALLET_TOWN_PROFESSOR_OAKS_LAB: 1
+        }
+      }
+    });
+    const beforeSceneOptions = new ActionEnumerator().enumerate(fakeSessionForState(beforeStarterScene, 15));
+    expect(beforeSceneOptions.some((option) => option.action.type === 'choose-starter')).toBe(false);
 
     manager.deleteSession(session.id);
   });

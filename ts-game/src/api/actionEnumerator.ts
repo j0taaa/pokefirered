@@ -30,11 +30,11 @@ import type { TextApiAction, TextApiJsonValue, TextApiMode, TextApiOption } from
 
 type Direction = 'north' | 'south' | 'west' | 'east';
 type Facing = PlayerState['facing'];
-type NavigationTargetKind = 'tile' | 'door' | 'warp' | 'npc' | 'sign';
+type NavigationTargetKind = 'tile' | 'connection' | 'door' | 'warp' | 'npc' | 'sign';
 
 type VersionedGameSession = GameSession & { readonly version?: number };
 
-const RAW_CONTROL_PATTERN = /(^|[^a-z0-9])(a|b|start|select|up|down|left|right|button|key)(?=$|[^a-z0-9])/iu;
+const RAW_CONTROL_PATTERN = /(^|[^a-z0-9])((?:press|tap|hold|use)\s+(?:a|b|start|select|up|down|left|right)|(?:a|b|start|select|up|down|left|right)\s+(?:button|key)|button|key)(?=$|[^a-z0-9])/iu;
 
 const DIRECTION_LABELS: Record<Direction, string> = {
   north: 'north',
@@ -378,12 +378,26 @@ const mapName = (mapId: string): string => optionLabelFromId(mapId.replace(/^MAP
 
 const navigationActionType = (targetId: string): string => `navigate-to-${lowerStable(targetId)}`;
 
+const starterSpeciesFromNpc = (npc: NpcState): string | null => {
+  const source = `${npc.id}\n${npc.interactScriptId ?? ''}`;
+  if (/bulbasaur/iu.test(source)) return 'Bulbasaur';
+  if (/squirtle/iu.test(source)) return 'Squirtle';
+  if (/charmander/iu.test(source)) return 'Charmander';
+  return null;
+};
+
+const isItemBallNpc = (npc: NpcState): boolean => npc.graphicsId === 'OBJ_EVENT_GFX_ITEM_BALL';
+
+const isOakLabStarterSelectionScene = (state: GameRuntimeState): boolean =>
+  state.map.id === 'MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB'
+  && (state.scriptRuntime.vars.VAR_MAP_SCENE_PALLET_TOWN_PROFESSOR_OAKS_LAB ?? 0) === 2;
+
 const navigationValue = (
   mapId: string,
   x: number,
   y: number,
   kind: NavigationTargetKind,
-  finalFacing?: TileDirection
+  finalFacing?: Direction
 ): TextApiJsonValue => ({
   mapId,
   x,
@@ -510,7 +524,7 @@ const adjacentStandTile = (
   state: GameRuntimeState,
   targetX: number,
   targetY: number
-): { readonly x: number; readonly y: number; readonly finalFacing: TileDirection } | null => {
+): { readonly x: number; readonly y: number; readonly finalFacing: Direction } | null => {
   const occupied = new Set(visibleNpcs(state).map((npc) => {
     const tile = npcTile(npc, state.map);
     return `${tile.x},${tile.y}`;
@@ -523,7 +537,7 @@ const adjacentStandTile = (
       continue;
     }
     if ((state.map.collisionValues?.[standY * state.map.width + standX] ?? 0) === 0 && !occupied.has(`${standX},${standY}`)) {
-      return { x: standX, y: standY, finalFacing: direction };
+      return { x: standX, y: standY, finalFacing: TILE_TO_API_DIRECTION[direction] };
     }
   }
   return null;
@@ -598,8 +612,8 @@ export class ActionEnumerator {
 
     return [
       ...movement,
-      ...this.enumerateSemanticNavigation(state, version, mode),
       ...this.enumerateFieldInteractions(state, version, mode),
+      ...this.enumerateSemanticNavigation(state, version, mode),
       makeOption({
         version,
         mode,
@@ -668,14 +682,14 @@ export class ActionEnumerator {
       options.push(makeOption({
         version,
         mode,
-        idParts: ['navigate', 'connection', connection.direction, connection.map],
+        idParts: ['navigate', 'connection', targetDirection, connection.map],
         label,
         description: `Navigate to the ${DIRECTION_LABELS[targetDirection]} map connection for ${mapName(connection.map)}.`,
         category: 'navigation',
         action: {
-          type: navigationActionType(`connection-${connection.direction}-${connection.map}`),
+          type: navigationActionType(`connection-${targetDirection}-${connection.map}`),
           target: connection.map,
-          value: navigationValue(state.map.id, destinationX, destinationY, 'tile')
+          value: navigationValue(state.map.id, destinationX, destinationY, 'connection', targetDirection)
         }
       }));
     }
@@ -686,7 +700,7 @@ export class ActionEnumerator {
       const isDoor = (behavior !== null && (behavior === 0x69 || MetatileBehavior_IsWarpDoor(behavior)))
         || /MART|HOUSE|CENTER|GYM|LAB|BUILDING|CAVE|FOREST|TOWER/iu.test(warp.destMap);
       if (isDoor) {
-        const stand = adjacentStandTile(state, warp.x, warp.y) ?? { x: warp.x, y: warp.y + 1, finalFacing: 'up' as const };
+        const stand = adjacentStandTile(state, warp.x, warp.y) ?? { x: warp.x, y: warp.y + 1, finalFacing: 'north' as const };
         options.push(makeOption({
           version,
           mode,
@@ -777,7 +791,7 @@ export class ActionEnumerator {
         action: {
           type: navigationActionType(`facing-door-${facingWarp.destMap}`),
           target: facingWarp.destMap,
-          value: navigationValue(state.map.id, playerTile(state.player, state.map).x, playerTile(state.player, state.map).y, 'door', state.player.facing)
+          value: navigationValue(state.map.id, playerTile(state.player, state.map).x, playerTile(state.player, state.map).y, 'door', TILE_TO_API_DIRECTION[state.player.facing])
         }
       }));
     }
@@ -794,7 +808,18 @@ export class ActionEnumerator {
 
     if (npc) {
       const itemName = npc.itemId ? getItemDefinition(npc.itemId).name : null;
-      if (npc.itemId) {
+      const starterSpecies = starterSpeciesFromNpc(npc);
+      if (starterSpecies && isOakLabStarterSelectionScene(state)) {
+        options.push(makeOption({
+          version,
+          mode,
+          idParts: ['choose-starter', npc.id, starterSpecies],
+          label: `Choose ${starterSpecies}`,
+          description: `Inspect the ${starterSpecies} starter ball in front of you.`,
+          category: 'interaction',
+          action: { type: 'choose-starter', target: npc.id, value: starterSpecies }
+        }));
+      } else if (npc.itemId) {
         options.push(makeOption({
           version,
           mode,
@@ -803,6 +828,16 @@ export class ActionEnumerator {
           description: `Collect the item ball in front of you${itemName ? ` containing ${itemName}` : ''}.`,
           category: 'interaction',
           action: { type: 'pick-up-item', target: npc.id, value: npc.itemId }
+        }));
+      } else if (isItemBallNpc(npc)) {
+        options.push(makeOption({
+          version,
+          mode,
+          idParts: ['inspect-item-ball', npc.id],
+          label: 'Inspect item ball',
+          description: 'Inspect the item ball in front of you.',
+          category: 'interaction',
+          action: { type: 'inspect-object', target: npc.id }
         }));
       } else {
         options.push(makeOption({

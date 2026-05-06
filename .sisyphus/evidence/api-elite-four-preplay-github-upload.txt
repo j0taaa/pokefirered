@@ -1,0 +1,43 @@
+API Elite Four preplay GitHub upload evidence
+
+Remote URL: https://github.com/j0taaa/pokefirered
+Branch: master -> origin/master
+Pushed commit hash: 0ee826b5a694f6cf3f850d0591ef3b417a944c91
+Pushed commit subject: Prepare API Elite Four playthrough
+
+Committed files:
+- .sisyphus/plans/api-elite-four-playthrough.md
+- .sisyphus/plans/text-api-accessible-game.md
+- .sisyphus/notepads/text-api-accessible-game/learnings.md
+
+Excluded files and paths:
+- .playwright-mcp/ (generated Playwright MCP artifact directory)
+- ts-game/test-results/ (generated test artifacts)
+- ts-game/scripts/api-elite-four-playthrough.mjs (untracked after push; not part of preplay upload unit)
+- .sisyphus/boulder.json (local orchestration state)
+- .sisyphus/ralph-loop.local.md (local loop state)
+- .sisyphus/notepads/firered-ts-complete-port/learnings.md (unrelated modified notepad)
+- .sisyphus/notepads/pp-decrement-battle-ui/learnings.md (unrelated modified notepad)
+- .sisyphus/evidence/task-4-artifact-hygiene.txt (unrelated PP/build hygiene evidence)
+- .sisyphus/evidence/task-4-build-verify.txt (unrelated PP/build hygiene evidence)
+- .sisyphus/evidence/task-4-full-verify.txt (unrelated PP/build hygiene evidence)
+- .sisyphus/plans/pp-decrement-battle-ui.md (unrelated plan)
+
+Git status after push, before writing this evidence file:
+```text
+## master...origin/master
+ M .sisyphus/boulder.json
+ M .sisyphus/notepads/firered-ts-complete-port/learnings.md
+ M .sisyphus/notepads/pp-decrement-battle-ui/learnings.md
+ M .sisyphus/ralph-loop.local.md
+?? .playwright-mcp/
+?? .sisyphus/evidence/task-4-artifact-hygiene.txt
+?? .sisyphus/evidence/task-4-build-verify.txt
+?? .sisyphus/evidence/task-4-full-verify.txt
+?? .sisyphus/plans/pp-decrement-battle-ui.md
+?? ts-game/scripts/api-elite-four-playthrough.mjs
+?? ts-game/test-results/
+```
+
+Push command used: GIT_MASTER=1 git push
+Force push used: no

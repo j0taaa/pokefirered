@@ -100,7 +100,7 @@ Wave 5: Task 6 (post-game GitHub upload)
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Upload current repository state to GitHub before playthrough
+- [x] 1. Upload current repository state to GitHub before playthrough
 
   **What to do**: Use `git-master` workflow. Inspect `git status`, staged/unstaged changes, recent commit style, and upstream branch. Commit any relevant current text-API/playthrough plan state that is not yet committed, excluding generated bundles, `test-results/`, `.playwright-mcp/`, credentials, and unrelated dirty files unless clearly part of this work. Push current branch to GitHub using regular push; if no upstream exists, use `git push -u origin HEAD`. Record remote branch and commit hash in `.sisyphus/evidence/api-elite-four-preplay-github-upload.txt`.
   **Must NOT do**: Do not force push. Do not push secrets/generated bundles. Do not rewrite history. Do not include unrelated old workspace noise.
@@ -140,7 +140,7 @@ Wave 5: Task 6 (post-game GitHub upload)
 
   **Commit**: YES | Message: `Prepare API Elite Four playthrough plan` if plan/evidence changes need committing | Files: `.sisyphus/plans/api-elite-four-playthrough.md`, evidence if committed by convention
 
-- [ ] 2. Build API-only playthrough harness contract and baseline smoke
+- [x] 2. Build API-only playthrough harness contract and baseline smoke
 
   **What to do**: Create or choose a runner location. Preferred checked-in path: `ts-game/scripts/api-elite-four-playthrough.mjs` if reusable; otherwise evidence-only script under `.sisyphus/evidence/`. The runner must start or connect to localhost API, create a session, read snapshots, choose semantic action IDs from `options`, apply actions with version, export save checkpoints, write JSONL trace, and exit nonzero on stuck/error. Validate it can complete a short smoke: create session → read state → take one enabled semantic action → save → delete session.
   **Must NOT do**: Do not call game internals directly. Do not use browser controls. Do not mutate saves. Do not invent action IDs absent from snapshots.
@@ -181,7 +181,7 @@ Wave 5: Task 6 (post-game GitHub upload)
 
   **Commit**: YES | Message: `Add API Elite Four playthrough harness` | Files: runner path, tests/evidence if committed
 
-- [ ] 3. Define deterministic FireRed route policy, milestones, and stuck recovery
+- [x] 3. Define deterministic FireRed route policy, milestones, and stuck recovery
 
   **What to do**: Encode a route policy used by the harness. Required milestones: starter choice, Boulder Badge, Cascade Badge, Thunder Badge, Rainbow Badge, Soul Badge, Marsh Badge, Volcano Badge, Earth Badge, Route 22 rival, Victory Road entry/exit, Elite Four Lorelei/Bruno/Agatha/Lance, Champion, Hall of Fame. Use semantic options and optional debug metadata for navigation diagnostics. Set starter/team policy: choose the most robust available starter option from initial flow; catching/grinding/shopping/items are allowed through API; no direct edits. Define stuck detection: 50 identical snapshot summaries+options, 200 actions without milestone progress, any API 5xx, 10 repeated failed actions, save/load failure, or battle blackout loop without recovery.
   **Must NOT do**: Do not require perfect speedrun routing. Do not use external manual steps. Do not expand to Pokédex/postgame.

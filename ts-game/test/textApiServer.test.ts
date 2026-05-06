@@ -61,10 +61,12 @@ describe('Text API server', () => {
       method: 'POST',
       body: JSON.stringify(saveBlob)
     });
-    const loaded = await readJson<{ version: number }>(loadResponse);
+    const loaded = await readJson<{ version: number; options: unknown[]; snapshot?: unknown }>(loadResponse);
 
     expect(loadResponse.status).toBe(200);
     expect(loaded.version).toBe(2);
+    expect(loaded.options).toEqual(expect.any(Array));
+    expect(loaded.snapshot).toBeUndefined();
 
     const deleteResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}`, { method: 'DELETE' });
     expect(deleteResponse.status).toBe(204);
@@ -104,6 +106,59 @@ describe('Text API server', () => {
     expect(result.success).toBe(true);
     expect(result.newVersion).toBe(2);
     expect(result.snapshot.version).toBe(2);
+  });
+
+  it('executes semantic door navigation through the API', async () => {
+    const baseUrl = await startServer();
+    const createResponse = await fetch(`${baseUrl}/sessions`, { method: 'POST' });
+    const created = await readJson<{ sessionId: string; snapshot: { version: number; options: Array<{ id: string; label: string; enabled: boolean }> } }>(createResponse);
+    const enterHouse = created.snapshot.options.find((option) => option.enabled && option.label === 'Enter Pallet Town Players House 1f');
+
+    expect(enterHouse).toBeDefined();
+
+    const actionResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({ version: created.snapshot.version, actionId: enterHouse!.id })
+    });
+
+    expect(actionResponse.status).toBe(200);
+
+    const stateResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/state?debug=true`);
+    const state = await readJson<{ version: number; options: Array<{ id: string; label: string; enabled: boolean }>; debug?: { mapId?: string } }>(stateResponse);
+
+    expect(state.debug?.mapId).toBe('MAP_PALLET_TOWN_PLAYERS_HOUSE_1F');
+
+    const exitHouse = state.options.find((option) => option.enabled && option.label === 'Exit to Pallet Town');
+    expect(exitHouse).toBeDefined();
+
+    const exitResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({ version: state.version, actionId: exitHouse!.id })
+    });
+
+    expect(exitResponse.status).toBe(200);
+
+    const exitedStateResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/state?debug=true`);
+    const exitedState = await readJson<{ version: number; options: Array<{ id: string; label: string; enabled: boolean }>; debug?: { mapId?: string } }>(exitedStateResponse);
+
+    expect(exitedState.debug?.mapId).toBe('MAP_PALLET_TOWN');
+
+    const exitNorth = exitedState.options.find((option) => option.enabled && option.label === 'Exit north to Route1');
+    expect(exitNorth).toBeDefined();
+
+    const routeResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({ version: exitedState.version, actionId: exitNorth!.id })
+    });
+
+    expect(routeResponse.status).toBe(200);
+
+    const routeStateResponse = await fetch(`${baseUrl}/sessions/${created.sessionId}/state?debug=true`);
+    const routeState = await readJson<{ mode: string; debug?: { mapId?: string; internal?: { lastScriptId?: string | null } } }>(routeStateResponse);
+
+    expect(routeState.debug?.mapId).toBe('MAP_PALLET_TOWN');
+    expect(routeState.mode).toBe('script');
+    expect(routeState.debug?.internal?.lastScriptId).toBe('PalletTown_EventScript_OakTriggerLeft');
   });
 
   it('returns exact HTTP errors for missing sessions, wrong methods, bad JSON, and oversized bodies', async () => {

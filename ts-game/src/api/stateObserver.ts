@@ -1,4 +1,5 @@
 import type { GameRuntimeState, GameSession } from '../core/gameSession';
+import { hasUnfinishedScriptMovement } from '../game/decompScriptMovement';
 import { getCollisionTilePosition } from '../world/tileMap';
 import type { TextApiJsonValue, TextApiMode, TextApiSnapshot } from './textApiTypes';
 import { DescriptionBuilder } from './descriptionBuilder';
@@ -28,7 +29,7 @@ const hasSaveLoadState = (state: GameRuntimeState): boolean =>
 const hasScriptLock = (state: GameRuntimeState): boolean =>
   state.dialogue.scriptSession !== null
   || state.scriptRuntime.eventObjectLock.task !== null
-  || state.scriptRuntime.scriptMovement.tasks.some((task) => !task.destroyed)
+  || hasUnfinishedScriptMovement(state.scriptRuntime.scriptMovement)
   || state.scriptRuntime.fieldCamera !== null
   || state.scriptRuntime.fieldEffects.fishing !== null;
 
@@ -68,12 +69,18 @@ export const determineTextApiMode = (state: GameRuntimeState): TextApiMode => {
 
 const buildDebugMetadata = (state: GameRuntimeState, mode: TextApiMode): TextApiJsonValue => {
   const playerTile = getCollisionTilePosition(state.player.position, state.map.tileSize);
+  const keyItems = state.scriptRuntime.bag.pockets.keyItems
+    .filter((slot) => slot.quantity > 0)
+    .map((slot) => slot.itemId);
   return {
     mapId: state.map.id,
     player: {
       x: playerTile.x,
       y: playerTile.y,
       facing: state.player.facing
+    },
+    inventory: {
+      keyItems
     },
     internal: {
       mode,
@@ -88,7 +95,12 @@ const buildDebugMetadata = (state: GameRuntimeState, mode: TextApiMode): TextApi
       activeFieldAction: state.activeFieldAction?.kind ?? null,
       activeTrainerSee: state.activeTrainerSee?.phase ?? null,
       lastScriptId: state.scriptRuntime.lastScriptId,
-      pendingScriptWarp: state.scriptRuntime.pendingScriptWarp?.kind ?? null
+      pendingScriptWarp: state.scriptRuntime.pendingScriptWarp?.kind ?? null,
+      eventObjectLockTask: state.scriptRuntime.eventObjectLock.task?.kind ?? null,
+      scriptMovementTaskCount: state.scriptRuntime.scriptMovement.tasks.filter((task) => !task.destroyed).length,
+      unfinishedScriptMovement: hasUnfinishedScriptMovement(state.scriptRuntime.scriptMovement),
+      fieldCameraActive: state.scriptRuntime.fieldCamera !== null,
+      fishingActive: state.scriptRuntime.fieldEffects.fishing !== null
     }
   };
 };

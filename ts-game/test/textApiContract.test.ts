@@ -11,7 +11,7 @@ import {
   TEXT_API_ENDPOINT_CONTRACT
 } from '../src/api/textApiTypes';
 
-const RAW_CONTROL_PATTERN = /(^|[^a-z0-9])(a|b|start|select|up|down|left|right|button|key)(?=$|[^a-z0-9])/i;
+const RAW_CONTROL_PATTERN = /(^|[^a-z0-9])((?:press|tap|hold|use)\s+(?:a|b|start|select|up|down|left|right)|(?:a|b|start|select|up|down|left|right)\s+(?:button|key)|button|key)(?=$|[^a-z0-9])/i;
 
 function stringValuesFrom(value: unknown): string[] {
   if (typeof value === 'string') {
@@ -193,7 +193,10 @@ describe('Text API Contract', () => {
 
     it('makes the raw-control leakage guard testable', () => {
       expect(containsRawControl(['Press START to continue'])).toBe(true);
+      expect(containsRawControl(['Press A to continue'])).toBe(true);
       expect(containsRawControl(['Use the button now'])).toBe(true);
+      expect(containsRawControl(['A person or object is blocking the way.'])).toBe(false);
+      expect(containsRawControl(['Face this nearby person and start their interaction.'])).toBe(false);
       expect(containsRawControl(['Semantic action only'])).toBe(false);
     });
   });

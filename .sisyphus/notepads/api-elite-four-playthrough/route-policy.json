@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "name": "api-elite-four-fire-red-route-policy",
+  "detectorFunctionSignature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+  "starterTeamPolicy": {
+    "starterChoice": "Choose Bulbasaur when available because its Grass/Poison typing gives the most robust early-game path through Brock and Misty while keeping later team slots flexible.",
+    "selectionPolicy": "During the initial starter flow, choose the enabled semantic option whose label, description, or action payload contains Bulbasaur. If Bulbasaur is unavailable, choose Squirtle; if neither is available, choose the first enabled starter option and record the deviation.",
+    "teamPolicy": "Build a practical completion team through legitimate API actions only. Catch useful encounters, grind levels, shop for legal items, and use held/bag items through exposed semantic options. Do not edit party, stats, inventory, flags, map position, or save data directly."
+  },
+  "allowedStrategies": [
+    "choose semantic options returned by GET /sessions/:id/state snapshots",
+    "catch Pokemon through normal battle/API flows",
+    "grind wild or trainer battles through semantic options",
+    "shop at marts and use items through semantic options",
+    "use debug snapshot metadata only for route diagnostics and milestone detection",
+    "export and load portable API save blobs for checkpoint rollback"
+  ],
+  "forbiddenStrategies": [
+    "manual browser/controller input",
+    "raw button/key/control actions",
+    "direct runtime mutation",
+    "save editing or inventory/party/stat injection",
+    "debug warps, teleports, or bypassed progression",
+    "Pokedex or postgame expansion beyond Hall of Fame completion"
+  ],
+  "checkpointPolicy": {
+    "saveAtMilestoneTypes": ["badge", "elite-four-prep", "champion-prep", "completion"],
+    "saveAtMilestones": [
+      "boulder-badge",
+      "cascade-badge",
+      "thunder-badge",
+      "rainbow-badge",
+      "soul-badge",
+      "marsh-badge",
+      "volcano-badge",
+      "earth-badge",
+      "victory-road-exit",
+      "elite-four-lorelei",
+      "elite-four-bruno",
+      "elite-four-agatha",
+      "elite-four-lance",
+      "champion",
+      "hall-of-fame"
+    ],
+    "labels": {
+      "beforeEliteFour": "before-elite-four",
+      "beforeChampion": "before-champion",
+      "afterHallOfFame": "after-hall-of-fame"
+    }
+  },
+  "stuckDetection": {
+    "identicalSnapshotSummaryOptionsLimit": 50,
+    "actionsWithoutMilestoneLimit": 200,
+    "repeatedFailedActionsLimit": 10,
+    "api5xxIsStuck": true,
+    "saveLoadFailureIsStuck": true,
+    "battleBlackoutLoopWithoutRecoveryIsStuck": true,
+    "rollbackPolicy": "On a classified stuck state, load the most recent legitimate checkpoint save blob and resume from its checkpoint label; if no checkpoint exists, fail with evidence instead of mutating state."
+  },
+  "milestones": [
+    {
+      "id": "starter-choice",
+      "name": "Starter choice",
+      "type": "route",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Bulbasaur", "Squirtle", "Charmander", "starter", "received"],
+        "debugAny": ["starter", "PlayerParty", "party"]
+      },
+      "checkpointLabel": "starter-choice",
+      "nextGoalPolicy": "Leave Pallet Town, complete the parcel flow, and progress through Viridian Forest toward Pewter City."
+    },
+    {
+      "id": "boulder-badge",
+      "name": "Boulder Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Boulder Badge", "Brock", "Pewter Gym"],
+        "debugAny": ["BADGE01", "FLAG_BADGE01_GET", "Boulder"]
+      },
+      "checkpointLabel": "badge-boulder",
+      "nextGoalPolicy": "Travel through Mt. Moon to Cerulean City and prepare for Misty."
+    },
+    {
+      "id": "cascade-badge",
+      "name": "Cascade Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Cascade Badge", "Misty", "Cerulean Gym"],
+        "debugAny": ["BADGE02", "FLAG_BADGE02_GET", "Cascade"]
+      },
+      "checkpointLabel": "badge-cascade",
+      "nextGoalPolicy": "Clear Nugget Bridge/Bill flow as needed, reach Vermilion City, and prepare for Lt. Surge."
+    },
+    {
+      "id": "thunder-badge",
+      "name": "Thunder Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Thunder Badge", "Lt. Surge", "Vermilion Gym"],
+        "debugAny": ["BADGE03", "FLAG_BADGE03_GET", "Thunder"]
+      },
+      "checkpointLabel": "badge-thunder",
+      "nextGoalPolicy": "Route through Rock Tunnel/Lavender/Celadon and prepare for Erika."
+    },
+    {
+      "id": "rainbow-badge",
+      "name": "Rainbow Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Rainbow Badge", "Erika", "Celadon Gym"],
+        "debugAny": ["BADGE04", "FLAG_BADGE04_GET", "Rainbow"]
+      },
+      "checkpointLabel": "badge-rainbow",
+      "nextGoalPolicy": "Resolve Rocket/Lavender progression, then route toward Fuchsia and Saffron objectives."
+    },
+    {
+      "id": "soul-badge",
+      "name": "Soul Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Soul Badge", "Koga", "Fuchsia Gym"],
+        "debugAny": ["BADGE05", "FLAG_BADGE05_GET", "Soul"]
+      },
+      "checkpointLabel": "badge-soul",
+      "nextGoalPolicy": "Complete required Safari/Fuchsia progression and route to Saffron Gym."
+    },
+    {
+      "id": "marsh-badge",
+      "name": "Marsh Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Marsh Badge", "Sabrina", "Saffron Gym"],
+        "debugAny": ["BADGE06", "FLAG_BADGE06_GET", "Marsh"]
+      },
+      "checkpointLabel": "badge-marsh",
+      "nextGoalPolicy": "Route to Cinnabar Island and prepare for Blaine."
+    },
+    {
+      "id": "volcano-badge",
+      "name": "Volcano Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Volcano Badge", "Blaine", "Cinnabar Gym"],
+        "debugAny": ["BADGE07", "FLAG_BADGE07_GET", "Volcano"]
+      },
+      "checkpointLabel": "badge-volcano",
+      "nextGoalPolicy": "Return to Viridian Gym and prepare for Giovanni."
+    },
+    {
+      "id": "earth-badge",
+      "name": "Earth Badge",
+      "type": "badge",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Earth Badge", "Giovanni", "Viridian Gym"],
+        "debugAny": ["BADGE08", "FLAG_BADGE08_GET", "Earth"]
+      },
+      "checkpointLabel": "badge-earth",
+      "nextGoalPolicy": "Defeat the Route 22 rival and enter Victory Road."
+    },
+    {
+      "id": "route-22-rival",
+      "name": "Route 22 rival",
+      "type": "route",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Route 22", "rival", "Victory Road gate"],
+        "debugAny": ["Route22", "EVENT_BEAT_ROUTE22_RIVAL", "RIVAL"]
+      },
+      "checkpointLabel": "route-22-rival",
+      "nextGoalPolicy": "Pass badge gates and enter Victory Road."
+    },
+    {
+      "id": "victory-road-entry",
+      "name": "Victory Road entry",
+      "type": "route",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Victory Road", "entered Victory Road"],
+        "debugAny": ["VictoryRoad", "MAP_VICTORY_ROAD"]
+      },
+      "checkpointLabel": "victory-road-entry",
+      "nextGoalPolicy": "Navigate Victory Road, using legal items and battles as needed, then exit toward Indigo Plateau."
+    },
+    {
+      "id": "victory-road-exit",
+      "name": "Victory Road exit",
+      "type": "elite-four-prep",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Indigo Plateau", "Pokemon League", "Victory Road exit"],
+        "debugAny": ["IndigoPlateau", "MAP_INDIGO_PLATEAU"]
+      },
+      "checkpointLabel": "before-elite-four",
+      "nextGoalPolicy": "Shop, heal, save a checkpoint, and challenge Lorelei."
+    },
+    {
+      "id": "elite-four-lorelei",
+      "name": "Elite Four Lorelei",
+      "type": "elite-four",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Lorelei", "Elite Four", "Ice"],
+        "debugAny": ["LORELEI", "TRAINER_LORELEI"]
+      },
+      "checkpointLabel": "elite-four-lorelei",
+      "nextGoalPolicy": "Proceed directly to Bruno after victory; recover with legal items if needed."
+    },
+    {
+      "id": "elite-four-bruno",
+      "name": "Elite Four Bruno",
+      "type": "elite-four",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Bruno", "Elite Four", "Fighting"],
+        "debugAny": ["BRUNO", "TRAINER_BRUNO"]
+      },
+      "checkpointLabel": "elite-four-bruno",
+      "nextGoalPolicy": "Proceed directly to Agatha after victory; recover with legal items if needed."
+    },
+    {
+      "id": "elite-four-agatha",
+      "name": "Elite Four Agatha",
+      "type": "elite-four",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Agatha", "Elite Four", "Ghost"],
+        "debugAny": ["AGATHA", "TRAINER_AGATHA"]
+      },
+      "checkpointLabel": "elite-four-agatha",
+      "nextGoalPolicy": "Proceed directly to Lance after victory; recover with legal items if needed."
+    },
+    {
+      "id": "elite-four-lance",
+      "name": "Elite Four Lance",
+      "type": "champion-prep",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Lance", "Elite Four", "Dragon"],
+        "debugAny": ["LANCE", "TRAINER_LANCE"]
+      },
+      "checkpointLabel": "before-champion",
+      "nextGoalPolicy": "Save before Champion, use legal recovery, and enter the Champion battle."
+    },
+    {
+      "id": "champion",
+      "name": "Champion",
+      "type": "champion",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Champion", "rival", "became the Champion"],
+        "debugAny": ["CHAMPION", "TRAINER_CHAMPION", "RIVAL_CHAMPION"]
+      },
+      "checkpointLabel": "champion",
+      "nextGoalPolicy": "Advance through post-battle Hall of Fame registration without starting postgame goals."
+    },
+    {
+      "id": "hall-of-fame",
+      "name": "Hall of Fame",
+      "type": "completion",
+      "detector": {
+        "signature": "detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean",
+        "summaryAny": ["Hall of Fame", "credits", "entered the Hall of Fame"],
+        "debugAny": ["HALL_OF_FAME", "GAME_CLEAR", "HallOfFame"]
+      },
+      "checkpointLabel": "after-hall-of-fame",
+      "nextGoalPolicy": "Stop the run after checkpointing final completion evidence."
+    }
+  ]
+}

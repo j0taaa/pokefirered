@@ -122,3 +122,8 @@
 - Task 18 browser route QA evidence now lives at .sisyphus/evidence/task-18-main-route.zip and .sisyphus/evidence/task-18-postgame-link.zip with command, timestamp, spec names, and 13/13 pass summary.
 
 - 2026-05-04: Removed the last WebRTC coverage inventory needle; two-client handshake coverage now keys on InMemoryLinkHub/local multi-client transport wording.
+
+## Task 21 Build Verification - 2026-05-05
+- `npm run build` in `ts-game/` passed (`tsc --noEmit && vite build`) and emitted a fresh `dist/` tree.
+- `git status --short` showed `dist/`, `test-results/`, and `.playwright-mcp/` as workspace artifacts only; none were staged.
+- Evidence captured in `.sisyphus/evidence/task-4-build-verify.txt` and `.sisyphus/evidence/task-4-artifact-hygiene.txt`.

@@ -1,0 +1,35 @@
+
+> pokefirered-ts-game@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.2 building client environment for production...
+transforming...
+✓ 5139 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                          0.43 kB │ gzip:     0.29 kB
+dist/assets/textbox-VOQdtxEA.bin         4.10 kB
+dist/assets/metatiles-BilEIemu.bin       4.10 kB
+dist/assets/metatiles-BNF26QTQ.bin       4.13 kB
+dist/assets/tiles-C5G8ZVSL.png           4.19 kB
+dist/assets/tiles-Oh0U4wzM.png           4.22 kB
+dist/assets/tiles-CoPLm-o1.png           4.54 kB
+dist/assets/metatiles-o9Fa6N7X.bin       4.56 kB
+dist/assets/metatiles-BaK9eJAm.bin       4.61 kB
+dist/assets/tiles-DwE7oPx5.png           4.98 kB
+dist/assets/metatiles-D2Hzx77L.bin       5.38 kB
+dist/assets/metatiles-foHTb2YX.bin       6.05 kB
+dist/assets/metatiles-CAfY3nwV.bin       6.14 kB
+dist/assets/tiles-BEwxpM8M.png           7.01 kB
+dist/assets/metatiles-Db-9QFJU.bin       8.19 kB
+dist/assets/tiles-CVjVLxay.png           8.67 kB
+dist/assets/metatiles-XoPKTBm_.bin      10.24 kB
+dist/assets/metatiles-D7NRWZcJ.bin      10.24 kB
+dist/assets/index-29dqRoLm.css           5.62 kB │ gzip:     1.76 kB
+dist/assets/index-DT_TDgx_.js       14,827.09 kB │ gzip: 2,514.06 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 13.38s

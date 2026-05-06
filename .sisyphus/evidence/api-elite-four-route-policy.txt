@@ -1,0 +1,39 @@
+API Elite Four route policy: PASS
+Policy: ../.sisyphus/notepads/api-elite-four-playthrough/route-policy.json
+Milestones: 18
+Detector signature: detectMilestone(snapshot: TextApiSnapshot, milestone: RouteMilestone): boolean
+Starter policy: Choose Bulbasaur when available because its Grass/Poison typing gives the most robust early-game path through Brock and Misty while keeping later team slots flexible.
+Stuck thresholds: identical=50, noMilestone=200, failedActions=10
+Required milestones:
+- starter-choice: checkpoint=starter-choice; next=Leave Pallet Town, complete the parcel flow, and progress through Viridian Forest toward Pewter City.
+- boulder-badge: checkpoint=badge-boulder; next=Travel through Mt. Moon to Cerulean City and prepare for Misty.
+- cascade-badge: checkpoint=badge-cascade; next=Clear Nugget Bridge/Bill flow as needed, reach Vermilion City, and prepare for Lt. Surge.
+- thunder-badge: checkpoint=badge-thunder; next=Route through Rock Tunnel/Lavender/Celadon and prepare for Erika.
+- rainbow-badge: checkpoint=badge-rainbow; next=Resolve Rocket/Lavender progression, then route toward Fuchsia and Saffron objectives.
+- soul-badge: checkpoint=badge-soul; next=Complete required Safari/Fuchsia progression and route to Saffron Gym.
+- marsh-badge: checkpoint=badge-marsh; next=Route to Cinnabar Island and prepare for Blaine.
+- volcano-badge: checkpoint=badge-volcano; next=Return to Viridian Gym and prepare for Giovanni.
+- earth-badge: checkpoint=badge-earth; next=Defeat the Route 22 rival and enter Victory Road.
+- route-22-rival: checkpoint=route-22-rival; next=Pass badge gates and enter Victory Road.
+- victory-road-entry: checkpoint=victory-road-entry; next=Navigate Victory Road, using legal items and battles as needed, then exit toward Indigo Plateau.
+- victory-road-exit: checkpoint=before-elite-four; next=Shop, heal, save a checkpoint, and challenge Lorelei.
+- elite-four-lorelei: checkpoint=elite-four-lorelei; next=Proceed directly to Bruno after victory; recover with legal items if needed.
+- elite-four-bruno: checkpoint=elite-four-bruno; next=Proceed directly to Agatha after victory; recover with legal items if needed.
+- elite-four-agatha: checkpoint=elite-four-agatha; next=Proceed directly to Lance after victory; recover with legal items if needed.
+- elite-four-lance: checkpoint=before-champion; next=Save before Champion, use legal recovery, and enter the Champion battle.
+- champion: checkpoint=champion; next=Advance through post-battle Hall of Fame registration without starting postgame goals.
+- hall-of-fame: checkpoint=after-hall-of-fame; next=Stop the run after checkpointing final completion evidence.
+Allowed strategies:
+- choose semantic options returned by GET /sessions/:id/state snapshots
+- catch Pokemon through normal battle/API flows
+- grind wild or trainer battles through semantic options
+- shop at marts and use items through semantic options
+- use debug snapshot metadata only for route diagnostics and milestone detection
+- export and load portable API save blobs for checkpoint rollback
+Forbidden strategies:
+- manual browser/controller input
+- raw button/key/control actions
+- direct runtime mutation
+- save editing or inventory/party/stat injection
+- debug warps, teleports, or bypassed progression
+- Pokedex or postgame expansion beyond Hall of Fame completion

@@ -1,0 +1,13 @@
+API harness smoke: PASS
+Base URL: http://127.0.0.1:3107
+Actions executed: 1
+Trace: ../.sisyphus/evidence/api-elite-four-trace.jsonl
+Latest checkpoint: ../.sisyphus/evidence/api-elite-four-checkpoints/checkpoint-0001-final-smoke.json
+Final mode/version: overworld/2
+Milestones observed: starter-choice
+HTTP statuses:
+- POST /sessions: 201 (expected 201)
+- GET /sessions/:id/state?debug=true: 200 (expected 200)
+- POST /sessions/:id/actions: 200 (expected 200)
+- GET /sessions/:id/save: 200 (expected 200)
+- DELETE /sessions/:id: 204 (expected 204)

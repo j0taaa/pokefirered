@@ -1,0 +1,663 @@
+{
+  "sessionId": "2a72c321-0982-4a81-835e-cb48984d5130",
+  "step": 200,
+  "label": "interval-200",
+  "save": {
+    "schemaVersion": 1,
+    "exportedAt": "2026-05-06T03:21:16.054Z",
+    "data": {
+      "schemaVersion": 6,
+      "format": "pokefirered.ts.save",
+      "payload": {
+        "schemaVersion": 6,
+        "mapId": "MAP_PALLET_TOWN_PROFESSOR_OAKS_LAB",
+        "saveIndex": 1,
+        "savedAt": "2026-05-06T03:21:16.054Z",
+        "player": {
+          "x": 112,
+          "y": 128,
+          "facing": "up"
+        },
+        "runtime": {
+          "vars": {
+            "encryptionKey": 0,
+            "moneyEncryptionKey": 0,
+            "coinsEncryptionKey": 0,
+            "unkFlag1": 1,
+            "unkFlag2": 0,
+            "playerTrainerId": 3757954070,
+            "trainerId": 54294,
+            "playTimeSeconds": 97,
+            "playTimeMinutes": 1,
+            "moneyEncrypted": 3000,
+            "money": 3000,
+            "coinsEncrypted": 0,
+            "coins": 0,
+            "savedWeather": 0,
+            "nextWeather": 0,
+            "VAR_TEMP_1": 0,
+            "VAR_0x8004": 0,
+            "VAR_0x8005": 2,
+            "VAR_PREV_TEXT_COLOR": 3,
+            "VAR_TEXT_COLOR": 0,
+            "VAR_MAP_SCENE_PALLET_TOWN_PROFESSOR_OAKS_LAB": 3,
+            "VAR_MAP_SCENE_PALLET_TOWN_OAK": 1,
+            "PLAYER_STARTER_NUM": 0,
+            "PLAYER_STARTER_SPECIES": 1,
+            "RIVAL_STARTER_SPECIES": 4,
+            "RIVAL_STARTER_ID": "LOCALID_CHARMANDER_BALL",
+            "VAR_RESULT": 0,
+            "pcBoxWasFullMessage": 0,
+            "VAR_STARTER_MON": 0,
+            "VAR_TEMP_2": 3
+          },
+          "stringVars": {
+            "STR_VAR_1": "CHARMANDER",
+            "STR_VAR_2": "",
+            "STR_VAR_3": "",
+            "STR_VAR_4": "",
+            "rivalName": ""
+          },
+          "flags": [
+            "FLAG_HIDE_OAK_IN_PALLET_TOWN",
+            "FLAG_HIDE_POKEDEX",
+            "FLAG_HIDE_BULBASAUR_BALL",
+            "FLAG_SYS_POKEMON_GET",
+            "FLAG_PALLET_LADY_NOT_BLOCKING_SIGN",
+            "FLAG_HIDE_CHARMANDER_BALL",
+            "TRAINER_DEFEATED_TRAINER_RIVAL_OAKS_LAB_CHARMANDER"
+          ],
+          "consumedTriggerIds": [],
+          "startMenu": {
+            "mode": "normal",
+            "playerName": "PLAYER",
+            "playerGender": "male",
+            "hasPokedex": false,
+            "hasPokemon": true,
+            "seenPokemonCount": 2
+          },
+          "options": {
+            "textSpeed": "mid",
+            "battleScene": true,
+            "battleStyle": "shift",
+            "sound": "mono",
+            "buttonMode": "help",
+            "frameType": 0
+          },
+          "specialSaveWarpFlags": 0,
+          "gcnLinkFlags": 49,
+          "playTime": {
+            "hours": 0,
+            "minutes": 1,
+            "seconds": 37,
+            "vblanks": 43
+          },
+          "party": [
+            {
+              "species": "CHARMANDER",
+              "level": 9,
+              "expProgress": 0.20567375886524822,
+              "evs": {
+                "hp": 0,
+                "attack": 0,
+                "defense": 0,
+                "speed": 1,
+                "spAttack": 0,
+                "spDefense": 0
+              },
+              "maxHp": 26,
+              "hp": 26,
+              "attack": 14,
+              "defense": 12,
+              "speed": 16,
+              "spAttack": 15,
+              "spDefense": 14,
+              "catchRate": 45,
+              "types": [
+                "fire"
+              ],
+              "moves": [
+                "SCRATCH",
+                "GROWL",
+                "EMBER"
+              ],
+              "movePpRemaining": [
+                32,
+                40,
+                25
+              ],
+              "status": "none"
+            },
+            {
+              "species": "PIDGEY",
+              "level": 7,
+              "expProgress": 0.34,
+              "evs": {
+                "hp": 0,
+                "attack": 0,
+                "defense": 0,
+                "speed": 0,
+                "spAttack": 0,
+                "spDefense": 0
+              },
+              "maxHp": 21,
+              "hp": 21,
+              "attack": 11,
+              "defense": 10,
+              "speed": 13,
+              "spAttack": 10,
+              "spDefense": 10,
+              "catchRate": 255,
+              "types": [
+                "normal",
+                "flying"
+              ],
+              "moves": [
+                "TACKLE",
+                "SAND_ATTACK"
+              ],
+              "movePpRemaining": [
+                35,
+                15
+              ],
+              "status": "none"
+            },
+            {
+              "species": "BULBASAUR",
+              "level": 5,
+              "expProgress": 0,
+              "evs": {
+                "hp": 0,
+                "attack": 0,
+                "defense": 0,
+                "speed": 0,
+                "spAttack": 0,
+                "spDefense": 0
+              },
+              "maxHp": 16,
+              "hp": 16,
+              "attack": 6,
+              "defense": 6,
+              "speed": 6,
+              "spAttack": 6,
+              "spDefense": 6,
+              "catchRate": 255,
+              "types": [
+                "normal"
+              ],
+              "moves": [
+                "TACKLE",
+                "GROWL"
+              ],
+              "movePpRemaining": [
+                35,
+                40
+              ],
+              "status": "none"
+            }
+          ],
+          "pokedex": {
+            "dexMode": "KANTO",
+            "selectedIndex": 0,
+            "orderListCursorPos": 0,
+            "orderListItemsAbove": 0,
+            "seenSpecies": [
+              "BULBASAUR",
+              "CHARMANDER"
+            ],
+            "caughtSpecies": [
+              "BULBASAUR"
+            ]
+          },
+          "bag": {
+            "pockets": {
+              "items": [],
+              "keyItems": [],
+              "pokeBalls": [
+                {
+                  "itemId": "ITEM_POKE_BALL",
+                  "quantity": 5
+                },
+                {
+                  "itemId": "ITEM_GREAT_BALL",
+                  "quantity": 1
+                }
+              ],
+              "tmCase": [],
+              "berryPouch": []
+            },
+            "selectedPocket": "items",
+            "selectedIndexByPocket": {
+              "items": 0,
+              "keyItems": 0,
+              "pokeBalls": 0,
+              "tmCase": 0,
+              "berryPouch": 0
+            },
+            "scrollOffsetByPocket": {
+              "items": 0,
+              "keyItems": 0,
+              "pokeBalls": 0,
+              "tmCase": 0,
+              "berryPouch": 0
+            },
+            "registeredItemId": null,
+            "bicycleActive": false
+          },
+          "pcStorage": {
+            "currentBox": 0,
+            "boxNames": [
+              "BOX 1",
+              "BOX 2",
+              "BOX 3",
+              "BOX 4",
+              "BOX 5",
+              "BOX 6",
+              "BOX 7",
+              "BOX 8",
+              "BOX 9",
+              "BOX 10",
+              "BOX 11",
+              "BOX 12",
+              "BOX 13",
+              "BOX 14"
+            ],
+            "boxes": [
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              []
+            ]
+          },
+          "newGame": {
+            "differentSaveFile": true,
+            "unkFlag1": true,
+            "unkFlag2": false,
+            "pcItems": [
+              {
+                "itemId": "ITEM_POTION",
+                "quantity": 1
+              }
+            ],
+            "mail": [
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              },
+              {
+                "words": [
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535,
+                  65535
+                ],
+                "playerName": "",
+                "trainerId": 0,
+                "species": "SPECIES_BULBASAUR",
+                "itemId": null
+              }
+            ],
+            "battleTowerCleared": true,
+            "trainerTowerResultsCleared": true,
+            "berryPowderAmount": 0,
+            "berryPickingResultsCleared": true,
+            "pokemonJumpResultsCleared": true,
+            "mysteryGiftCleared": true,
+            "renewableItemFlagsInitialized": true,
+            "easyChatInitialized": true,
+            "trainerFanClubCleared": true,
+            "unionRoomRegisteredTextsInitialized": true,
+            "fameCheckerCleared": true,
+            "enigmaBerriesCleared": true,
+            "roamerCleared": true
+          },
+          "roamer": {
+            "roamer": {
+              "species": 0,
+              "level": 0,
+              "status": 0,
+              "active": false,
+              "ivs": 0,
+              "personality": 0,
+              "hp": 0,
+              "cool": 0,
+              "beauty": 0,
+              "cute": 0,
+              "smart": 0,
+              "tough": 0
+            },
+            "locationHistory": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ]
+            ],
+            "roamerLocation": [
+              0,
+              0
+            ],
+            "enemyParty": [
+              {
+                "species": 0,
+                "level": 0,
+                "ivs": 0,
+                "personality": 0,
+                "status": 0,
+                "hp": 0,
+                "maxHp": 0,
+                "cool": 0,
+                "beauty": 0,
+                "cute": 0,
+                "smart": 0,
+                "tough": 0
+              }
+            ],
+            "rng": {
+              "value": 0
+            },
+            "starterSpecies": 0,
+            "mapSectionByLocation": {}
+          },
+          "dynamicWarp": null,
+          "fameChecker": {
+            "pickStates": {
+              "0": 2
+            },
+            "flavorTextFlags": {},
+            "updates": [
+              {
+                "person": 0,
+                "value": 2,
+                "special": "UpdatePickStateFromSpecialVar8005"
+              }
+            ]
+          },
+          "fieldAudio": {
+            "currentMapMusic": 315,
+            "nextMapMusic": 0,
+            "savedMusic": 0,
+            "defaultMapMusic": 301,
+            "mapMusicState": 1
+          }
+        }
+      },
+      "checksum": "45191394"
+    },
+    "checksum": "45191394",
+    "sessionId": "2a72c321-0982-4a81-835e-cb48984d5130"
+  }
+}

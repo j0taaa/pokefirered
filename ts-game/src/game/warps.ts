@@ -214,7 +214,7 @@ export const findWarpAtTile = (map: TileMap, tileX: number, tileY: number, eleva
   map.warps.find((warp) =>
     warp.x === tileX
     && warp.y === tileY
-    && (warp.elevation === elevation || warp.elevation === 0)
+    && (warp.elevation === elevation || warp.elevation === 0 || elevation === 0)
   ) ?? null;
 
 export const MetatileBehavior_IsWarpDoor = (behavior: number): boolean => behavior === MB_WARP_DOOR;
@@ -397,6 +397,41 @@ export const resolveWarpTransition = (
   return behavior === null
     ? transition
     : withWarpEffect(transition, getWarpEffectForBehavior(behavior, player.facing, player.avatarMode));
+};
+
+export const resolveCurrentTileWarpTransition = (
+  map: TileMap,
+  player: PlayerState,
+  loadMapById: (mapId: string) => TileMap | null,
+  dynamicWarp?: DynamicWarpDestination | null
+): WarpTransition => {
+  const playerTile = getPlayerTilePosition(player.position, map.tileSize);
+  const sourceWarp = findWarpAtTile(map, playerTile.x, playerTile.y, 0);
+  if (!sourceWarp) {
+    return { status: 'none' };
+  }
+
+  const transition = resolveDestinationWarp(map, sourceWarp, player.facing, loadMapById, dynamicWarp);
+  const behavior = GetPlayerCurMetatileBehavior(map, player);
+  return behavior === null
+    ? transition
+    : withWarpEffect(transition, getWarpEffectForBehavior(behavior, player.facing, player.avatarMode));
+};
+
+export const resolveTileWarpTransition = (
+  map: TileMap,
+  tileX: number,
+  tileY: number,
+  facing: PlayerState['facing'],
+  loadMapById: (mapId: string) => TileMap | null,
+  dynamicWarp?: DynamicWarpDestination | null
+): WarpTransition => {
+  const sourceWarp = findWarpAtTile(map, tileX, tileY, 0);
+  if (!sourceWarp) {
+    return { status: 'none' };
+  }
+
+  return resolveDestinationWarp(map, sourceWarp, facing, loadMapById, dynamicWarp);
 };
 
 export const resolveArrowWarpTransition = (

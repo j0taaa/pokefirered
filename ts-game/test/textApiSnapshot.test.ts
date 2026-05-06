@@ -3,6 +3,7 @@ import { SessionManager } from '../src/api/sessionManager';
 import { StateObserver } from '../src/api/stateObserver';
 import type { TextApiMode, TextApiSnapshot } from '../src/api/textApiTypes';
 import type { GameRuntimeState, GameSession } from '../src/core/gameSession';
+import { addBagItem } from '../src/game/bag';
 
 const observer = new StateObserver();
 
@@ -56,6 +57,7 @@ describe('Text API snapshots', () => {
 
   it('omits debug metadata by default and includes it only when requested', () => {
     const { manager, session } = createObservedSession();
+    addBagItem(session.gameSession.getRuntimeState().scriptRuntime.bag, 'ITEM_OAKS_PARCEL', 1);
 
     const normalSnapshot = observer.observe(session.gameSession);
     const debugSnapshot = observer.observe(session.gameSession, { debug: true });
@@ -67,6 +69,9 @@ describe('Text API snapshots', () => {
         x: expect.any(Number),
         y: expect.any(Number),
         facing: expect.any(String)
+      }),
+      inventory: expect.objectContaining({
+        keyItems: ['ITEM_OAKS_PARCEL']
       }),
       internal: expect.any(Object)
     }));

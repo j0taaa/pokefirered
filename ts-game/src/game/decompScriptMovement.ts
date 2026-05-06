@@ -248,6 +248,19 @@ export const isMovementScriptFinished = (
   moveScrId: number
 ): boolean => ((runtime.tasks[taskId].data[0] & bit(moveScrId)) !== 0);
 
+export const hasUnfinishedScriptMovement = (runtime: ScriptMovementRuntime): boolean =>
+  runtime.tasks.some((task, taskId) => {
+    if (task.destroyed) {
+      return false;
+    }
+    for (let moveScrId = 0; moveScrId < OBJECT_EVENTS_COUNT; moveScrId += 1) {
+      if (getMovementObjectByte(task, moveScrId) !== 0xff && !isMovementScriptFinished(runtime, taskId, moveScrId)) {
+        return true;
+      }
+    }
+    return false;
+  });
+
 export const setMovementScript = (
   runtime: ScriptMovementRuntime,
   moveScrId: number,
@@ -476,6 +489,8 @@ export function IsMovementScriptFinished(
 ): boolean {
   return isMovementScriptFinished(runtime, taskId, moveScrId);
 }
+
+export const HasUnfinishedScriptMovement = hasUnfinishedScriptMovement;
 
 export function SetMovementScript(
   runtime: ScriptMovementRuntime,

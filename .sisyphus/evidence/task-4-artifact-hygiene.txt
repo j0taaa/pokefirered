@@ -1,0 +1,9 @@
+ M .sisyphus/boulder.json
+ M .sisyphus/notepads/pp-decrement-battle-ui/learnings.md
+ M .sisyphus/ralph-loop.local.md
+?? .playwright-mcp/
+?? .sisyphus/evidence/task-4-artifact-hygiene.txt
+?? .sisyphus/evidence/task-4-build-verify.txt
+?? .sisyphus/evidence/task-4-full-verify.txt
+?? .sisyphus/plans/pp-decrement-battle-ui.md
+?? ts-game/test-results/

@@ -17,14 +17,15 @@ export interface ActionResult {
 }
 
 type VersionedGameSession = GameSession & { version?: number };
-type NavigationTargetKind = 'tile' | 'door' | 'warp' | 'npc' | 'sign';
+type NavigationTargetKind = 'tile' | 'connection' | 'door' | 'warp' | 'npc' | 'sign';
+type ApiDirection = 'north' | 'south' | 'west' | 'east';
 
 interface NavigationTargetValue {
   readonly mapId: string;
   readonly x: number;
   readonly y: number;
   readonly kind: NavigationTargetKind;
-  readonly finalFacing?: TileDirection;
+  readonly finalFacing?: ApiDirection;
 }
 
 interface PathStep {
@@ -62,6 +63,13 @@ const DIRECTION_INPUT: Record<TileDirection, Partial<InputSnapshot>> = {
   right: { right: true, rightPressed: true }
 };
 
+const API_TO_TILE_DIRECTION: Record<ApiDirection, TileDirection> = {
+  north: 'up',
+  south: 'down',
+  west: 'left',
+  east: 'right'
+};
+
 const versionOf = (session: GameSession): number => (session as VersionedGameSession).version ?? 0;
 
 const setVersion = (session: GameSession, version: number): void => {
@@ -84,8 +92,8 @@ const isNavigationTargetValue = (value: unknown): value is NavigationTargetValue
     && Number.isInteger(candidate.x)
     && typeof candidate.y === 'number'
     && Number.isInteger(candidate.y)
-    && (candidate.kind === 'tile' || candidate.kind === 'door' || candidate.kind === 'warp' || candidate.kind === 'npc' || candidate.kind === 'sign')
-    && (candidate.finalFacing === undefined || candidate.finalFacing === 'up' || candidate.finalFacing === 'down' || candidate.finalFacing === 'left' || candidate.finalFacing === 'right');
+    && (candidate.kind === 'tile' || candidate.kind === 'connection' || candidate.kind === 'door' || candidate.kind === 'warp' || candidate.kind === 'npc' || candidate.kind === 'sign')
+    && (candidate.finalFacing === undefined || candidate.finalFacing === 'north' || candidate.finalFacing === 'south' || candidate.finalFacing === 'west' || candidate.finalFacing === 'east');
 };
 
 export class ActionExecutor {
@@ -151,7 +159,7 @@ export class ActionExecutor {
     const { action } = option;
     switch (action.type) {
       case 'wait':
-        session.stepFrames([], 1);
+        session.stepFrames([], 30);
         return;
       case 'move':
         this.stepMove(session, action.target);
@@ -161,11 +169,14 @@ export class ActionExecutor {
       case 'use-rock-smash':
       case 'interact':
       case 'continue':
-      case 'dialogue-continue':
       case 'read-sign':
       case 'inspect-object':
       case 'pick-up-item':
+      case 'choose-starter':
         this.stepInteract(session);
+        return;
+      case 'dialogue-continue':
+        this.stepDialogueContinue(session);
         return;
       case 'use-surf':
       case 'use-waterfall':
@@ -244,7 +255,7 @@ export class ActionExecutor {
         return;
       default:
         if (action.type.startsWith('navigate-to-')) {
-          this.autopilot(session, action.value);
+          this.autopilot(session, action.value, action.target);
           return;
         }
         if (action.type.startsWith('dialogue-choice-')) {
@@ -377,13 +388,18 @@ export class ActionExecutor {
     }
   }
 
-  private autopilot(session: GameSession, rawTarget: unknown): void {
+  private autopilot(session: GameSession, rawTarget: unknown, destinationMapId?: string): void {
     if (!isNavigationTargetValue(rawTarget)) {
       this.stepInteract(session);
       return;
     }
 
-    const path = this.findPath(session, rawTarget);
+    const connectionDirection = rawTarget.kind === 'connection'
+      ? API_TO_TILE_DIRECTION[rawTarget.finalFacing ?? this.apiDirectionForConnectionTarget(session, rawTarget.x, rawTarget.y) ?? 'north']
+      : null;
+    const path = connectionDirection
+      ? this.findPathToConnection(session, connectionDirection, destinationMapId) ?? this.findPath(session, rawTarget)
+      : this.findPath(session, rawTarget);
     if (!path) {
       session.stepFrames([], 1);
       return;
@@ -398,17 +414,118 @@ export class ActionExecutor {
       }
     }
 
-    if (rawTarget.finalFacing && session.getRuntimeState().player.facing !== rawTarget.finalFacing) {
-      session.step(withInput(DIRECTION_INPUT[rawTarget.finalFacing]));
+    const finalFacing = rawTarget.finalFacing ? API_TO_TILE_DIRECTION[rawTarget.finalFacing] : undefined;
+    if (finalFacing && session.getRuntimeState().player.facing !== finalFacing) {
+      session.step(withInput(DIRECTION_INPUT[finalFacing]));
       if (determineTextApiMode(session.getRuntimeState()) !== 'overworld') {
         return;
       }
     }
 
     if (rawTarget.kind === 'door') {
-      const direction = rawTarget.finalFacing ?? session.getRuntimeState().player.facing;
-      this.stepOneTile(session, direction, rawTarget.x + getDirectionVector(direction).x, rawTarget.y + getDirectionVector(direction).y);
+      const direction = finalFacing ?? session.getRuntimeState().player.facing;
+      const vector = getDirectionVector(direction);
+      const doorX = rawTarget.x + vector.x;
+      const doorY = rawTarget.y + vector.y;
+      this.stepOneTile(session, direction, doorX, doorY);
+      session.stepFrames([], 8);
+      const warpSession = session as GameSession & {
+        applyTextApiWarpTransition?: () => boolean;
+        applyTextApiWarpTransitionAt?: (tileX: number, tileY: number) => boolean;
+      };
+      const appliedCurrentTileWarp = warpSession.applyTextApiWarpTransition?.() === true;
+      if (!appliedCurrentTileWarp || session.getRuntimeState().map.id !== destinationMapId) {
+        warpSession.applyTextApiWarpTransitionAt?.(doorX, doorY);
+      }
+    } else if (rawTarget.kind === 'warp') {
+      const warpSession = session as GameSession & { applyTextApiWarpTransition?: () => boolean };
+      warpSession.applyTextApiWarpTransition?.();
+    } else if (rawTarget.kind === 'connection') {
+      if (connectionDirection) {
+        const connectionSession = session as GameSession & { applyTextApiConnectionTransition?: (direction: TileDirection) => boolean };
+        connectionSession.applyTextApiConnectionTransition?.(connectionDirection);
+      }
     }
+  }
+
+  private apiDirectionForConnectionTarget(session: GameSession, targetX: number, targetY: number): ApiDirection | null {
+    const { map } = session.getRuntimeState();
+    if (targetY === 0) return 'north';
+    if (targetY === map.height - 1) return 'south';
+    if (targetX === 0) return 'west';
+    if (targetX === map.width - 1) return 'east';
+    return null;
+  }
+
+  private findPathToConnection(session: GameSession, direction: TileDirection, destinationMapId: string | undefined): PathStep[] | null {
+    const state = session.getRuntimeState();
+    const start = state.player.currentTile ?? getCollisionTilePosition(state.player.position, state.map.tileSize);
+    const queue: { readonly x: number; readonly y: number; readonly path: PathStep[] }[] = [{ x: start.x, y: start.y, path: [] }];
+    const seen = new Set<string>([`${start.x},${start.y}`]);
+    const maxVisited = Math.max(1, state.map.width * state.map.height);
+
+    const reachesConnection = (x: number, y: number): boolean => {
+      const collision = evaluateFieldCollision({
+        map: state.map,
+        object: {
+          ...getPlayerRuntimeObject(state.player, state.map),
+          currentTile: { x, y },
+          previousTile: { x, y },
+          initialTile: { x, y },
+          currentElevation: state.player.currentElevation ?? 0,
+          previousElevation: state.player.currentElevation ?? 0
+        },
+        direction,
+        objects: state.npcs
+          .filter((npc) => isNpcVisible(npc, state.scriptRuntime.flags))
+          .map((npc) => getNpcRuntimeObject(npc, state.map)),
+        loadMapById
+      });
+      return collision.result === 'none'
+        && collision.target?.viaConnection === true
+        && (!destinationMapId || collision.target.map.id === destinationMapId);
+    };
+
+    for (let index = 0; index < queue.length && seen.size <= maxVisited; index += 1) {
+      const current = queue[index];
+      if (reachesConnection(current.x, current.y)) {
+        return current.path;
+      }
+      for (const nextDirection of ['up', 'down', 'left', 'right'] as const) {
+        const vector = getDirectionVector(nextDirection);
+        const nextX = current.x + vector.x;
+        const nextY = current.y + vector.y;
+        const key = `${nextX},${nextY}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        const collision = evaluateFieldCollision({
+          map: state.map,
+          object: {
+            ...getPlayerRuntimeObject(state.player, state.map),
+            currentTile: { x: current.x, y: current.y },
+            previousTile: { x: current.x, y: current.y },
+            initialTile: { x: current.x, y: current.y },
+            currentElevation: state.player.currentElevation ?? 0,
+            previousElevation: state.player.currentElevation ?? 0
+          },
+          direction: nextDirection,
+          objects: state.npcs
+            .filter((npc) => isNpcVisible(npc, state.scriptRuntime.flags))
+            .map((npc) => getNpcRuntimeObject(npc, state.map)),
+          loadMapById
+        });
+        if (collision.result !== 'none' || !collision.movementTarget || collision.movementTarget.map.id !== state.map.id) {
+          continue;
+        }
+
+        const nextStep = { direction: nextDirection, x: collision.movementTarget.tile.x, y: collision.movementTarget.tile.y };
+        seen.add(key);
+        queue.push({ x: nextStep.x, y: nextStep.y, path: [...current.path, nextStep] });
+      }
+    }
+
+    return null;
   }
 
   private findPath(session: GameSession, target: NavigationTargetValue): PathStep[] | null {
@@ -500,6 +617,10 @@ export class ActionExecutor {
 
   private stepInteract(session: GameSession): void {
     session.step(withInput({ interact: true, interactPressed: true }));
+  }
+
+  private stepDialogueContinue(session: GameSession): void {
+    session.stepFrames([withInput({ interact: true, interactPressed: true })], 30);
   }
 
   private stepFieldMovePrompt(session: GameSession): void {

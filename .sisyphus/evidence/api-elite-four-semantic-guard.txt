@@ -1,0 +1,6 @@
+Semantic guard: PASS
+Corpus: TEXT_API_CONTRACT_OPTION_EXAMPLES (2 options)
+Raw-control pattern: /(^|[^a-z0-9])(a|b|start|select|up|down|left|right|button|key)(?=$|[^a-z0-9])/iu
+Validated fields: id, label, description, category, disabledReason, action strings
+
+Live smoke note: the harness also validated live snapshot/action options during `.sisyphus/evidence/api-elite-four-harness-smoke.txt`; an initial raw `up` leak was fixed before the passing run.

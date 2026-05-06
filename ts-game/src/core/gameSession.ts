@@ -3,6 +3,7 @@ import { loadMapById, loadRoute2Map } from '../world/mapSource';
 import {
   clearPlayerMovement,
   createPlayer,
+  getPlayerTilePosition,
   resolveInputDirection,
   stepPlayer,
   type StepPlayerResult
@@ -99,6 +100,8 @@ import {
   tryApplyArrowWarpBeforeMovement,
   type FieldWorldState
 } from '../game/fieldWarpCoordinator';
+import { resolveCurrentTileWarpTransition, resolveTileWarpTransition } from '../game/warps';
+import { resolveMapConnectionTransition } from '../game/mapConnections';
 import { resolveFieldInputState } from '../game/fieldInputCoordinator';
 import { evaluatePlayerFieldCollision } from '../game/fieldCollisionCoordinator';
 import { runPostMovementFieldOrder } from '../game/fieldOrderCoordinator';
@@ -191,6 +194,9 @@ export class GameSession {
   private readRenderableState!: () => RenderFrameState;
   private exportBlob!: () => TextApiSaveBlob;
   private importBlob!: (blob: TextApiSaveBlob) => void;
+  private applyTextApiWarp!: () => boolean;
+  private applyTextApiWarpAt!: (tileX: number, tileY: number) => boolean;
+  private applyTextApiConnection!: (direction: PlayerState['facing']) => boolean;
 
   constructor(adapters: GameSessionAdapters, storageKey = DEFAULT_SAVE_SLOT_KEY) {
     this.adapters = adapters;
@@ -243,6 +249,65 @@ export class GameSession {
     const syncLocalsFromFieldWorld = (): void => {
       map = fieldWorld.map;
       npcs = fieldWorld.npcs;
+    };
+    this.applyTextApiWarp = (): boolean => {
+      const warpContext = {
+        world: fieldWorld,
+        player,
+        runtime: scriptRuntime,
+        loadMapById,
+        runWarpMapScripts: runDecompWarpMapScripts
+      };
+      syncFieldWorldFromLocals();
+      const applied = applyResolvedWarpTransition(
+        warpContext,
+        resolveCurrentTileWarpTransition(map, player, loadMapById, scriptRuntime.dynamicWarp)
+      );
+      if (applied) {
+        syncLocalsFromFieldWorld();
+      }
+      return applied;
+    };
+    this.applyTextApiWarpAt = (tileX, tileY): boolean => {
+      const warpContext = {
+        world: fieldWorld,
+        player,
+        runtime: scriptRuntime,
+        loadMapById,
+        runWarpMapScripts: runDecompWarpMapScripts
+      };
+      syncFieldWorldFromLocals();
+      const applied = applyResolvedWarpTransition(
+        warpContext,
+        resolveTileWarpTransition(map, tileX, tileY, player.facing, loadMapById, scriptRuntime.dynamicWarp)
+      );
+      if (applied) {
+        syncLocalsFromFieldWorld();
+      }
+      return applied;
+    };
+    this.applyTextApiConnection = (direction): boolean => {
+      syncFieldWorldFromLocals();
+      const tile = player.currentTile ?? getPlayerTilePosition(player.position, map.tileSize);
+      const transition = resolveMapConnectionTransition(map, tile.x, tile.y, direction, loadMapById);
+      if (!transition) {
+        return false;
+      }
+
+      fieldWorld.map = transition.map;
+      fieldWorld.npcs = createMapNpcs(transition.map);
+      player.position.x = transition.playerPosition.x;
+      player.position.y = transition.playerPosition.y;
+      clearPlayerMovement(player, transition.map);
+      setSavedWeatherFromCurrMapHeader(scriptRuntime, transition.map.coordEventWeather);
+      doCurrentWeather(scriptRuntime);
+      trySetMapSaveWarpStatus(scriptRuntime, transition.map.id);
+      runDecompWarpMapScripts();
+      syncLocalsFromFieldWorld();
+      if (scriptRuntime.lastScriptId === '') {
+        scriptRuntime.lastScriptId = null;
+      }
+      return true;
     };
     trySetMapSaveWarpStatus(scriptRuntime, map.id);
 
@@ -950,6 +1015,18 @@ export class GameSession {
 
   importSaveBlob(blob: TextApiSaveBlob): void {
     this.importBlob(blob);
+  }
+
+  applyTextApiWarpTransition(): boolean {
+    return this.applyTextApiWarp();
+  }
+
+  applyTextApiWarpTransitionAt(tileX: number, tileY: number): boolean {
+    return this.applyTextApiWarpAt(tileX, tileY);
+  }
+
+  applyTextApiConnectionTransition(direction: PlayerState['facing']): boolean {
+    return this.applyTextApiConnection(direction);
   }
 
   cleanup(): void {

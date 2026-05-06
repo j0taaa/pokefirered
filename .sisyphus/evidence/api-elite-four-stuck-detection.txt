@@ -1,0 +1,9 @@
+API Elite Four stuck detection: PASS
+Policy: ../.sisyphus/notepads/api-elite-four-playthrough/route-policy.json
+Rollback checkpoint: ../.sisyphus/evidence/api-elite-four-checkpoints/checkpoint-0000-test.json
+Synthetic detector results:
+- identical-snapshot-summary-options: Stuck detection tripped: identical-snapshot-summary-options.; checkpoint=../.sisyphus/evidence/api-elite-four-checkpoints/checkpoint-0000-test.json
+- actions-without-milestone-progress: Stuck detection tripped: actions-without-milestone-progress.; checkpoint=../.sisyphus/evidence/api-elite-four-checkpoints/checkpoint-0000-test.json
+- repeated-failed-action: Stuck detection tripped: repeated-failed-action.; checkpoint=../.sisyphus/evidence/api-elite-four-checkpoints/checkpoint-0000-test.json
+- api-5xx: Stuck detection tripped on API 5xx response.; checkpoint=n/a
+Save/load rollback policy: implemented via POST /sessions/:id/load using the latest checkpoint save blob; non-200 or 5xx load responses are classified as save/load failure.
